@@ -43,7 +43,16 @@ var card_desc_label: Label
 var card_lore_label: Label
 var flip_button: Button
 
+var rarity_bar: HBoxContainer
+var sfx: CardAlbumSfx
+var unlock_toast: CardUnlockToast
+
 var _current_filter: String = "Todas"
+## 0 = todas as raridades; senão um valor de CardData.Rarity
+var _current_rarity: int = 0
+var _rarity_group := ButtonGroup.new()
+## Cartas descobertas que o jogador ainda não abriu no álbum (selo "NOVA")
+var _unseen_ids: Dictionary = {}
 var _selected_card: CardData = null
 var _slot_buttons: Dictionary = {}
 var _filter_group := ButtonGroup.new()
@@ -64,7 +73,9 @@ func _ready() -> void:
 		viewport_container.mouse_exited.connect(_on_stage_mouse_exited)
 
 	_setup_filters()
+	_setup_rarity_filters()
 	_fit_stage_camera()
+	_connect_collection.call_deferred()
 
 ## Resolve os nós sob demanda: os testes chamam a API antes do _ready rodar
 func _setup_nodes() -> void:
@@ -110,6 +121,12 @@ func _setup_nodes() -> void:
 		card_lore_label = get_node_or_null("%LoreLabel") as Label
 	if flip_button == null:
 		flip_button = get_node_or_null("%FlipButton") as Button
+	if rarity_bar == null:
+		rarity_bar = get_node_or_null("%RarityBar") as HBoxContainer
+	if sfx == null:
+		sfx = get_node_or_null("%Sfx") as CardAlbumSfx
+	if unlock_toast == null:
+		unlock_toast = get_node_or_null("%UnlockToast") as CardUnlockToast
 	if _locked_art_material.shader == null:
 		_locked_art_material.shader = LOCKED_ART_SHADER
 
@@ -122,24 +139,72 @@ func _setup_filters() -> void:
 			var btn := child as Button
 			var category: String = btn.get_meta("category", btn.text)
 			btn.set_meta("category", category)
-			btn.toggle_mode = true
-			btn.button_group = _filter_group
-			btn.button_pressed = category == _current_filter
-			btn.focus_mode = Control.FOCUS_NONE
-			btn.custom_minimum_size = Vector2(0, 30)
-			btn.add_theme_font_size_override("font_size", 13)
-			btn.add_theme_color_override("font_color", Color(0.72, 0.74, 0.8))
-			btn.add_theme_color_override("font_hover_color", Color(0.95, 0.95, 1.0))
-			btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.08, 0.04))
-			btn.add_theme_color_override("font_hover_pressed_color", Color(0.1, 0.08, 0.04))
-			btn.add_theme_stylebox_override("normal", _pill_style(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08)))
-			btn.add_theme_stylebox_override("hover", _pill_style(Color(1, 1, 1, 0.09), Color(1, 1, 1, 0.18)))
-			btn.add_theme_stylebox_override("pressed", _pill_style(GOLD, GOLD))
-			btn.add_theme_stylebox_override("hover_pressed", _pill_style(GOLD.lightened(0.1), GOLD))
-			btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+			_style_filter_pill(btn, _filter_group, GOLD, category == _current_filter)
 			var cb = _on_filter_button_pressed.bind(category)
 			if not btn.pressed.is_connected(cb):
 				btn.pressed.connect(cb)
+				btn.pressed.connect(_play.bind(&"filter"))
+
+## Pílulas de raridade criadas em código: "Todas" + uma por raridade, na cor da raridade
+func _setup_rarity_filters() -> void:
+	if rarity_bar == null or rarity_bar.get_child_count() > 0:
+		return
+	var options: Array = [[0, "Todas", Color(0.75, 0.78, 0.9)]]
+	for r in [CardData.Rarity.COMMON, CardData.Rarity.UNCOMMON, CardData.Rarity.RARE, CardData.Rarity.LEGENDARY]:
+		var probe := CardData.new()
+		probe.rarity = r
+		options.append([r, probe.get_rarity_name(), probe.get_rarity_color()])
+	for opt in options:
+		var btn := Button.new()
+		btn.text = ("  %s  " % opt[1]) if opt[0] == 0 else ("  %s %s  " % ["◆".repeat(opt[0]), opt[1]])
+		btn.set_meta("rarity", opt[0])
+		_style_filter_pill(btn, _rarity_group, opt[2], opt[0] == _current_rarity)
+		if opt[0] != 0:
+			btn.add_theme_color_override("font_color", (opt[2] as Color).darkened(0.1))
+		btn.pressed.connect(_on_rarity_button_pressed.bind(opt[0]))
+		btn.pressed.connect(_play.bind(&"filter"))
+		rarity_bar.add_child(btn)
+
+func _style_filter_pill(btn: Button, group: ButtonGroup, accent: Color, pressed: bool) -> void:
+	btn.toggle_mode = true
+	btn.button_group = group
+	btn.button_pressed = pressed
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.custom_minimum_size = Vector2(0, 30)
+	btn.add_theme_font_size_override("font_size", 13)
+	btn.add_theme_color_override("font_color", Color(0.72, 0.74, 0.8))
+	btn.add_theme_color_override("font_hover_color", Color(0.95, 0.95, 1.0))
+	btn.add_theme_color_override("font_pressed_color", Color(0.1, 0.08, 0.04))
+	btn.add_theme_color_override("font_hover_pressed_color", Color(0.1, 0.08, 0.04))
+	btn.add_theme_stylebox_override("normal", _pill_style(Color(1, 1, 1, 0.04), Color(1, 1, 1, 0.08)))
+	btn.add_theme_stylebox_override("hover", _pill_style(Color(1, 1, 1, 0.09), Color(1, 1, 1, 0.18)))
+	btn.add_theme_stylebox_override("pressed", _pill_style(accent, accent))
+	btn.add_theme_stylebox_override("hover_pressed", _pill_style(accent.lightened(0.1), accent))
+	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+## Liga o anúncio de cartas novas à coleção do jogador
+func _connect_collection() -> void:
+	_resolve_collection()
+	if collection_component and not collection_component.card_discovered.is_connected(_on_card_discovered):
+		collection_component.card_discovered.connect(_on_card_discovered)
+
+func _resolve_collection() -> void:
+	if collection_component == null:
+		var player = get_tree().get_first_node_in_group("player") if is_inside_tree() else null
+		if player != null:
+			collection_component = player.get_node_or_null("CardCollectionComponent") as CardCollectionComponent
+
+func _on_card_discovered(card: CardData) -> void:
+	_unseen_ids[card.id] = true
+	_setup_nodes()
+	if unlock_toast:
+		unlock_toast.announce(card)
+	if visible:
+		refresh_collection()
+
+func _play(id: StringName) -> void:
+	if sfx:
+		sfx.play(id)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel") and visible:
@@ -150,7 +215,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			toggle_album()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_SPACE and visible and card_3d_stage != null:
-			card_3d_stage.toggle_flip()
+			_flip_card()
 			get_viewport().set_input_as_handled()
 
 func toggle_album() -> void:
@@ -163,23 +228,24 @@ func open_album() -> void:
 	_setup_nodes()
 	visible = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_connect_collection()
 	refresh_collection()
+	_play(&"open")
 	album_opened.emit()
 	if main_panel and main_panel.is_inside_tree():
 		main_panel.modulate.a = 0.0
 		main_panel.create_tween().tween_property(main_panel, "modulate:a", 1.0, 0.18)
 
 func close_album() -> void:
+	if visible:
+		_play(&"close")
 	visible = false
 	album_closed.emit()
 
 ## Atualiza a grade de cartas e métricas de progresso
 func refresh_collection() -> void:
 	_setup_nodes()
-	if collection_component == null:
-		var player = get_tree().get_first_node_in_group("player") if is_inside_tree() else null
-		if player != null:
-			collection_component = player.get_node_or_null("CardCollectionComponent") as CardCollectionComponent
+	_resolve_collection()
 
 	# Atualiza contador de progresso
 	var progress = collection_component.get_progress() if collection_component else { "unlocked": 0, "total": CardDatabase.get_total_count(), "percent": 0.0 }
@@ -190,6 +256,7 @@ func refresh_collection() -> void:
 
 	var all_cards = CardDatabase.get_all_cards()
 	_update_filter_counts(all_cards)
+	_update_rarity_counts(all_cards)
 
 	# Reconstrói a grade
 	if cards_grid == null:
@@ -205,6 +272,8 @@ func refresh_collection() -> void:
 	for card in all_cards:
 		if _current_filter != "Todas" and card.category.to_lower() != _current_filter.to_lower():
 			continue
+		if _current_rarity != 0 and card.rarity != _current_rarity:
+			continue
 
 		var is_unlocked: bool = _is_unlocked(card)
 		var btn = _create_card_slot_button(card, is_unlocked)
@@ -213,6 +282,9 @@ func refresh_collection() -> void:
 
 		if is_unlocked and first_unlocked == null:
 			first_unlocked = card
+
+	if _slot_buttons.is_empty():
+		cards_grid.add_child(_make_empty_hint())
 
 	# Mantém a seleção atual se ela continua na grade; senão pega a primeira desbloqueada
 	if _selected_card != null and _slot_buttons.has(_selected_card.id) and _is_unlocked(_selected_card):
@@ -238,6 +310,30 @@ func _update_filter_counts(all_cards: Array[CardData]) -> void:
 				if _is_unlocked(card):
 					owned += 1
 		child.text = "  %s  %d/%d  " % [category, owned, total]
+
+func _update_rarity_counts(all_cards: Array[CardData]) -> void:
+	if rarity_bar == null:
+		return
+	for btn in rarity_bar.get_children():
+		var r: int = btn.get_meta("rarity", 0)
+		var total := 0
+		var owned := 0
+		for card in all_cards:
+			if r == 0 or card.rarity == r:
+				total += 1
+				if _is_unlocked(card):
+					owned += 1
+		btn.tooltip_text = "%d de %d descobertas" % [owned, total]
+
+func _make_empty_hint() -> Label:
+	var lbl := Label.new()
+	lbl.text = "Nenhuma carta\nnesta combinação\nde filtros."
+	lbl.custom_minimum_size = SLOT_SIZE
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 12)
+	lbl.add_theme_color_override("font_color", Color(0.5, 0.52, 0.6))
+	return lbl
 
 func _create_card_slot_button(card: CardData, is_unlocked: bool) -> Button:
 	var btn := Button.new()
@@ -279,7 +375,11 @@ func _create_card_slot_button(card: CardData, is_unlocked: bool) -> Button:
 		caption.text = card.title
 		caption.add_theme_color_override("font_color", Color(0.9, 0.9, 0.94))
 		art.texture = _load_render(card)
-		btn.pressed.connect(func(): select_card(card))
+		btn.pressed.connect(func():
+			_play(&"select")
+			select_card(card))
+		if _unseen_ids.has(card.id):
+			btn.add_child(_make_new_badge())
 	else:
 		btn.tooltip_text = "Carta não descoberta"
 		caption.text = "? ? ?"
@@ -296,11 +396,38 @@ func _create_card_slot_button(card: CardData, is_unlocked: bool) -> Button:
 		lock.modulate = Color(1, 1, 1, 0.7)
 		lock.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		btn.add_child(lock)
-		btn.pressed.connect(func(): _show_locked_details(card))
+		btn.pressed.connect(func():
+			_play(&"locked")
+			_show_locked_details(card))
 
 	btn.mouse_entered.connect(_on_slot_hover.bind(btn, true))
 	btn.mouse_exited.connect(_on_slot_hover.bind(btn, false))
 	return btn
+
+## Selo dourado "NOVA" no canto da carta, pulsando até ela ser aberta
+func _make_new_badge() -> Control:
+	var badge := PanelContainer.new()
+	badge.name = "NewBadge"
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.position = Vector2(SLOT_SIZE.x - 46, -7)
+	var style := _pill_style(GOLD, GOLD.lightened(0.3))
+	style.content_margin_left = 7
+	style.content_margin_right = 7
+	style.content_margin_top = 1
+	style.content_margin_bottom = 1
+	style.shadow_color = Color(GOLD.r, GOLD.g, GOLD.b, 0.5)
+	style.shadow_size = 6
+	badge.add_theme_stylebox_override("panel", style)
+	var lbl := Label.new()
+	lbl.text = "NOVA"
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", Color(0.12, 0.08, 0.02))
+	badge.add_child(lbl)
+	if is_inside_tree():
+		var t := badge.create_tween().set_loops()
+		t.tween_property(badge, "modulate", Color(1.25, 1.2, 1.0), 0.6).set_trans(Tween.TRANS_SINE)
+		t.tween_property(badge, "modulate", Color.WHITE, 0.6).set_trans(Tween.TRANS_SINE)
+	return badge
 
 func _load_render(card: CardData) -> Texture2D:
 	if not card.render_path.is_empty() and ResourceLoader.exists(card.render_path):
@@ -311,6 +438,8 @@ func _on_slot_hover(btn: Button, hovered: bool) -> void:
 	if not is_instance_valid(btn) or not btn.is_inside_tree():
 		return
 	btn.pivot_offset = btn.size * 0.5
+	if hovered:
+		_play(&"hover")
 	var t := btn.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(btn, "scale", Vector2.ONE * (1.06 if hovered else 1.0), 0.16)
 
@@ -344,6 +473,10 @@ func select_card(card: CardData) -> void:
 	_setup_nodes()
 	_selected_card = card
 	_highlight_slot(card.id)
+	if _unseen_ids.erase(card.id) and _slot_buttons.has(card.id):
+		var badge: Node = (_slot_buttons[card.id] as Node).get_node_or_null("NewBadge")
+		if badge:
+			badge.queue_free()
 	if card_3d_stage:
 		card_3d_stage.reset_orientation()
 		card_3d_stage.display_card(card)
@@ -476,11 +609,30 @@ func _fit_stage_camera() -> void:
 
 func _on_filter_button_pressed(category: String) -> void:
 	_current_filter = category
+	_sync_pill(filter_container, "category", category)
+	refresh_collection()
+
+## Mantém a pílula ativa coerente quando o filtro muda por código (o ButtonGroup solta as outras)
+func _sync_pill(bar: Container, meta: String, value: Variant) -> void:
+	if bar == null:
+		return
+	for btn in bar.get_children():
+		if btn is Button and btn.has_meta(meta) and btn.get_meta(meta) == value and not btn.button_pressed:
+			btn.button_pressed = true
+
+func _on_rarity_button_pressed(rarity: int) -> void:
+	_current_rarity = rarity
+	_sync_pill(rarity_bar, "rarity", rarity)
 	refresh_collection()
 
 func _on_flip_pressed() -> void:
-	if card_3d_stage:
-		card_3d_stage.toggle_flip()
+	_flip_card()
+
+func _flip_card() -> void:
+	if card_3d_stage == null or (flip_button and flip_button.disabled):
+		return
+	_play(&"flip")
+	card_3d_stage.toggle_flip()
 
 func _on_stage_mouse_exited() -> void:
 	_is_dragging_3d = false
@@ -496,7 +648,7 @@ func _on_viewport_gui_input(event: InputEvent) -> void:
 			_is_dragging_3d = event.pressed
 			_last_mouse_pos = event.position
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-			card_3d_stage.toggle_flip()
+			_flip_card()
 
 	elif event is InputEventMouseMotion:
 		if _is_dragging_3d:

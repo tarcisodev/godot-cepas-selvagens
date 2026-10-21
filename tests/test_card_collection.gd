@@ -16,13 +16,14 @@ func _init() -> void:
 	test_combat_reward_unlock()
 	test_card_3d_inspection_and_flip()
 	test_card_album_ui()
+	test_discovery_toast_and_rarity_filter()
 	
 	print("\n🎉 SISTEMA DE CARTAS 3D VALIDADO COM 100% DE SUCESSO!")
 	print("========================================================\n")
 	quit(0)
 
 func test_card_data_and_database() -> void:
-	print("\n[1/5] Testando CardData e CardDatabase...")
+	print("\n[1/6] Testando CardData e CardDatabase...")
 	var total: int = CardDatabase.get_total_count()
 	assert(total >= 8, "Database deve conter pelo menos 8 cartas registradas")
 	
@@ -49,7 +50,7 @@ func test_card_data_and_database() -> void:
 	print("  ✓ CardData, atributos de mini-game e CardDatabase validados!")
 
 func test_card_collection_component() -> void:
-	print("\n[2/5] Testando CardCollectionComponent...")
+	print("\n[2/6] Testando CardCollectionComponent...")
 	var collection := CardCollectionComponent.new()
 	root.add_child(collection)
 	
@@ -85,7 +86,7 @@ func test_card_collection_component() -> void:
 	print("  ✓ Componente de coleção, sinais e progresso validados!")
 
 func test_combat_reward_unlock() -> void:
-	print("\n[3/5] Testando desbloqueio contextual de cartas via combate (quebra e abate)...")
+	print("\n[3/6] Testando desbloqueio contextual de cartas via combate (quebra e abate)...")
 	var player: Player = PlayerScene.instantiate() as Player
 	player.name = "Player"
 	root.add_child(player)
@@ -123,7 +124,7 @@ func test_combat_reward_unlock() -> void:
 	print("  ✓ Desbloqueio contextual por quebra anatômica e abate verificado com louvor!")
 
 func test_card_3d_inspection_and_flip() -> void:
-	print("\n[4/5] Testando cena 3D Card, iluminação e flip 180°...")
+	print("\n[4/6] Testando cena 3D Card, iluminação e flip 180°...")
 	var card_3d: Card3D = Card3DScene.instantiate() as Card3D
 	root.add_child(card_3d)
 	card_3d._ready()
@@ -165,7 +166,7 @@ func test_card_3d_inspection_and_flip() -> void:
 	print("  ✓ Modelo 3D, diorama, iluminação de raridade, tilt e flip validados!")
 
 func test_card_album_ui() -> void:
-	print("\n[5/5] Testando Interface do Álbum (grade, filtro por categoria e seleção 3D)...")
+	print("\n[5/6] Testando Interface do Álbum (grade, filtro por categoria e seleção 3D)...")
 	var album: CardAlbum = CardAlbumScene.instantiate() as CardAlbum
 	root.add_child(album)
 	
@@ -202,3 +203,49 @@ func test_card_album_ui() -> void:
 	collection.free()
 	album.free()
 	print("  ✓ Grade do álbum, painel de stats de mini-game e filtro por categoria validados!")
+
+func test_discovery_toast_and_rarity_filter() -> void:
+	print("
+[6/6] Testando anúncio de carta nova, selo NOVA e filtro por raridade...")
+	var album: CardAlbum = CardAlbumScene.instantiate() as CardAlbum
+	root.add_child(album)
+	var collection := CardCollectionComponent.new()
+	root.add_child(collection)
+	album.collection_component = collection
+	album._setup_nodes()
+	album._setup_rarity_filters()
+	album._connect_collection()
+	
+	# Restaurar do save não anuncia; descobrir em jogo anuncia
+	var discovered: Array[StringName] = []
+	collection.card_discovered.connect(func(c: CardData): discovered.append(c.id))
+	assert(collection.unlock_card(&"fireball", false), "Restauração silenciosa deve destrancar")
+	assert(discovered.is_empty(), "Restauração do save não deve anunciar carta nova")
+	assert(collection.unlock_card(&"mimic"), "Descoberta deve destrancar")
+	assert(discovered == [&"mimic"], "Descoberta em jogo deve emitir card_discovered")
+	
+	# Anúncio enfileira e selo NOVA fica até a carta ser aberta
+	assert(album.unlock_toast.is_showing(), "Anúncio da carta nova deve estar em exibição")
+	collection.unlock_card(&"beehive")
+	assert(album.unlock_toast.pending_count() == 1, "Segunda descoberta deve aguardar na fila")
+	assert(album._unseen_ids.has(&"mimic"), "Carta descoberta deve ficar marcada como NOVA")
+	album.open_album()
+	var mimic_slot: Button = album._slot_buttons[&"mimic"]
+	assert(mimic_slot.get_node_or_null("NewBadge") != null, "Slot da carta nova deve exibir o selo NOVA")
+	album.select_card(CardDatabase.get_card(&"mimic"))
+	assert(not album._unseen_ids.has(&"mimic"), "Abrir a carta deve limpar o selo NOVA")
+	
+	# Filtro por raridade, combinado com o de categoria
+	album._on_rarity_button_pressed(CardData.Rarity.LEGENDARY)
+	assert(album.cards_grid.get_child_count() == 1, "Só há uma carta lendária no banco")
+	album._on_rarity_button_pressed(CardData.Rarity.RARE)
+	album._on_filter_button_pressed("Economia")
+	assert(album._slot_buttons.is_empty(), "Não há cartas raras de Economia")
+	assert(album.cards_grid.get_child_count() == 1, "Grade vazia deve mostrar a dica de filtros")
+	album._on_filter_button_pressed("Todas")
+	album._on_rarity_button_pressed(0)
+	assert(album._slot_buttons.size() == CardDatabase.get_total_count(), "Sem filtros a grade volta a mostrar todas")
+	
+	collection.free()
+	album.free()
+	print("  ✓ Anúncio de descoberta, selo NOVA e filtro por raridade validados!")

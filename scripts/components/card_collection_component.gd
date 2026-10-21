@@ -5,6 +5,8 @@ extends Node
 ## Registra cartas descobertas por marcos de caça, mutação e economia.
 
 signal card_unlocked(card: CardData)
+## Só para descobertas em jogo (não para cartas iniciais nem restauradas do save): dispara a animação de carta nova
+signal card_discovered(card: CardData)
 signal collection_updated()
 
 @export var give_starter_cards: bool = true
@@ -23,12 +25,12 @@ func _ready() -> void:
 
 ## Concede as cartas iniciais do andarilho
 func add_starter_cards() -> void:
-	unlock_card(&"element_earth")
-	unlock_card(&"coin")
-	unlock_card(&"trenchcoat_mushrooms")
+	unlock_card(&"element_earth", false)
+	unlock_card(&"coin", false)
+	unlock_card(&"trenchcoat_mushrooms", false)
 
-## Destranca uma nova carta pelo ID
-func unlock_card(card_id: StringName) -> bool:
+## Destranca uma nova carta pelo ID. announce = false para restaurar o save sem anunciar
+func unlock_card(card_id: StringName, announce: bool = true) -> bool:
 	if card_id.is_empty() or is_card_unlocked(card_id):
 		return false
 	
@@ -39,6 +41,8 @@ func unlock_card(card_id: StringName) -> bool:
 	
 	_unlocked_ids.append(card_id)
 	card_unlocked.emit(card)
+	if announce:
+		card_discovered.emit(card)
 	collection_updated.emit()
 	return true
 

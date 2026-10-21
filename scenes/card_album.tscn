@@ -1,8 +1,10 @@
-[gd_scene load_steps=19 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://scripts/card_album.gd" id="1_album"]
 [ext_resource type="PackedScene" path="res://scenes/card_3d.tscn" id="2_card3d"]
 [ext_resource type="Shader" path="res://materials/card_stage_backdrop.gdshader" id="3_backdrop"]
+[ext_resource type="Script" path="res://scripts/card_album_sfx.gd" id="4_sfx"]
+[ext_resource type="PackedScene" path="res://scenes/card_unlock_toast.tscn" id="5_toast"]
 
 [sub_resource type="StyleBoxFlat" id="Style_Panel"]
 bg_color = Color(0.062, 0.067, 0.09, 0.98)
@@ -248,30 +250,43 @@ text = "✕"
 layout_mode = 2
 theme_override_styles/separator = SubResource("Style_Separator")
 
-[node name="FilterBar" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
+[node name="FilterRow" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="FilterBar" type="HBoxContainer" parent="MainPanel/Margin/VBox/FilterRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="BtnAll" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+[node name="BtnAll" type="Button" parent="MainPanel/Margin/VBox/FilterRow/FilterBar"]
 layout_mode = 2
 text = "Todas"
 
-[node name="BtnBestiary" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+[node name="BtnBestiary" type="Button" parent="MainPanel/Margin/VBox/FilterRow/FilterBar"]
 layout_mode = 2
 text = "Bestiário"
 
-[node name="BtnMagic" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+[node name="BtnMagic" type="Button" parent="MainPanel/Margin/VBox/FilterRow/FilterBar"]
 layout_mode = 2
 text = "Magia"
 
-[node name="BtnEcology" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+[node name="BtnEcology" type="Button" parent="MainPanel/Margin/VBox/FilterRow/FilterBar"]
 layout_mode = 2
 text = "Ecologia"
 
-[node name="BtnEconomy" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+[node name="BtnEconomy" type="Button" parent="MainPanel/Margin/VBox/FilterRow/FilterBar"]
 layout_mode = 2
 text = "Economia"
+
+[node name="FilterSpacer" type="Control" parent="MainPanel/Margin/VBox/FilterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="RarityBar" type="HBoxContainer" parent="MainPanel/Margin/VBox/FilterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
 
 [node name="Content" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
 layout_mode = 2
@@ -527,5 +542,13 @@ theme_override_styles/hover = SubResource("Style_FlipHover")
 theme_override_styles/pressed = SubResource("Style_FlipHover")
 theme_override_styles/normal = SubResource("Style_FlipNormal")
 text = "🔄  Virar Carta"
+
+[node name="Sfx" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("4_sfx")
+
+[node name="UnlockToast" parent="." node_paths=PackedStringArray("sfx") instance=ExtResource("5_toast")]
+unique_name_in_owner = true
+sfx = NodePath("../Sfx")
 
 [connection signal="gui_input" from="MainPanel/Margin/VBox/Content/StageFrame/ViewportContainer" to="." method="_on_viewport_gui_input"]

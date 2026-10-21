@@ -130,7 +130,7 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var cards = player.get("card_collection")
 	if cards:
 		for id in data.get("cards", []):
-			cards.unlock_card(StringName(id))
+			cards.unlock_card(StringName(id), false)
 
 	if data.has("position"):
 		var pos: Array = data["position"]

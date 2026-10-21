@@ -1,0 +1,129 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/card_unlock_toast.gd" id="1_toast"]
+[ext_resource type="Shader" path="res://materials/card_unlock_burst.gdshader" id="2_burst"]
+
+[sub_resource type="StyleBoxFlat" id="Style_Toast"]
+bg_color = Color(0.055, 0.06, 0.085, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 3
+border_color = Color(0.95, 0.78, 0.35, 0.8)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0, 0, 0, 0.5)
+shadow_size = 18
+content_margin_left = 16.0
+content_margin_top = 14.0
+content_margin_right = 22.0
+content_margin_bottom = 14.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_burst"]
+shader = ExtResource("2_burst")
+shader_parameter/glow_color = Color(1, 0.82, 0.3, 1)
+shader_parameter/intensity = 1.0
+shader_parameter/ray_count = 14.0
+
+[node name="CardUnlockToast" type="CanvasLayer"]
+process_mode = 3
+layer = 11
+script = ExtResource("1_toast")
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -230.0
+offset_top = 26.0
+offset_right = 230.0
+offset_bottom = 206.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("Style_Toast")
+
+[node name="HBox" type="HBoxContainer" parent="Root/Panel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 20
+
+[node name="ArtHolder" type="Control" parent="Root/Panel/HBox"]
+custom_minimum_size = Vector2(108, 150)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+
+[node name="Burst" type="ColorRect" parent="Root/Panel/HBox/ArtHolder"]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_burst")
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -130.0
+offset_top = -130.0
+offset_right = 130.0
+offset_bottom = 130.0
+pivot_offset = Vector2(130, 130)
+mouse_filter = 2
+
+[node name="Art" type="TextureRect" parent="Root/Panel/HBox/ArtHolder"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+pivot_offset = Vector2(54, 75)
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Info" type="VBoxContainer" parent="Root/Panel/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Header" type="Label" parent="Root/Panel/HBox/Info"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.78, 0.35, 1)
+theme_override_font_sizes/font_size = 12
+text = "✦  NOVA CARTA DESCOBERTA  ✦"
+
+[node name="CardTitle" type="Label" parent="Root/Panel/HBox/Info"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.97, 0.95, 0.9, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.6)
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 22
+text = "Nome da Carta"
+autowrap_mode = 3
+
+[node name="Meta" type="Label" parent="Root/Panel/HBox/Info"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Raro • Terra • Bestiário"
+
+[node name="Hint" type="Label" parent="Root/Panel/HBox/Info"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.62, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "Pressione K para ver no álbum"
