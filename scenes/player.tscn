@@ -1,7 +1,9 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://scripts/camera_rig.gd" id="2_camera_rig"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="3_stats"]
+[ext_resource type="Script" path="res://scripts/components/pools_component.gd" id="4_pools"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -143,3 +145,9 @@ current = true
 fov = 75.0
 near = 0.05
 far = 1000.0
+
+[node name="StatsComponent" type="Node" parent="."]
+script = ExtResource("3_stats")
+
+[node name="PoolsComponent" type="Node" parent="."]
+script = ExtResource("4_pools")

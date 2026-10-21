@@ -7,6 +7,9 @@ class_name WorldHUD
 @onready var time_label: Label = $MarginContainer/VBoxContainer/TimeLabel
 @onready var mode_label: Label = $MarginContainer/VBoxContainer/ModeLabel
 @onready var tips_container: VBoxContainer = $BottomMargin/TipsContainer
+@onready var health_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/HealthBar")
+@onready var vigor_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/VigorBar")
+@onready var poise_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/PoiseBar")
 
 var tips_visible: bool = true
 var current_posture: String = "Em Pé"
@@ -17,6 +20,15 @@ func _ready() -> void:
 		player.camera_rig.camera_mode_changed.connect(_on_camera_mode_changed)
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.connect(_on_posture_changed)
+
+	if player and "pools" in player and player.pools != null:
+		player.pools.health_changed.connect(_on_health_changed)
+		player.pools.vigor_changed.connect(_on_vigor_changed)
+		player.pools.poise_changed.connect(_on_poise_changed)
+		if player.stats != null:
+			_on_health_changed(player.pools.current_health, player.stats.get_stat(&"max_health"))
+			_on_vigor_changed(player.pools.current_vigor, player.stats.get_stat(&"max_vigor"))
+			_on_poise_changed(player.pools.current_poise, player.stats.get_stat(&"max_poise"))
 
 	# Dicas visíveis seguem a opção "Mostrar Dicas de Controle"
 	_set_tips_visible(GameSettings.get_value("video", "show_tips"))
@@ -66,3 +78,18 @@ func _get_period_description(hour: float) -> String:
 		return "Crepúsculo"
 	else:
 		return "Noite Estrelada"
+
+func _on_health_changed(current: float, max_val: float) -> void:
+	if health_bar:
+		health_bar.max_value = max_val
+		health_bar.value = current
+
+func _on_vigor_changed(current: float, max_val: float) -> void:
+	if vigor_bar:
+		vigor_bar.max_value = max_val
+		vigor_bar.value = current
+
+func _on_poise_changed(current: float, max_val: float) -> void:
+	if poise_bar:
+		poise_bar.max_value = max_val
+		poise_bar.value = current

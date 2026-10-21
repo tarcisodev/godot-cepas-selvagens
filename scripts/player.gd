@@ -24,11 +24,18 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var body_group: Node3D = $VisualMesh/BodyGroup
 @onready var left_leg: MeshInstance3D = $VisualMesh/LeftLeg
 @onready var right_leg: MeshInstance3D = $VisualMesh/RightLeg
+@onready var stats: StatsComponent = $StatsComponent
+@onready var pools: PoolsComponent = $PoolsComponent
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var is_first_person: bool = false
 var is_crouching: bool = false
 var is_sitting: bool = false
+var is_dodging: bool = false
+var dodge_timer: float = 0.0
+var dodge_dir: Vector3 = Vector3.FORWARD
+const DODGE_DURATION: float = 0.36
+const DODGE_SPEED: float = 8.5
 
 var footstep_player: AudioStreamPlayer3D
 var footstep_timer: float = 0.4
@@ -77,28 +84,52 @@ func _physics_process(delta: float) -> void:
 		_update_collision_for_crouch()
 		posture_changed.emit("Agachado" if is_crouching else "Em Pé")
 
-	# Pulo suave (apenas se em pé)
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_sitting:
-		velocity.y = jump_velocity
-
 	# Direção no espaço 3D relativa à câmera
 	var cam_yaw: float = camera_rig.global_rotation.y
 	var move_direction: Vector3 = (Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw) * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
+	# Processar Esquiva / Rolamento (tecla C ou Esquiva)
+	if is_dodging:
+		dodge_timer -= delta
+		if dodge_timer <= 0.0:
+			is_dodging = false
+			posture_changed.emit("Em Pé")
+	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting:
+		var dodge_cost: float = stats.get_stat(&"dodge_cost") if stats else 25.0
+		if pools and pools.consume_vigor(dodge_cost):
+			is_dodging = true
+			dodge_timer = DODGE_DURATION
+			dodge_dir = move_direction if move_direction != Vector3.ZERO else -Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw).basis.z
+			posture_changed.emit("Esquiva")
+
+	# Pulo suave (consome 12 de vigor)
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_sitting and not is_dodging:
+		if pools == null or pools.consume_vigor(12.0):
+			velocity.y = jump_velocity
+
 	# Definir velocidade alvo
 	var target_speed: float = walk_speed
-	if is_sitting:
+	if is_dodging:
+		target_speed = DODGE_SPEED
+		move_direction = dodge_dir
+	elif is_sitting:
 		target_speed = 0.0
 	elif is_crouching:
 		target_speed = crouch_speed
 	elif Input.is_action_pressed("slow_walk"):
 		target_speed = slow_walk_speed
 	elif Input.is_action_pressed("sprint") and input_dir != Vector2.ZERO:
-		target_speed = sprint_speed
+		var sprint_vigor_cost: float = 16.0 * delta
+		if pools != null and pools.consume_vigor(sprint_vigor_cost):
+			target_speed = sprint_speed
+		else:
+			target_speed = walk_speed
 
 	var target_velocity_xz: Vector3 = move_direction * target_speed
 	var current_velocity_xz: Vector3 = Vector3(velocity.x, 0, velocity.z)
 	var rate: float = acceleration if move_direction != Vector3.ZERO else friction
+	if is_dodging:
+		rate = 20.0
 	var new_velocity_xz: Vector3 = current_velocity_xz.lerp(target_velocity_xz, rate * delta)
 
 	velocity.x = new_velocity_xz.x
@@ -143,6 +174,15 @@ func _handle_procedural_animation(delta: float, move_dir: Vector3, speed: float)
 		body_group.position.y = lerp(body_group.position.y, -0.15, 6.0 * delta)
 		return
 
+	if is_dodging:
+		# Postura de rolamento / mergulho na esquiva
+		visual_mesh.position.y = lerp(visual_mesh.position.y, -0.3, 14.0 * delta)
+		body_group.rotation.x = lerp(body_group.rotation.x, deg_to_rad(45.0), 16.0 * delta)
+		left_leg.rotation.x = deg_to_rad(-40.0)
+		right_leg.rotation.x = deg_to_rad(-40.0)
+		return
+
+	body_group.rotation.x = lerp(body_group.rotation.x, 0.0, 10.0 * delta)
 	visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, 8.0 * delta)
 
 	if is_moving:
