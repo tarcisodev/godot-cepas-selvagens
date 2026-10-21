@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/nature_audio.gd" id="12_audio"]
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="13_pause"]
 [ext_resource type="PackedScene" path="res://scenes/dummy_creature.tscn" id="14_dummy"]
+[ext_resource type="PackedScene" path="res://scenes/card_album.tscn" id="15_album"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -240,10 +241,17 @@ theme_override_font_sizes/font_size = 12
 text = "Materiais: 0 Chifres · 2 Placas"
 horizontal_alignment = 1
 
+[node name="CardsButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "🃏 Álbum de Cartas 3D (K)"
+
 [node name="CloseButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 13
 text = "Fechar (Tab / Esc)"
+
+[node name="CardAlbum" parent="HUD" groups=["card_album"] instance=ExtResource("15_album")]
 
 [node name="PauseMenu" type="Control" parent="HUD"]
 process_mode = 3

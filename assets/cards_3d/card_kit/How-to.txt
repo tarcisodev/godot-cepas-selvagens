@@ -1,0 +1,13 @@
+
+If you want to use these cards with the fake portal effect,
+you can buy the Source version which includes the project files
+for Unreal Engine, Godot and Unity.
+
+Otherwise, you can research a method called Stencil Buffer.
+Here's an example tutorial for Unity:
+https://www.youtube.com/watch?v=y-SEiDTbszk
+
+If you don't want to mess with shaders, you can just have
+a flat unlit color for the background of your scene,
+and set an unlit material with the same color to the exterior 
+of the cards.

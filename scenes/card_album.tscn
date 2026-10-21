@@ -1,0 +1,173 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/card_album.gd" id="1_album"]
+[ext_resource type="PackedScene" path="res://scenes/card_3d.tscn" id="2_card3d"]
+
+[node name="CardAlbum" type="CanvasLayer"]
+process_mode = 3
+layer = 10
+script = ExtResource("1_album")
+
+[node name="BackgroundDim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.04, 0.05, 0.08, 0.85)
+
+[node name="MainPanel" type="PanelContainer" parent="."]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -460.0
+offset_top = -280.0
+offset_right = 460.0
+offset_bottom = 280.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="MainPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBox" type="VBoxContainer" parent="MainPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="MainPanel/Margin/VBox/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 20
+text = "🃏 ÁLBUM DE CARTAS & BESTIÁRIO 3D"
+
+[node name="ProgressLabel" type="Label" parent="MainPanel/Margin/VBox/Header"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.85, 0.45, 1)
+text = "Coleção: 0 / 8 (0%)"
+
+[node name="CloseButton" type="Button" parent="MainPanel/Margin/VBox/Header"]
+custom_minimum_size = Vector2(36, 32)
+layout_mode = 2
+text = "✕"
+
+[node name="FilterBar" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnAll" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+layout_mode = 2
+text = "Todas"
+
+[node name="BtnBestiary" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+layout_mode = 2
+text = "Bestiário"
+
+[node name="BtnMagic" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+layout_mode = 2
+text = "Magia"
+
+[node name="BtnEcology" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+layout_mode = 2
+text = "Ecologia"
+
+[node name="BtnEconomy" type="Button" parent="MainPanel/Margin/VBox/FilterBar"]
+layout_mode = 2
+text = "Economia"
+
+[node name="Content" type="HBoxContainer" parent="MainPanel/Margin/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="LeftPane" type="VBoxContainer" parent="MainPanel/Margin/VBox/Content"]
+custom_minimum_size = Vector2(460, 0)
+layout_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="MainPanel/Margin/VBox/Content/LeftPane"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="CardsGrid" type="GridContainer" parent="MainPanel/Margin/VBox/Content/LeftPane/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+columns = 3
+
+[node name="RightPane" type="VBoxContainer" parent="MainPanel/Margin/VBox/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="ViewportContainer" type="SubViewportContainer" parent="MainPanel/Margin/VBox/Content/RightPane"]
+custom_minimum_size = Vector2(0, 240)
+layout_mode = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="MainPanel/Margin/VBox/Content/RightPane/ViewportContainer"]
+own_world_3d = true
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(412, 240)
+render_target_update_mode = 4
+
+[node name="Camera3D" type="Camera3D" parent="MainPanel/Margin/VBox/Content/RightPane/ViewportContainer/SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 1.8)
+fov = 42.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="MainPanel/Margin/VBox/Content/RightPane/ViewportContainer/SubViewport"]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 2, 2)
+light_energy = 1.2
+
+[node name="Card3D" parent="MainPanel/Margin/VBox/Content/RightPane/ViewportContainer/SubViewport" instance=ExtResource("2_card3d")]
+
+[node name="FlipButton" type="Button" parent="MainPanel/Margin/VBox/Content/RightPane"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+text = "🔄 Virar Carta (Espaço / Clique Direito)"
+
+[node name="Details" type="VBoxContainer" parent="MainPanel/Margin/VBox/Content/RightPane"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="TitleLabel" type="Label" parent="MainPanel/Margin/VBox/Content/RightPane/Details"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Selecione uma Carta"
+
+[node name="BadgeLabel" type="Label" parent="MainPanel/Margin/VBox/Content/RightPane/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 13
+text = "Categoria • Elemento • Raridade"
+
+[node name="StatsLabel" type="Label" parent="MainPanel/Margin/VBox/Content/RightPane/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.85, 0.45, 1)
+theme_override_font_sizes/font_size = 14
+text = "⚡ Éter: 0   |   ⚔️ Poder: 0   |   🛡️ Postura: 0"
+
+[node name="TraitLabel" type="Label" parent="MainPanel/Margin/VBox/Content/RightPane/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.9, 0.6, 1)
+theme_override_font_sizes/font_size = 13
+text = "Trait: Nenhum"
+
+[node name="DescLabel" type="Label" parent="MainPanel/Margin/VBox/Content/RightPane/Details"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 1)
+theme_override_font_sizes/font_size = 12
+text = "Clique sobre uma carta na grade para inspecionar seu modelo tridimensional."
+autowrap_mode = 3
+
+[connection signal="gui_input" from="MainPanel/Margin/VBox/Content/RightPane/ViewportContainer" to="." method="_on_viewport_gui_input"]

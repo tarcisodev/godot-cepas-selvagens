@@ -27,9 +27,10 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var stats: StatsComponent = $StatsComponent
 @onready var pools: PoolsComponent = $PoolsComponent
 @onready var attack_hitbox: HitboxComponent = $VisualMesh/AttackHitbox
-@onready var machete_mesh: MeshInstance3D = get_node_or_null("VisualMesh/BodyGroup/Machete")
+@onready var machete_mesh: Node3D = get_node_or_null("VisualMesh/BodyGroup/Axe")
 @onready var mastery: MasteryComponent = get_node_or_null("MasteryComponent")
 @onready var inventory: InventoryComponent = get_node_or_null("InventoryComponent")
+@onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var is_first_person: bool = false
@@ -96,6 +97,12 @@ func _setup_components() -> void:
 			add_child(inventory)
 	if inventory and stats:
 		inventory.stats = stats
+	if card_collection == null:
+		card_collection = get_node_or_null("CardCollectionComponent") as CardCollectionComponent
+		if card_collection == null:
+			card_collection = CardCollectionComponent.new()
+			card_collection.name = "CardCollectionComponent"
+			add_child(card_collection)
 
 func _setup_footsteps() -> void:
 	if footstep_player != null:

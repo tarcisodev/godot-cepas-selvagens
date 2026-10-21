@@ -7,6 +7,8 @@
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="5_hitbox"]
 [ext_resource type="Script" path="res://scripts/components/mastery_component.gd" id="6_mastery"]
 [ext_resource type="Script" path="res://scripts/components/inventory_component.gd" id="7_inventory"]
+[ext_resource type="Script" path="res://scripts/components/card_collection_component.gd" id="8_cards"]
+[ext_resource type="PackedScene" path="res://assets/models/tools/axe.gltf" id="8_axe"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -137,9 +139,8 @@ mesh = SubResource("CylinderMesh_hat_brim")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.74, 0)
 mesh = SubResource("CylinderMesh_hat_crown")
 
-[node name="Machete" type="MeshInstance3D" parent="VisualMesh/BodyGroup"]
-transform = Transform3D(0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0, 0, 1, 0.42, 0.75, -0.15)
-mesh = SubResource("BoxMesh_machete")
+[node name="Axe" parent="VisualMesh/BodyGroup" instance=ExtResource("8_axe")]
+transform = Transform3D(0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 0, 0, 1, 0.42, 0.72, -0.15)
 
 [node name="LeftLeg" type="MeshInstance3D" parent="VisualMesh"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.22, 0)
@@ -189,3 +190,6 @@ script = ExtResource("6_mastery")
 
 [node name="InventoryComponent" type="Node" parent="."]
 script = ExtResource("7_inventory")
+
+[node name="CardCollectionComponent" type="Node" parent="."]
+script = ExtResource("8_cards")

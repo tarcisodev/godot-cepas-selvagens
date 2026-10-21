@@ -13,6 +13,7 @@ class_name ActionsMenu
 @onready var pov_button: Button = $PanelContainer/MarginContainer/VBoxContainer/PovButton
 @onready var forge_button: Button = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/ForgeButton")
 @onready var forge_status_label: Label = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/ForgeStatusLabel")
+@onready var cards_button: Button = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/CardsButton")
 @onready var close_button: Button = $PanelContainer/MarginContainer/VBoxContainer/CloseButton
 
 var is_open: bool = false
@@ -24,6 +25,8 @@ func _ready() -> void:
 	pov_button.pressed.connect(_on_pov_pressed)
 	if forge_button:
 		forge_button.pressed.connect(_on_forge_pressed)
+	if cards_button:
+		cards_button.pressed.connect(_on_cards_pressed)
 	close_button.pressed.connect(close_menu)
 
 func _input(event: InputEvent) -> void:
@@ -108,3 +111,11 @@ func _on_pov_pressed() -> void:
 		ev.pressed = true
 		Input.parse_input_event(ev)
 	close_menu()
+
+func _on_cards_pressed() -> void:
+	close_menu()
+	var album = get_tree().get_first_node_in_group("card_album") if is_inside_tree() else null
+	if album == null:
+		album = get_node_or_null("../../CardAlbum")
+	if album != null and album.has_method("open_album"):
+		album.open_album()
