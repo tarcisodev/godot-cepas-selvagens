@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="WeaponStyle" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="1_style"]
+[ext_resource type="Script" path="res://scripts/data/style_attack.gd" id="2_attack"]
+[ext_resource type="Script" path="res://scripts/data/equipment_piece.gd" id="3_piece"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/hammer_B.gltf" id="4_hammer"]
+[ext_resource type="PackedScene" path="res://scenes/equipment/pauldron_iron.tscn" id="5_pauldron"]
+
+[sub_resource type="Resource" id="Attack_smash"]
+script = ExtResource("2_attack")
+kind = 0
+display_name = "Golpe pesado"
+anims = Array[StringName]([&"Sword_Attack"])
+duration = 0.9
+hit_delay = 0.45
+active_time = 0.18
+damage = 45.0
+damage_type = 1
+poise_damage = 40.0
+break_mult = 2.0
+cost_pool = &"vigor"
+cost = 22.0
+move_mult = 0.15
+
+[sub_resource type="Resource" id="Attack_lunge"]
+script = ExtResource("2_attack")
+kind = 1
+display_name = "Investida"
+anims = Array[StringName]([&"Sword_Dash"])
+duration = 0.7
+hit_delay = 0.2
+active_time = 0.3
+damage = 35.0
+damage_type = 1
+poise_damage = 30.0
+break_mult = 1.5
+cost_pool = &"vigor"
+cost = 28.0
+move_mult = 0.0
+lunge_speed = 9.0
+
+[sub_resource type="Resource" id="Piece_hammer"]
+script = ExtResource("3_piece")
+scene = ExtResource("4_hammer")
+bone = &"hand_r"
+transform = Transform3D(0.75, 0, 0, 0, 0, 0.75, 0, -0.75, 0, -0.08, -0.03, 0)
+
+[sub_resource type="Resource" id="Piece_pauldron_l"]
+script = ExtResource("3_piece")
+scene = ExtResource("5_pauldron")
+bone = &"clavicle_l"
+transform = Transform3D(0.906, -0.423, 0, 0.423, 0.906, 0, 0, 0, 1, 0.17, 0.03, -0.13)
+
+[sub_resource type="Resource" id="Piece_pauldron_r"]
+script = ExtResource("3_piece")
+scene = ExtResource("5_pauldron")
+bone = &"clavicle_r"
+transform = Transform3D(0.906, 0.423, 0, -0.423, 0.906, 0, 0, 0, 1, -0.17, 0.03, -0.13)
+
+[resource]
+script = ExtResource("1_style")
+id = &"heavy_hammer"
+display_name = "Arma pesada"
+description = "Martelo de guerra: lento, dano de impacto que quebra Postura e carapaça. Botão direito avança com uma investida."
+weight = 30.0
+primary = SubResource("Attack_smash")
+secondary = SubResource("Attack_lunge")
+pieces = Array[ExtResource("3_piece")]([SubResource("Piece_hammer"), SubResource("Piece_pauldron_l"), SubResource("Piece_pauldron_r")])

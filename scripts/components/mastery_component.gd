@@ -75,10 +75,13 @@ func _on_hit_resolved(hit_event: HitEvent, effective_damage: float, is_part_brok
 		var bonus_broken: float = 1.5 if is_part_broken else 1.0
 		var xp_amount: float = (effective_damage * 0.5) * bonus_broken
 		
-		if hit_event.damage_type == DamageType.Type.SLASH:
-			add_xp(&"lâmina", xp_amount)
-		elif hit_event.damage_type == DamageType.Type.FIRE or hit_event.damage_type == DamageType.Type.EARTH:
-			add_xp(&"canalização", xp_amount)
+		match hit_event.damage_type:
+			DamageType.Type.SLASH:
+				add_xp(&"lâmina", xp_amount)
+			DamageType.Type.IMPACT:
+				add_xp(&"concussão", xp_amount)
+			DamageType.Type.FIRE, DamageType.Type.EARTH, DamageType.Type.LIGHTNING:
+				add_xp(&"canalização", xp_amount)
 	
 	# XP defensivo: se fomos o alvo e mitigamos dano
 	elif hit_event.target == parent:

@@ -11,6 +11,8 @@ signal hit_landed(hurtbox: HurtboxComponent, result: Dictionary)
 @export var poise_damage: float = 20.0
 @export var damage_type: DamageType.Type = DamageType.Type.SLASH
 @export var part_break_multiplier: float = 1.2
+## Entidades deste grupo não são acertadas (ex.: monstros não se ferem entre si).
+@export var ignore_group: StringName = &""
 
 var _hit_entities: Array[Node] = []
 var _is_active: bool = false
@@ -60,7 +62,9 @@ func _on_area_entered(area: Area3D) -> void:
 	var hurtbox: HurtboxComponent = area as HurtboxComponent
 	if hurtbox.entity == attacker:
 		return # Evita auto-dano
-	
+	if not ignore_group.is_empty() and hurtbox.entity.is_in_group(ignore_group):
+		return
+
 	# Evita acertar a mesma entidade duas vezes no mesmo golpe
 	if _hit_entities.has(hurtbox.entity):
 		return

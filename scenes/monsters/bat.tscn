@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_monster.gd" id="1_monster"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/quaternius/Bat.fbx" id="2_model"]
+
+[node name="Bat" type="CharacterBody3D"]
+script = ExtResource("1_monster")
+display_name = "Morcego"
+model_scene = ExtResource("2_model")
+model_scale = 0.15
+anim_idle = &"Bat_Flying"
+anim_move = &"Bat_Flying"
+anim_attack = &"Bat_Attack"
+anim_hit = &"Bat_Hit"
+anim_death = &"Bat_Death"
+body_radius = 0.3
+body_height = 0.6
+flying = true
+fly_height = 1.4
+max_health = 40.0
+max_poise = 15.0
+move_speed = 4.2
+resistances = {
+"resist_lightning": -0.3
+}
+attack_range = 1.4
+windup_time = 0.45
+damage = 8.0
+damage_type = 2
+poise_damage = 8.0

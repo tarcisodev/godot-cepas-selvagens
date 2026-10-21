@@ -26,6 +26,10 @@ var skeleton: Skeleton3D
 var anim_player: AnimationPlayer
 var weapon: Node3D
 var _current: StringName = &""
+## Peças de equipamento visíveis (B10); quando definidas, substituem `weapon_scene`.
+var _equipment: Array[EquipmentPiece] = []
+var _use_equipment: bool = false
+var _equipment_sockets: Array[Node] = []
 
 func _ready() -> void:
 	_build()
@@ -38,6 +42,7 @@ func rebuild(new_dna: CharacterDNA) -> void:
 	skeleton = null
 	anim_player = null
 	weapon = null
+	_equipment_sockets.clear()
 	_current = &""
 	dna = new_dna
 	_build()
@@ -60,7 +65,10 @@ func _build() -> void:
 	model.add_child(anim_player)
 	anim_player.root_node = NodePath("..")
 	_load_animations()
-	_attach_weapon()
+	if _use_equipment:
+		_apply_equipment()
+	else:
+		_attach_weapon()
 	play(&"Idle")
 
 func _load_animations() -> void:
@@ -98,6 +106,44 @@ func _attach_weapon() -> void:
 	weapon = weapon_scene.instantiate() as Node3D
 	weapon.transform = weapon_transform
 	attachment.add_child(weapon)
+
+## Troca as peças visíveis (arma, escudo, armadura). A primeira peça vira a `weapon`.
+func set_equipment(pieces: Array[EquipmentPiece]) -> void:
+	_equipment = pieces
+	_use_equipment = true
+	_apply_equipment()
+
+## O transform de cada peça é medido na pose de descanso, nos eixos do modelo
+## (frente = +Z), a partir do osso; aqui ele vira local ao osso, então a mesma peça
+## serve para qualquer proporção do DNA.
+func _apply_equipment() -> void:
+	if skeleton == null:
+		return
+	if weapon and is_instance_valid(weapon) and weapon.get_parent() is BoneAttachment3D:
+		weapon.get_parent().free()
+	weapon = null
+	for socket in _equipment_sockets:
+		if is_instance_valid(socket):
+			socket.free()
+	_equipment_sockets.clear()
+	for i in _equipment.size():
+		var piece := _equipment[i]
+		if piece == null or piece.scene == null:
+			continue
+		var bone := skeleton.find_bone(piece.bone)
+		if bone < 0:
+			continue
+		var socket := BoneAttachment3D.new()
+		socket.name = "Equip%d_%s" % [i, piece.bone]
+		socket.bone_name = piece.bone
+		skeleton.add_child(socket)
+		var node := piece.scene.instantiate() as Node3D
+		var rest_basis := skeleton.get_bone_global_rest(bone).basis.orthonormalized()
+		node.transform = Transform3D(rest_basis.inverse(), Vector3.ZERO) * piece.transform
+		socket.add_child(node)
+		_equipment_sockets.append(socket)
+		if weapon == null:
+			weapon = node
 
 ## Toca uma animação pelo nome (ex.: &"Walk"); ignora se já está tocando.
 func play(anim: StringName, speed: float = 1.0, restart: bool = false) -> void:

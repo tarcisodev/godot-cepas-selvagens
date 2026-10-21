@@ -30,13 +30,13 @@ func test_player_weapons_and_mobility() -> void:
 	
 	# Ataque melee consome vigor
 	var vigor_before: float = pools.current_vigor
-	var ok_vigor := pools.consume_vigor(Player.ATTACK_VIGOR_COST)
+	var ok_vigor := pools.consume_vigor(player.weapon_style.primary.cost)
 	assert(ok_vigor, "Deve conseguir gastar vigor no ataque de machete")
 	assert(pools.current_vigor < vigor_before, "Vigor deve diminuir após golpe")
 	
 	# Conjuração de cajado consome éter
 	var ether_before: float = pools.current_ether
-	var ok_ether := pools.consume_ether(Player.CAST_ETHER_COST)
+	var ok_ether := pools.consume_ether(20.0)
 	assert(ok_ether, "Deve conseguir gastar éter na conjuração do cajado")
 	assert(pools.current_ether < ether_before, "Éter deve diminuir após magia")
 	

@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_leather"]
+albedo_color = Color(0.42, 0.27, 0.15, 1)
+roughness = 0.75
+
+[sub_resource type="SphereMesh" id="Mesh_cap"]
+material = SubResource("Mat_leather")
+radius = 0.11
+height = 0.11
+radial_segments = 16
+rings = 6
+is_hemisphere = true
+
+[sub_resource type="StandardMaterial3D" id="Mat_strap"]
+albedo_color = Color(0.2, 0.14, 0.09, 1)
+roughness = 0.8
+
+[sub_resource type="TorusMesh" id="Mesh_rim"]
+material = SubResource("Mat_strap")
+inner_radius = 0.1
+outer_radius = 0.12
+rings = 16
+ring_segments = 4
+
+[node name="PauldronLeather" type="Node3D"]
+
+[node name="Cap" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.9, 0, 0, 0, 1.1, 0, 0, 0)
+mesh = SubResource("Mesh_cap")
+
+[node name="Rim" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1.1, 0, 0.005, 0)
+mesh = SubResource("Mesh_rim")

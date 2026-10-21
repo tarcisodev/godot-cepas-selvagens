@@ -22,7 +22,11 @@ static func resolve_hit(hit: HitEvent) -> Dictionary:
 	
 	if target_pools == null:
 		return result
-	
+
+	# Bloqueio, i-frames da esquiva e afins: o alvo ajusta o golpe antes da mitigação
+	if hit.target.has_method("filter_incoming_hit"):
+		hit.target.filter_incoming_hit(hit)
+
 	# 1. Cálculo de Resistência / Mitigação por tipo de dano
 	var raw_dmg: float = hit.raw_damage
 	var resist_stat: StringName = StringName("resist_" + DamageType.to_string_name(hit.damage_type))

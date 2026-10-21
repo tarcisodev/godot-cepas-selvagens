@@ -1,0 +1,27 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_monster.gd" id="1_monster"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/quaternius/Slime.fbx" id="2_model"]
+
+[node name="Slime" type="CharacterBody3D"]
+script = ExtResource("1_monster")
+display_name = "Slime"
+model_scene = ExtResource("2_model")
+model_scale = 0.45
+anim_idle = &"Slime_Idle"
+anim_move = &"Slime_Walk"
+anim_attack = &"Slime_Attack"
+anim_hit = &"Slime_Idle"
+anim_death = &"Slime_Death"
+body_radius = 0.38
+body_height = 0.7
+max_health = 60.0
+max_poise = 30.0
+move_speed = 2.0
+resistances = {
+"resist_slash": 0.4
+}
+attack_range = 1.3
+windup_time = 0.7
+damage = 10.0
+poise_damage = 14.0

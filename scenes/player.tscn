@@ -20,6 +20,8 @@
 
 [ext_resource type="Resource" path="res://resources/characters/player_dna.tres" id="10_dna"]
 
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="11_hurtbox"]
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
 height = 1.75
@@ -54,6 +56,17 @@ part_break_multiplier = 1.4
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="VisualMesh/AttackHitbox"]
 shape = SubResource("BoxShape3D_attack")
+
+[node name="BodyHurtbox" type="Area3D" parent="." node_paths=PackedStringArray("entity")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("11_hurtbox")
+entity = NodePath("..")
+part_id = &"body"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BodyHurtbox"]
+shape = SubResource("CapsuleShape3D_body")
 
 [node name="CameraRig" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0)

@@ -1,0 +1,29 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/test_monster.gd" id="1_monster"]
+[ext_resource type="PackedScene" path="res://assets/models/monsters/quaternius/Skeleton.fbx" id="2_model"]
+
+[node name="Skeleton" type="CharacterBody3D"]
+script = ExtResource("1_monster")
+display_name = "Esqueleto"
+model_scene = ExtResource("2_model")
+model_scale = 0.35
+anim_idle = &"Skeleton_Idle"
+anim_move = &"Skeleton_Running"
+anim_attack = &"Skeleton_Attack"
+anim_hit = &"Skeleton_Idle"
+anim_death = &"Skeleton_Death"
+body_radius = 0.3
+body_height = 1.7
+max_health = 90.0
+max_poise = 45.0
+move_speed = 3.0
+resistances = {
+"resist_impact": -0.3,
+"resist_pierce": 0.5
+}
+attack_range = 1.7
+windup_time = 0.55
+damage = 16.0
+damage_type = 0
+poise_damage = 18.0

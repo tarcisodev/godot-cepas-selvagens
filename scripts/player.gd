@@ -17,6 +17,9 @@ class_name Player
 
 const CameraRigScript = preload("res://scripts/camera_rig.gd")
 
+## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
+@export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
+
 @export_group("Referências")
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var camera_rig: Node3D = $CameraRig
@@ -37,20 +40,41 @@ var is_dodging: bool = false
 var is_attacking: bool = false
 var is_casting: bool = false
 var dodge_timer: float = 0.0
-var attack_timer: float = 0.0
-var cast_timer: float = 0.0
 var dodge_dir: Vector3 = Vector3.FORWARD
 const DODGE_DURATION: float = 0.36
 const DODGE_SPEED: float = 8.5
-const ATTACK_DURATION: float = 0.32
-const ATTACK_VIGOR_COST: float = 14.0
-const CAST_DURATION: float = 0.48
-const CAST_ETHER_COST: float = 20.0
-# Golpes seguidos dentro da janela alternam a animação (combo A → B do UAL2)
-const COMBO_ANIMS: Array[StringName] = [&"Sword_Regular_A", &"Sword_Regular_B"]
+## Início da esquiva sem dano (GDD-01 §8, carga leve)
+const DODGE_IFRAMES: float = 0.2
+# Golpes seguidos dentro da janela avançam as animações do básico (combo A → B → C)
 const COMBO_WINDOW_MS: int = 700
 var combo_step: int = 0
 var last_attack_ms: int = -100000
+
+# Golpe em andamento: preparação (hit_delay) → golpe ativo → recuperação
+var current_attack: StyleAttack = null
+var _last_attack: StyleAttack = null
+var _attack_elapsed: float = 0.0
+var _attack_hit_pending: bool = false
+var _attack_dir: Vector3 = Vector3.FORWARD
+var _style_source: RefCounted = RefCounted.new()
+
+# Bloqueio frontal do escudo: segura parte do golpe e o Vigor paga o resto
+var is_blocking: bool = false
+const BLOCK_DAMAGE_MULT: float = 0.2
+const BLOCK_POISE_MULT: float = 0.3
+const BLOCK_VIGOR_PER_DAMAGE: float = 0.6
+const BLOCK_ARC_DOT: float = 0.2
+
+# Reação a golpe e Caído (Vida zerada; 5 s é valor de teste, o GDD-05 fala em 30 s)
+const FLINCH_TIME: float = 0.3
+var flinch_timer: float = 0.0
+const DOWNED_DURATION: float = 5.0
+var is_downed: bool = false
+var downed_timer: float = 0.0
+var spawn_point: Vector3 = Vector3.ZERO
+
+# Armeiro e outros NPCs com [E]
+const TALK_RANGE: float = 2.6
 
 # Esfola manual (GDD-03 §8): segurar [E] perto do corpo; mover, soltar ou levar dano interrompe
 const HARVEST_RANGE: float = 2.6
@@ -71,6 +95,7 @@ const CROUCH_CAM_Y: float = 0.85
 const SIT_CAM_Y: float = 0.65
 
 signal posture_changed(state_name: String)
+signal style_changed(style: WeaponStyle)
 
 func _ready() -> void:
 	add_to_group("player")
@@ -81,6 +106,10 @@ func _ready() -> void:
 
 	_setup_footsteps()
 	_setup_combat_audio()
+	spawn_point = global_position
+	if pools and not pools.health_depleted.is_connected(_on_health_depleted):
+		pools.health_depleted.connect(_on_health_depleted)
+	equip_style(weapon_style)
 
 func _setup_components() -> void:
 	if not is_in_group("player"):
@@ -177,43 +206,29 @@ func _physics_process(delta: float) -> void:
 	var cam_yaw: float = camera_rig.global_rotation.y
 	var move_direction: Vector3 = (Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw) * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	# Processar Ataque (Clique Esquerdo)
-	if is_attacking:
-		attack_timer -= delta
-		if attack_timer <= 0.0:
-			is_attacking = false
-			posture_changed.emit("Em Pé")
-	elif Input.is_action_just_pressed("attack") and not is_sitting and not is_dodging and not is_casting:
-		if pools and pools.consume_vigor(ATTACK_VIGOR_COST):
-			is_attacking = true
-			attack_timer = ATTACK_DURATION
-			var now_ms: int = Time.get_ticks_msec()
-			combo_step = (combo_step + 1) % COMBO_ANIMS.size() if now_ms - last_attack_ms < COMBO_WINDOW_MS else 0
-			last_attack_ms = now_ms
-			if attack_hitbox:
-				attack_hitbox.activate_with_params(0.24, 25.0, DamageType.Type.SLASH, 15.0, 1.2)
-			if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
-				attack_whoosh_player.pitch_scale = randf_range(0.96, 1.12)
-				attack_whoosh_player.play()
-			posture_changed.emit("Golpe")
+	if is_downed:
+		_process_downed(delta)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		_update_animation(0.0)
+		return
 
-	# Processar Magia com Cajado (Clique Direito / Ação 'cast') - GDD-01 §4 e B07
-	if is_casting:
-		cast_timer -= delta
-		if cast_timer <= 0.0:
-			is_casting = false
-			posture_changed.emit("Em Pé")
-	elif Input.is_action_just_pressed("cast") and not is_sitting and not is_dodging and not is_attacking and not is_casting:
-		if pools and pools.consume_ether(CAST_ETHER_COST):
-			is_casting = true
-			cast_timer = CAST_DURATION
-			if attack_hitbox:
-				# Magia telúrica: 40 de dano TERRA e 25 de postura, cast enraizado
-				attack_hitbox.activate_with_params(0.38, 40.0, DamageType.Type.EARTH, 25.0, 1.4)
-			if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
-				attack_whoosh_player.pitch_scale = 0.75 # Som mais grave/arcano
-				attack_whoosh_player.play()
-			posture_changed.emit("Conjuração")
+	if flinch_timer > 0.0:
+		flinch_timer -= delta
+
+	# Básicos do estilo (clique esq./dir.); menu aberto ou Postura quebrada travam o combate
+	_process_attack(delta)
+	var can_fight: bool = get_tree().get_nodes_in_group("open_menus").is_empty() and not is_stunned()
+	var secondary: StyleAttack = weapon_style.secondary if weapon_style else null
+	is_blocking = can_fight and secondary != null and secondary.kind == StyleAttack.Kind.BLOCK \
+		and Input.is_action_pressed("cast") and current_attack == null and not is_dodging \
+		and not is_sitting and pools != null and pools.current_vigor > 0.0
+	if can_fight and weapon_style:
+		if Input.is_action_just_pressed("attack"):
+			try_attack(weapon_style.primary)
+		elif secondary and secondary.kind != StyleAttack.Kind.BLOCK and Input.is_action_just_pressed("cast"):
+			try_attack(secondary)
 
 	# Processar Esquiva / Rolamento (tecla C ou Esquiva)
 	if is_dodging:
@@ -221,7 +236,7 @@ func _physics_process(delta: float) -> void:
 		if dodge_timer <= 0.0:
 			is_dodging = false
 			posture_changed.emit("Em Pé")
-	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting and not is_attacking:
+	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting and not is_attacking and not is_stunned():
 		var dodge_cost: float = stats.get_stat(&"dodge_cost") if stats else 25.0
 		if pools and pools.consume_vigor(dodge_cost):
 			is_dodging = true
@@ -241,15 +256,18 @@ func _physics_process(delta: float) -> void:
 
 	# Definir velocidade alvo
 	var target_speed: float = walk_speed
-	if is_harvesting:
+	if is_harvesting or is_stunned():
 		target_speed = 0.0
 	elif is_dodging:
 		target_speed = DODGE_SPEED
 		move_direction = dodge_dir
-	elif is_casting:
-		target_speed = walk_speed * 0.1 # Enraizado / mobilidade severamente reduzida durante o cast (GDD-01 §4)
-	elif is_attacking:
-		target_speed = walk_speed * 0.4 # Reduz mobilidade durante o golpe (GDD-01 §4)
+	elif _is_lunging():
+		target_speed = current_attack.lunge_speed
+		move_direction = _attack_dir
+	elif current_attack:
+		target_speed = walk_speed * current_attack.move_mult # Mobilidade do golpe/conjuro (GDD-01 §4)
+	elif is_blocking:
+		target_speed = walk_speed * weapon_style.secondary.move_mult
 	elif is_sitting:
 		target_speed = 0.0
 	elif is_crouching:
@@ -264,7 +282,7 @@ func _physics_process(delta: float) -> void:
 			target_speed = walk_speed
 
 	# Penalidade de peso do equipamento na velocidade (Carga - GDD-01 §4 e B07)
-	if not is_dodging and stats != null:
+	if not is_dodging and not _is_lunging() and stats != null:
 		var current_load: float = stats.get_stat(&"load")
 		var load_cap: float = maxf(stats.get_stat(&"load_capacity"), 1.0)
 		var load_penalty: float = clampf(1.0 - ((current_load / load_cap) * 0.35), 0.5, 1.0)
@@ -273,7 +291,7 @@ func _physics_process(delta: float) -> void:
 	var target_velocity_xz: Vector3 = move_direction * target_speed
 	var current_velocity_xz: Vector3 = Vector3(velocity.x, 0, velocity.z)
 	var rate: float = acceleration if move_direction != Vector3.ZERO else friction
-	if is_dodging:
+	if is_dodging or _is_lunging():
 		rate = 20.0
 	var new_velocity_xz: Vector3 = current_velocity_xz.lerp(target_velocity_xz, rate * delta)
 
@@ -311,14 +329,22 @@ func _update_animation(speed: float) -> void:
 		return
 	var moving: bool = speed > 0.15
 
-	if is_harvesting:
+	if is_downed:
+		character_visual.play(&"Death01")
+	elif is_stunned():
+		character_visual.play(&"Idle_Shield_Break")
+	elif is_harvesting:
 		character_visual.play_timed(&"Farm_Harvest", get_harvest_time())
 	elif is_dodging:
 		character_visual.play_timed(&"Roll", DODGE_DURATION)
-	elif is_attacking:
-		character_visual.play_timed(COMBO_ANIMS[combo_step], ATTACK_DURATION)
-	elif is_casting:
-		character_visual.play_timed(&"Spell_Simple_Shoot", CAST_DURATION)
+	elif current_attack:
+		if not current_attack.anims.is_empty():
+			character_visual.play_timed(current_attack.anims[combo_step % current_attack.anims.size()], current_attack.duration)
+	elif is_blocking:
+		var block_anims: Array[StringName] = weapon_style.secondary.anims
+		character_visual.play(block_anims[0] if not block_anims.is_empty() else &"Sword_Block")
+	elif flinch_timer > 0.0:
+		pass # deixa a reação ao golpe terminar
 	elif is_sitting:
 		character_visual.play(&"Sitting_Idle")
 	elif not is_on_floor():
@@ -364,6 +390,11 @@ func _cancel_harvest(reason: String) -> void:
 
 func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 	if not is_harvesting:
+		if Input.is_action_just_pressed("interact") and get_tree().get_nodes_in_group("open_menus").is_empty():
+			var npc: Node3D = _find_nearest_in_group(&"talkable", TALK_RANGE)
+			if npc and _find_harvest_target() == null:
+				npc.talk_to(self)
+				return
 		if Input.is_action_pressed("interact") and is_on_floor() and not (is_attacking or is_casting or is_dodging or is_sitting):
 			harvest_target = _find_harvest_target()
 			if harvest_target:
@@ -425,6 +456,10 @@ func _handle_footsteps(delta: float, input_dir: Vector2) -> void:
 func _handle_rotation(delta: float, move_dir: Vector3) -> void:
 	if is_first_person:
 		visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, camera_rig.rotation.y, rotation_speed * 2.0 * delta)
+	elif is_blocking:
+		visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, camera_rig.global_rotation.y, rotation_speed * delta)
+	elif current_attack:
+		pass # o golpe sai para onde a câmera mirava quando começou
 	else:
 		if move_dir.length_squared() > 0.001 and not is_sitting:
 			var target_angle: float = atan2(-move_dir.x, -move_dir.z)
@@ -441,3 +476,162 @@ func toggle_sit(force_state = null) -> void:
 	else:
 		is_sitting = !is_sitting
 	posture_changed.emit("Sentado / Meditando" if is_sitting else "Em Pé")
+
+func _find_nearest_in_group(group: StringName, max_dist: float) -> Node3D:
+	var best: Node3D = null
+	var best_dist: float = max_dist
+	for node in get_tree().get_nodes_in_group(group):
+		if node is Node3D:
+			var d: float = global_position.distance_to((node as Node3D).global_position)
+			if d < best_dist:
+				best = node
+				best_dist = d
+	return best
+
+# --- Estilos de batalha (B10) ---
+
+## Troca o estilo: barra de básicos, peso na Carga e peças visíveis.
+func equip_style(style: WeaponStyle) -> void:
+	if style == null:
+		return
+	weapon_style = style
+	_end_attack()
+	is_blocking = false
+	if stats:
+		stats.remove_modifiers_from_source(_style_source)
+		stats.add_modifier(ModifierData.new(&"load", ModifierData.Op.FLAT, style.weight, _style_source))
+	if character_visual:
+		character_visual.set_equipment(style.pieces)
+	style_changed.emit(style)
+	posture_changed.emit("Estilo: %s" % style.display_name)
+
+## Começa um básico se o estado permitir e o recurso pagar; retorna se começou.
+func try_attack(attack: StyleAttack) -> bool:
+	if attack == null or attack.kind == StyleAttack.Kind.BLOCK:
+		return false
+	if current_attack or is_sitting or is_dodging or is_harvesting or is_downed or is_stunned():
+		return false
+	if pools:
+		var paid: bool = pools.consume_ether(attack.cost) if attack.cost_pool == &"ether" else pools.consume_vigor(attack.cost)
+		if not paid:
+			return false
+	var now_ms: int = Time.get_ticks_msec()
+	if attack == _last_attack and now_ms - last_attack_ms < COMBO_WINDOW_MS + int(attack.duration * 1000.0):
+		combo_step += 1
+	else:
+		combo_step = 0
+	last_attack_ms = now_ms
+	_last_attack = attack
+	current_attack = attack
+	_attack_elapsed = 0.0
+	_attack_hit_pending = true
+	is_attacking = true
+	is_casting = attack.cost_pool == &"ether"
+	# Sem lock (GDD-01 §5): o golpe sai para onde a câmera olha
+	if camera_rig and not is_first_person:
+		visual_mesh.rotation.y = camera_rig.global_rotation.y
+	_attack_dir = -visual_mesh.global_basis.z
+	_attack_dir.y = 0.0
+	_attack_dir = _attack_dir.normalized()
+	if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
+		attack_whoosh_player.pitch_scale = 0.75 if is_casting else randf_range(0.96, 1.12)
+		attack_whoosh_player.play()
+	posture_changed.emit(attack.display_name)
+	return true
+
+func _process_attack(delta: float) -> void:
+	if current_attack == null:
+		return
+	_attack_elapsed += delta
+	if _attack_hit_pending and _attack_elapsed >= current_attack.hit_delay:
+		_attack_hit_pending = false
+		_release_attack(current_attack)
+	if _attack_elapsed >= current_attack.duration:
+		_end_attack()
+		posture_changed.emit("Em Pé")
+
+func _release_attack(attack: StyleAttack) -> void:
+	match attack.kind:
+		StyleAttack.Kind.MELEE, StyleAttack.Kind.LUNGE:
+			if attack_hitbox:
+				attack_hitbox.activate_with_params(attack.active_time, attack.damage, attack.damage_type, attack.poise_damage, attack.break_mult)
+		StyleAttack.Kind.PROJECTILE:
+			var aim: Vector3 = _attack_dir
+			if camera_rig and not is_first_person:
+				aim = -camera_rig.global_basis.z
+			ArcaneBolt.spawn(get_parent(), self, global_position + Vector3.UP * 1.3 + _attack_dir * 0.6, aim, attack)
+		StyleAttack.Kind.AREA:
+			EarthBurst.spawn(get_parent(), self, global_position + _attack_dir * (attack.reach * 0.6), attack)
+
+func _end_attack() -> void:
+	current_attack = null
+	_attack_hit_pending = false
+	is_attacking = false
+	is_casting = false
+
+func _is_lunging() -> bool:
+	return current_attack != null and current_attack.kind == StyleAttack.Kind.LUNGE \
+		and _attack_elapsed < current_attack.hit_delay + current_attack.active_time
+
+func is_stunned() -> bool:
+	return pools != null and pools.is_poise_broken
+
+## Chamado pelo CombatResolver antes da mitigação: i-frames da esquiva e bloqueio frontal.
+func filter_incoming_hit(hit: HitEvent) -> void:
+	if is_downed or (is_dodging and dodge_timer > DODGE_DURATION - DODGE_IFRAMES):
+		hit.raw_damage = 0.0
+		hit.poise_damage = 0.0
+		return
+	if not is_blocking or not (hit.attacker is Node3D):
+		return
+	var to_attacker: Vector3 = (hit.attacker as Node3D).global_position - global_position
+	to_attacker.y = 0.0
+	var facing: Vector3 = -visual_mesh.global_basis.z
+	facing.y = 0.0
+	if to_attacker.length_squared() < 0.0001 or facing.normalized().dot(to_attacker.normalized()) < BLOCK_ARC_DOT:
+		return
+	var held: float = hit.raw_damage * (1.0 - BLOCK_DAMAGE_MULT)
+	if pools.consume_vigor(held * BLOCK_VIGOR_PER_DAMAGE):
+		hit.raw_damage *= BLOCK_DAMAGE_MULT
+		hit.poise_damage *= BLOCK_POISE_MULT
+		posture_changed.emit("Bloqueou!")
+	else:
+		# Guarda quebrada: sem Vigor o escudo cede e a Postura leva o golpe inteiro
+		pools.consume_vigor(pools.current_vigor)
+		is_blocking = false
+		hit.poise_damage *= 1.5
+		posture_changed.emit("Guarda quebrada!")
+
+## Reação visual ao golpe recebido (chamado pela Hurtbox).
+func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
+	if is_downed or result.get(&"effective_damage", 0.0) <= 0.0:
+		return
+	if result.get(&"poise_broken", false):
+		_end_attack()
+		is_blocking = false
+		if is_harvesting:
+			_cancel_harvest("Postura quebrada!")
+	elif current_attack == null and not is_blocking and not is_dodging and character_visual:
+		flinch_timer = FLINCH_TIME
+		character_visual.play_timed(&"Hit_Chest", FLINCH_TIME, true)
+
+func _on_health_depleted() -> void:
+	is_downed = true
+	downed_timer = DOWNED_DURATION
+	_end_attack()
+	is_blocking = false
+	if is_harvesting:
+		_cancel_harvest("Caído")
+	posture_changed.emit("Caído! Voltando ao acampamento em %.0f s" % DOWNED_DURATION)
+
+func _process_downed(delta: float) -> void:
+	if not is_on_floor():
+		velocity.y -= gravity * delta
+	downed_timer -= delta
+	if downed_timer <= 0.0:
+		is_downed = false
+		global_position = spawn_point
+		velocity = Vector3.ZERO
+		if pools:
+			pools.reset_all()
+		posture_changed.emit("De volta ao acampamento")

@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="WeaponStyle" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="1_style"]
+[ext_resource type="Script" path="res://scripts/data/style_attack.gd" id="2_attack"]
+[ext_resource type="Script" path="res://scripts/data/equipment_piece.gd" id="3_piece"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/sword_A.gltf" id="4_sword"]
+[ext_resource type="PackedScene" path="res://assets/models/weapons/shield_A.gltf" id="5_shield"]
+[ext_resource type="PackedScene" path="res://scenes/equipment/pauldron_leather.tscn" id="6_pauldron"]
+
+[sub_resource type="Resource" id="Attack_combo"]
+script = ExtResource("2_attack")
+kind = 0
+display_name = "Golpe de espada"
+anims = Array[StringName]([&"Sword_Regular_A", &"Sword_Regular_B", &"Sword_Regular_C"])
+duration = 0.4
+hit_delay = 0.12
+active_time = 0.15
+damage = 22.0
+damage_type = 0
+poise_damage = 12.0
+break_mult = 1.0
+cost_pool = &"vigor"
+cost = 12.0
+move_mult = 0.4
+
+[sub_resource type="Resource" id="Attack_block"]
+script = ExtResource("2_attack")
+kind = 4
+display_name = "Bloqueio"
+anims = Array[StringName]([&"Idle_Shield"])
+cost_pool = &"vigor"
+cost = 0.0
+move_mult = 0.5
+
+[sub_resource type="Resource" id="Piece_sword"]
+script = ExtResource("3_piece")
+scene = ExtResource("4_sword")
+bone = &"hand_r"
+transform = Transform3D(0.55, 0, 0, 0, 0, 0.55, 0, -0.55, 0, -0.08, -0.03, 0)
+
+[sub_resource type="Resource" id="Piece_shield"]
+script = ExtResource("3_piece")
+scene = ExtResource("5_shield")
+bone = &"hand_l"
+transform = Transform3D(0, 0, -0.6, -0.6, 0, 0, 0, 0.6, 0, 0.0, 0.08, 0)
+
+[sub_resource type="Resource" id="Piece_pauldron_l"]
+script = ExtResource("3_piece")
+scene = ExtResource("6_pauldron")
+bone = &"clavicle_l"
+transform = Transform3D(0.906, -0.423, 0, 0.423, 0.906, 0, 0, 0, 1, 0.17, 0.03, -0.13)
+
+[sub_resource type="Resource" id="Piece_pauldron_r"]
+script = ExtResource("3_piece")
+scene = ExtResource("6_pauldron")
+bone = &"clavicle_r"
+transform = Transform3D(0.906, 0.423, 0, -0.423, 0.906, 0, 0, 0, 1, -0.17, 0.03, -0.13)
+
+[resource]
+script = ExtResource("1_style")
+id = &"sword_shield"
+display_name = "Espada e escudo"
+description = "Combo rápido cortante. Segure o botão direito para bloquear de frente: o escudo segura 80% do dano e o Vigor paga o golpe."
+weight = 14.0
+primary = SubResource("Attack_combo")
+secondary = SubResource("Attack_block")
+pieces = Array[ExtResource("3_piece")]([SubResource("Piece_sword"), SubResource("Piece_shield"), SubResource("Piece_pauldron_l"), SubResource("Piece_pauldron_r")])

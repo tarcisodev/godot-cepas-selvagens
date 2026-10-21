@@ -1,0 +1,40 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/weapon_trainer.gd" id="1_trainer"]
+[ext_resource type="Script" path="res://scripts/components/character_visual.gd" id="2_visual"]
+[ext_resource type="Resource" path="res://resources/characters/trainer_dna.tres" id="3_dna"]
+[ext_resource type="PackedScene" path="res://assets/models/props/fantasy/WeaponStand.gltf" id="4_stand"]
+[ext_resource type="Resource" path="res://resources/weapons/sword_shield.tres" id="5_sword"]
+[ext_resource type="Resource" path="res://resources/weapons/heavy_hammer.tres" id="6_hammer"]
+[ext_resource type="Resource" path="res://resources/weapons/arcane_staff.tres" id="7_staff"]
+[ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="8_style"]
+
+[node name="WeaponTrainer" type="Node3D"]
+script = ExtResource("1_trainer")
+styles = Array[ExtResource("8_style")]([ExtResource("5_sword"), ExtResource("6_hammer"), ExtResource("7_staff")])
+
+[node name="CharacterVisual" type="Node3D" parent="."]
+script = ExtResource("2_visual")
+dna = ExtResource("3_dna")
+weapon_scene = null
+
+[node name="WeaponStand" parent="." instance=ExtResource("4_stand")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 1.3, 0, 0.2)
+
+[node name="NameLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+billboard = 1
+text = "Mestre de Armas"
+font_size = 18
+outline_size = 5
+outline_modulate = Color(0, 0, 0, 0.8)
+visibility_range_end = 16.0
+
+[node name="PromptLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.0, 0)
+billboard = 1
+modulate = Color(1, 0.9, 0.55, 1)
+text = "[E] Trocar estilo de batalha"
+font_size = 13
+outline_size = 4
+outline_modulate = Color(0, 0, 0, 0.8)

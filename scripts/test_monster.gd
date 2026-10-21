@@ -1,0 +1,365 @@
+class_name TestMonster
+extends CharacterBody3D
+
+## Monstro de teste (B10): patrulha perto de casa, persegue o jogador, ataca com aviso
+## (pisca vermelho + "!") e renasce. Usa o mesmo pipeline de dano do jogador (ADR-0003).
+## Os modelos Quaternius trazem as animações; aqui só se escolhe qual nome é qual.
+
+enum State { WANDER, CHASE, WINDUP, ATTACK, RECOVER, STAGGER, DEAD, RETURN }
+
+@export var display_name: String = "Monstro"
+@export_group("Modelo")
+@export var model_scene: PackedScene
+@export var model_scale: float = 1.0
+## Sufixos dos nomes das animações no modelo (ex.: &"Slime_Idle").
+@export var anim_idle: StringName
+@export var anim_move: StringName
+@export var anim_attack: StringName
+@export var anim_hit: StringName
+@export var anim_death: StringName
+
+@export_group("Corpo")
+@export var body_radius: float = 0.4
+@export var body_height: float = 1.0
+@export var flying: bool = false
+@export var fly_height: float = 1.6
+
+@export_group("Atributos")
+@export var max_health: float = 80.0
+@export var max_poise: float = 40.0
+@export var move_speed: float = 2.6
+@export var resistances: Dictionary = {}
+
+@export_group("Ataque")
+@export var aggro_range: float = 8.0
+@export var leash_range: float = 18.0
+@export var attack_range: float = 1.6
+@export var windup_time: float = 0.6
+@export var attack_active: float = 0.2
+@export var recover_time: float = 0.9
+@export var damage: float = 12.0
+@export var damage_type: DamageType.Type = DamageType.Type.IMPACT
+@export var poise_damage: float = 15.0
+
+@export_group("Ciclo")
+@export var wander_radius: float = 5.0
+@export var respawn_delay: float = 12.0
+
+const CORPSE_HIDE_TIME: float = 3.0
+
+var stats: StatsComponent
+var pools: PoolsComponent
+var hurtbox: HurtboxComponent
+var hitbox: HitboxComponent
+var model: Node3D
+var anim_player: AnimationPlayer
+var status_label: Label3D
+var warn_label: Label3D
+
+var state: State = State.WANDER
+var home: Vector3
+var _state_time: float = 0.0
+var _wander_target: Vector3
+var _wander_wait: float = 0.0
+var _flash_timer: float = 0.0
+var _meshes: Array[GeometryInstance3D] = []
+var _windup_mat: StandardMaterial3D
+var _hit_mat: StandardMaterial3D
+var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+var _rng := RandomNumberGenerator.new()
+
+func _ready() -> void:
+	add_to_group("monsters")
+	collision_layer = 4
+	collision_mask = 1
+	home = global_position
+	_wander_target = home
+	_rng.seed = hash(name)
+	_build_components()
+	_build_model()
+	_build_labels()
+	_update_label()
+
+func _build_components() -> void:
+	var shape := CapsuleShape3D.new()
+	shape.radius = body_radius
+	shape.height = maxf(body_height, body_radius * 2.0)
+	var body := CollisionShape3D.new()
+	body.shape = shape
+	body.position.y = shape.height * 0.5
+	add_child(body)
+
+	stats = StatsComponent.new()
+	stats.name = "StatsComponent"
+	add_child(stats)
+	stats.set_base_stat(&"max_health", max_health)
+	stats.set_base_stat(&"max_poise", max_poise)
+	for key in resistances:
+		stats.set_base_stat(StringName(key), float(resistances[key]))
+
+	pools = PoolsComponent.new()
+	pools.name = "PoolsComponent"
+	pools.stats = stats
+	add_child(pools)
+	pools.reset_all()
+	pools.health_depleted.connect(_on_health_depleted)
+	pools.poise_broken.connect(_on_poise_broken)
+	pools.health_changed.connect(func(_c, _m): _update_label())
+
+	hurtbox = HurtboxComponent.new()
+	hurtbox.name = "BodyHurtbox"
+	hurtbox.entity = self
+	var hurt_shape := CollisionShape3D.new()
+	hurt_shape.shape = shape
+	hurtbox.add_child(hurt_shape)
+	hurtbox.position.y = shape.height * 0.5
+	add_child(hurtbox)
+
+	hitbox = HitboxComponent.new()
+	hitbox.name = "AttackHitbox"
+	hitbox.attacker = self
+	hitbox.ignore_group = &"monsters"
+	var hit_shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(body_radius * 2.0 + 0.5, maxf(body_height, 1.0), attack_range + 0.4)
+	hit_shape.shape = box
+	hitbox.add_child(hit_shape)
+	hitbox.position = Vector3(0, shape.height * 0.5, -(attack_range + 0.4) * 0.5)
+	add_child(hitbox)
+
+func _build_model() -> void:
+	if model_scene == null:
+		return
+	model = model_scene.instantiate() as Node3D
+	model.name = "Model"
+	model.scale = Vector3.ONE * model_scale
+	# Os modelos olham para +Z; a frente do monstro é -Z, como no player
+	model.rotation.y = PI
+	add_child(model)
+	anim_player = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	for anim in [anim_idle, anim_move]:
+		var full := _resolve(anim)
+		if full != &"":
+			anim_player.get_animation(full).loop_mode = Animation.LOOP_LINEAR
+	for m in model.find_children("*", "GeometryInstance3D", true, false):
+		_meshes.append(m as GeometryInstance3D)
+
+	_windup_mat = StandardMaterial3D.new()
+	_windup_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_windup_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_windup_mat.albedo_color = Color(1.0, 0.15, 0.1, 0.45)
+	_hit_mat = _windup_mat.duplicate()
+	_hit_mat.albedo_color = Color(1, 1, 1, 0.55)
+	_play(anim_idle)
+
+func _build_labels() -> void:
+	status_label = Label3D.new()
+	status_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	status_label.font_size = 14
+	status_label.outline_size = 4
+	status_label.outline_modulate = Color(0, 0, 0, 0.8)
+	status_label.visibility_range_end = 16.0
+	status_label.position.y = _top() + 0.35
+	add_child(status_label)
+
+	warn_label = Label3D.new()
+	warn_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	warn_label.text = "!"
+	warn_label.font_size = 48
+	warn_label.modulate = Color(1, 0.25, 0.15)
+	warn_label.outline_size = 8
+	warn_label.position.y = _top() + 0.75
+	warn_label.visible = false
+	add_child(warn_label)
+
+func _top() -> float:
+	return maxf(body_height, body_radius * 2.0)
+
+func _update_label() -> void:
+	if status_label == null or pools == null:
+		return
+	if state == State.DEAD:
+		status_label.text = "%s (derrotado)" % display_name
+	else:
+		status_label.text = "%s  %d/%d" % [display_name, ceili(pools.current_health), int(stats.get_stat(&"max_health"))]
+
+func _physics_process(delta: float) -> void:
+	_state_time += delta
+	if _flash_timer > 0.0:
+		_flash_timer -= delta
+		if _flash_timer <= 0.0 and state != State.WINDUP:
+			_set_overlay(null)
+
+	var player := _target()
+	var to_player: Vector3 = (player.global_position - global_position) if player else Vector3.ZERO
+	to_player.y = 0.0
+	var dist: float = to_player.length() if player else INF
+	var move_dir := Vector3.ZERO
+	var speed: float = 0.0
+
+	match state:
+		State.WANDER:
+			if dist < aggro_range:
+				_set_state(State.CHASE)
+			else:
+				var to_target := _wander_target - global_position
+				to_target.y = 0.0
+				if to_target.length() < 0.4:
+					_wander_wait -= delta
+					if _wander_wait <= 0.0:
+						var a: float = _rng.randf() * TAU
+						_wander_target = home + Vector3(cos(a), 0, sin(a)) * _rng.randf_range(1.0, wander_radius)
+						_wander_wait = _rng.randf_range(1.5, 4.0)
+				else:
+					move_dir = to_target.normalized()
+					speed = move_speed * 0.45
+		State.CHASE:
+			if player == null or _dist_home() > leash_range:
+				_set_state(State.RETURN)
+			elif dist <= attack_range:
+				_set_state(State.WINDUP)
+			else:
+				move_dir = to_player / dist
+				speed = move_speed
+		State.WINDUP:
+			if player:
+				_face(to_player, delta * 3.0)
+			if _state_time >= windup_time:
+				_set_state(State.ATTACK)
+		State.ATTACK:
+			if _state_time >= attack_active:
+				_set_state(State.RECOVER)
+		State.RECOVER:
+			if _state_time >= recover_time:
+				_set_state(State.CHASE)
+		State.STAGGER:
+			if not pools.is_poise_broken:
+				_set_state(State.CHASE)
+		State.RETURN:
+			var to_home := home - global_position
+			to_home.y = 0.0
+			if to_home.length() < 0.8:
+				pools.reset_all()
+				_set_state(State.WANDER)
+			else:
+				move_dir = to_home.normalized()
+				speed = move_speed
+		State.DEAD:
+			if _state_time >= CORPSE_HIDE_TIME and model and model.visible:
+				model.visible = false
+			if _state_time >= respawn_delay:
+				respawn()
+
+	if move_dir != Vector3.ZERO:
+		_face(move_dir, delta)
+	velocity.x = move_dir.x * speed
+	velocity.z = move_dir.z * speed
+	if flying and state != State.DEAD:
+		velocity.y = (_ground_y() + fly_height - global_position.y) * 4.0
+	elif not is_on_floor():
+		velocity.y -= _gravity * delta
+	else:
+		velocity.y = 0.0
+	move_and_slide()
+
+	if state in [State.WANDER, State.CHASE, State.RETURN]:
+		_play(anim_move if speed > 0.1 else anim_idle)
+
+func _target() -> Player:
+	var p := get_tree().get_first_node_in_group("player") as Player
+	if p == null or p.is_downed:
+		return null
+	return p
+
+func _dist_home() -> float:
+	return Vector2(global_position.x - home.x, global_position.z - home.z).length()
+
+func _face(dir: Vector3, weight: float) -> void:
+	rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), clampf(weight * 8.0, 0.0, 1.0))
+
+func _ground_y() -> float:
+	var from := global_position + Vector3.UP * 2.0
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * 30.0, 1)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.position.y if hit else home.y
+
+func _set_state(new_state: State) -> void:
+	state = new_state
+	_state_time = 0.0
+	warn_label.visible = new_state == State.WINDUP
+	match new_state:
+		State.WINDUP:
+			_set_overlay(_windup_mat)
+			_play_timed(anim_attack, windup_time + attack_active)
+		State.ATTACK:
+			_set_overlay(null)
+			hitbox.activate_with_params(attack_active, damage, damage_type, poise_damage, 1.0)
+		State.STAGGER:
+			_set_overlay(null)
+			hitbox.deactivate()
+			_play(anim_hit, 0.5, true)
+		State.DEAD:
+			_set_overlay(null)
+			hitbox.deactivate()
+			_play(anim_death, 1.0, true)
+
+## Volta inteiro para casa.
+func respawn() -> void:
+	global_position = home
+	velocity = Vector3.ZERO
+	pools.reset_all()
+	hurtbox.set_deferred(&"monitorable", true)
+	if model:
+		model.visible = true
+	_set_state(State.WANDER)
+	_update_label()
+
+func _on_health_depleted() -> void:
+	_set_state(State.DEAD)
+	hurtbox.set_deferred(&"monitorable", false)
+	_update_label()
+
+func _on_poise_broken() -> void:
+	if state != State.DEAD:
+		_set_state(State.STAGGER)
+
+## Chamado pela Hurtbox: pisca, reage e entra em perseguição se estava distraído.
+func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
+	if state == State.DEAD or result.get(&"effective_damage", 0.0) <= 0.0:
+		return
+	if state != State.WINDUP:
+		_set_overlay(_hit_mat)
+	_flash_timer = 0.1
+	if state in [State.WANDER, State.RETURN]:
+		_set_state(State.CHASE)
+	elif state == State.RECOVER:
+		_play(anim_hit, 1.0, true)
+
+func _set_overlay(mat: Material) -> void:
+	for m in _meshes:
+		m.material_overlay = mat
+
+func _resolve(anim: StringName) -> StringName:
+	if anim_player == null or anim.is_empty():
+		return &""
+	for a in anim_player.get_animation_list():
+		if String(a).ends_with(String(anim)):
+			return a
+	return &""
+
+func _play(anim: StringName, speed: float = 1.0, restart: bool = false) -> void:
+	var full := _resolve(anim)
+	if full == &"":
+		return
+	anim_player.speed_scale = speed
+	if anim_player.current_animation == full and not restart:
+		return
+	anim_player.play(full, 0.15)
+	if restart:
+		anim_player.seek(0.0, true)
+
+func _play_timed(anim: StringName, duration: float) -> void:
+	var full := _resolve(anim)
+	if full == &"" or duration <= 0.0:
+		return
+	_play(anim, anim_player.get_animation(full).length / duration, true)

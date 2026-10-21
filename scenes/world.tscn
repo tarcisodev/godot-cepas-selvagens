@@ -16,6 +16,11 @@
 [ext_resource type="PackedScene" path="res://scenes/dummy_creature.tscn" id="14_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/card_album.tscn" id="15_album"]
 [ext_resource type="Script" path="res://scripts/animated_fauna.gd" id="16_fauna"]
+[ext_resource type="PackedScene" path="res://scenes/weapon_trainer.tscn" id="17_trainer"]
+[ext_resource type="Script" path="res://scripts/monster_arena.gd" id="18_arena"]
+[ext_resource type="PackedScene" path="res://scenes/monsters/slime.tscn" id="19_slime"]
+[ext_resource type="PackedScene" path="res://scenes/monsters/skeleton.tscn" id="20_skeleton"]
+[ext_resource type="PackedScene" path="res://scenes/monsters/bat.tscn" id="21_bat"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -97,6 +102,15 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 [node name="DummyCreature" parent="." instance=ExtResource("14_dummy")]
 transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -3.5, 1.2, -6.5)
 
+[node name="WeaponTrainer" parent="." instance=ExtResource("17_trainer")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6.2)
+
+[node name="MonsterArena" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 6)
+script = ExtResource("18_arena")
+landscape = NodePath("../Landscape")
+spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton"), ExtResource("21_bat"), ExtResource("19_slime"), ExtResource("20_skeleton")])
+
 [node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("day_night", "player")]
 script = ExtResource("10_hud")
 day_night = NodePath("../Sun")
@@ -172,7 +186,7 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• Clique Esquerdo: Atacar com Machado (gasta Vigor)  |  Clique Direito: Conjurar Cajado (gasta Éter)
+text = "• Clique Esq./Dir.: os 2 golpes do estilo (espada: segure Dir. para bloquear)  |  E perto do Mestre de Armas: trocar estilo
 • WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)
 • Alt: Andar lento  |  Ctrl: Agachar  |  Espaço: Pular
 • Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas
