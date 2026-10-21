@@ -128,6 +128,13 @@ layout_mode = 2
 value = 100.0
 show_percentage = false
 
+[node name="EtherBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
+modulate = Color(0.28, 0.62, 0.95, 0.95)
+custom_minimum_size = Vector2(220, 7)
+layout_mode = 2
+value = 100.0
+show_percentage = false
+
 [node name="VigorBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
 modulate = Color(0.32, 0.82, 0.52, 0.95)
 custom_minimum_size = Vector2(220, 7)
@@ -159,10 +166,10 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• Clique Esquerdo: Atacar com Machete (gasta Vigor)
+text = "• Clique Esquerdo: Atacar com Machete (gasta Vigor)  |  Clique Direito: Conjurar Cajado (gasta Éter)
 • WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)
 • Alt: Andar lento  |  Ctrl: Agachar  |  Espaço: Pular
-• Tab: Ações do Andarilho  |  Scroll / V: Zoom da câmera
+• Tab: Ações & Forja  |  Scroll / V: Zoom da câmera
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
@@ -221,6 +228,17 @@ text = "🌅 Aguardar (Avançar 4h)"
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
 text = "👁 Alternar 1ª / 3ª Pessoa"
+
+[node name="ForgeButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "🔨 Forjar Elmo Chifre-de-Pedra"
+
+[node name="ForgeStatusLabel" type="Label" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Materiais: 0 Chifres · 2 Placas"
+horizontal_alignment = 1
 
 [node name="CloseButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2

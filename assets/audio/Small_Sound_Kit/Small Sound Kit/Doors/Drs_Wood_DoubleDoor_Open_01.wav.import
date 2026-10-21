@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://ds1idmt7qla37"
+path="res://.godot/imported/Drs_Wood_DoubleDoor_Open_01.wav-867e07b6a137550ed9062f08c3d74884.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Doors/Drs_Wood_DoubleDoor_Open_01.wav"
+dest_files=["res://.godot/imported/Drs_Wood_DoubleDoor_Open_01.wav-867e07b6a137550ed9062f08c3d74884.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

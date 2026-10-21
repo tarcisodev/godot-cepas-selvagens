@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://btslsqqg1ayhq"
+path="res://.godot/imported/Breaking_Bones_01.wav-e0ff4a18614335322ac366b555393943.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Dark/Breaking_Bones_01.wav"
+dest_files=["res://.godot/imported/Breaking_Bones_01.wav-e0ff4a18614335322ac366b555393943.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

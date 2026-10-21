@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://chddk3ki1lb1q"
+path="res://.godot/imported/Amb_Hail_Outside_01.wav-3c5a4deee6f7cdad535402000bcd5607.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Ambience/Amb_Hail_Outside_01.wav"
+dest_files=["res://.godot/imported/Amb_Hail_Outside_01.wav-3c5a4deee6f7cdad535402000bcd5607.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

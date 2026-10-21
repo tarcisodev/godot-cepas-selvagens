@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dmot13hx2cccq"
+path="res://.godot/imported/Leather_002.wav-5a5d1ea1135e92bb852665e63d79ac15.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Clothes/Leather_002.wav"
+dest_files=["res://.godot/imported/Leather_002.wav-5a5d1ea1135e92bb852665e63d79ac15.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

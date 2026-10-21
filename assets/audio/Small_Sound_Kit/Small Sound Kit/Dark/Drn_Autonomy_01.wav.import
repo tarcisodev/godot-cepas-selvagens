@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dursmvnoisbh8"
+path="res://.godot/imported/Drn_Autonomy_01.wav-2834aaca9e12d8bcb1f4b81af61e15a3.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Dark/Drn_Autonomy_01.wav"
+dest_files=["res://.godot/imported/Drn_Autonomy_01.wav-2834aaca9e12d8bcb1f4b81af61e15a3.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

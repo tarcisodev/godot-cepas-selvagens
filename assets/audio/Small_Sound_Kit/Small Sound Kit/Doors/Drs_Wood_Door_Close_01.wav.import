@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://3fncrmc4gbse"
+path="res://.godot/imported/Drs_Wood_Door_Close_01.wav-d3a764fe5a1a9c2bf3a0f9f4fcc0d68a.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Doors/Drs_Wood_Door_Close_01.wav"
+dest_files=["res://.godot/imported/Drs_Wood_Door_Close_01.wav-d3a764fe5a1a9c2bf3a0f9f4fcc0d68a.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

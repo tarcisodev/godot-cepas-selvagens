@@ -10,6 +10,7 @@ const RiverClass = preload("res://scripts/river_system.gd")
 @export var day_night: Node3D
 
 var wind_player: AudioStreamPlayer
+var forest_player: AudioStreamPlayer
 var crickets_player: AudioStreamPlayer
 var waterfall_player: AudioStreamPlayer3D
 var campfire_player: AudioStreamPlayer3D
@@ -21,6 +22,7 @@ var frog_timer: float = 2.0
 
 func _ready() -> void:
 	_setup_ambient_wind()
+	_setup_forest_ambience()
 	_setup_crickets()
 	_setup_waterfall()
 	_setup_campfire()
@@ -30,13 +32,25 @@ func _setup_ambient_wind() -> void:
 	wind_player = AudioStreamPlayer.new()
 	wind_player.name = "WindPlayer"
 	wind_player.bus = &"Ambiente"
-	var stream: AudioStreamWAV = load("res://assets/audio/wind_ambient.wav")
+	var stream: AudioStreamWAV = load("res://assets/audio/Small_Sound_Kit/Small Sound Kit/Ambience/Amb_Wind.wav")
 	if stream:
 		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		wind_player.stream = stream
-		wind_player.volume_db = -10.0
+		wind_player.volume_db = -12.0
 		add_child(wind_player)
 		wind_player.play()
+
+func _setup_forest_ambience() -> void:
+	forest_player = AudioStreamPlayer.new()
+	forest_player.name = "ForestPlayer"
+	forest_player.bus = &"Ambiente"
+	var stream: AudioStreamWAV = load("res://assets/audio/Small_Sound_Kit/Small Sound Kit/Ambience/Amb_Forest_River_Bird_1.wav")
+	if stream:
+		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		forest_player.stream = stream
+		forest_player.volume_db = -14.0
+		add_child(forest_player)
+		forest_player.play()
 
 func _setup_crickets() -> void:
 	crickets_player = AudioStreamPlayer.new()

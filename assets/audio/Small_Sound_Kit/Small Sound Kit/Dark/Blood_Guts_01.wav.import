@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cndrufok1h4j6"
+path="res://.godot/imported/Blood_Guts_01.wav-0040ed53a2981696a57ea0b7de030c84.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Dark/Blood_Guts_01.wav"
+dest_files=["res://.godot/imported/Blood_Guts_01.wav-0040ed53a2981696a57ea0b7de030c84.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

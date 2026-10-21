@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://c3wi4y5t6wphj"
+path="res://.godot/imported/Drs_Table_Close_01.wav-6e2400374bd0d57f99ca342e78fa5d2c.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Doors/Drs_Table_Close_01.wav"
+dest_files=["res://.godot/imported/Drs_Table_Close_01.wav-6e2400374bd0d57f99ca342e78fa5d2c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

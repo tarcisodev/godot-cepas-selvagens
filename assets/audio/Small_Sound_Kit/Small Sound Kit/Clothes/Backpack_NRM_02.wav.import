@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://bjb1l6yg6g3q6"
+path="res://.godot/imported/Backpack_NRM_02.wav-9e7f9145182d83cb73cfa6d4d04d081b.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Clothes/Backpack_NRM_02.wav"
+dest_files=["res://.godot/imported/Backpack_NRM_02.wav-9e7f9145182d83cb73cfa6d4d04d081b.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

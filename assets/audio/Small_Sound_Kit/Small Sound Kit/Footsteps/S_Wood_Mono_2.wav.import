@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dunaat41rpky7"
+path="res://.godot/imported/S_Wood_Mono_2.wav-f8ab4d3910f85d24a165d4434c6ccc13.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Footsteps/S_Wood_Mono_2.wav"
+dest_files=["res://.godot/imported/S_Wood_Mono_2.wav-f8ab4d3910f85d24a165d4434c6ccc13.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

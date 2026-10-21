@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://c2oljk5ce7s12"
+path="res://.godot/imported/S_Dirt_Mono_Without_Hitting_Boot_1.wav-c1b3b8ba926f025e662e00922a1f754c.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Footsteps/S_Dirt_Mono_Without_Hitting_Boot_1.wav"
+dest_files=["res://.godot/imported/S_Dirt_Mono_Without_Hitting_Boot_1.wav-c1b3b8ba926f025e662e00922a1f754c.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

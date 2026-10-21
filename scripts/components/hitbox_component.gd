@@ -39,6 +39,14 @@ func activate(duration: float = 0.25) -> void:
 	_active_timer = duration
 	monitoring = true
 
+## Ativa a hitbox com parâmetros customizados de golpe ou magia (GDD-01)
+func activate_with_params(duration: float = 0.25, custom_damage: float = 25.0, custom_type: DamageType.Type = DamageType.Type.SLASH, custom_poise: float = 20.0, custom_break_mult: float = 1.2) -> void:
+	damage = custom_damage
+	damage_type = custom_type
+	poise_damage = custom_poise
+	part_break_multiplier = custom_break_mult
+	activate(duration)
+
 ## Desativa a detecção de impacto
 func deactivate() -> void:
 	_is_active = false

@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dthtosh5cpn8n"
+path="res://.godot/imported/Drs_Chest_Close_01.wav-45144465ddfc9072cc8658b2e3139c04.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Doors/Drs_Chest_Close_01.wav"
+dest_files=["res://.godot/imported/Drs_Chest_Close_01.wav-45144465ddfc9072cc8658b2e3139c04.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

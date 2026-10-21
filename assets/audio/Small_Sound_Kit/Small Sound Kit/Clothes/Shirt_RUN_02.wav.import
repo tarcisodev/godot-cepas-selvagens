@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dq6781picos23"
+path="res://.godot/imported/Shirt_RUN_02.wav-804293b414eb9e7029fc9c594f271e17.sample"
+
+[deps]
+
+source_file="res://assets/audio/Small_Sound_Kit/Small Sound Kit/Clothes/Shirt_RUN_02.wav"
+dest_files=["res://.godot/imported/Shirt_RUN_02.wav-804293b414eb9e7029fc9c594f271e17.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
