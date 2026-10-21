@@ -127,7 +127,14 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 
 	if data.has("position"):
 		var pos: Array = data["position"]
-		_set_pos(player as Node3D, Vector3(pos[0], pos[1] + 0.2, pos[2]))
+		var px: float = float(pos[0])
+		var py: float = float(pos[1])
+		var pz: float = float(pos[2])
+		# Se a posição estiver no limbo ou fora dos limites do mapa, restaura na área segura inicial
+		if py < -6.0 or py > 70.0 or absf(px) > 88.0 or absf(pz) > 88.0:
+			_set_pos(player as Node3D, Vector3(0.0, 1.2, 0.0))
+		else:
+			_set_pos(player as Node3D, Vector3(px, py + 0.2, pz))
 	var sun := _world_sun(player)
 	if sun and data.has("time_hours") and sun.has_method("_update_sun_position_and_lighting"):
 		sun.current_time_hours = float(data["time_hours"])

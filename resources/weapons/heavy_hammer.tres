@@ -6,38 +6,38 @@
 [ext_resource type="PackedScene" path="res://assets/models/weapons/hammer_B.gltf" id="4_hammer"]
 [ext_resource type="PackedScene" path="res://scenes/equipment/pauldron_iron.tscn" id="5_pauldron"]
 
-[sub_resource type="Resource" id="Attack_smash"]
+[sub_resource type="Resource" id="Attack_swing"]
 script = ExtResource("2_attack")
 kind = 0
-display_name = "Golpe pesado"
-anims = Array[StringName]([&"Sword_Attack"])
-duration = 0.9
-hit_delay = 0.45
+display_name = "Balanço de martelo"
+anims = Array[StringName]([&"Sword_Regular_A", &"Sword_Regular_B"])
+duration = 0.45
+hit_delay = 0.18
 active_time = 0.18
-damage = 45.0
+damage = 26.0
 damage_type = 1
-poise_damage = 40.0
-break_mult = 2.0
+poise_damage = 22.0
+break_mult = 1.4
 cost_pool = &"vigor"
-cost = 22.0
-move_mult = 0.15
+cost = 12.0
+move_mult = 0.35
 
-[sub_resource type="Resource" id="Attack_lunge"]
+[sub_resource type="Resource" id="Attack_smash_lunge"]
 script = ExtResource("2_attack")
 kind = 1
-display_name = "Investida"
+display_name = "Investida demolidora"
 anims = Array[StringName]([&"Sword_Dash"])
-duration = 0.7
-hit_delay = 0.2
-active_time = 0.3
-damage = 35.0
+duration = 0.85
+hit_delay = 0.3
+active_time = 0.25
+damage = 48.0
 damage_type = 1
-poise_damage = 30.0
-break_mult = 1.5
+poise_damage = 42.0
+break_mult = 2.2
 cost_pool = &"vigor"
-cost = 28.0
+cost = 26.0
 move_mult = 0.0
-lunge_speed = 9.0
+lunge_speed = 8.5
 
 [sub_resource type="Resource" id="Piece_hammer"]
 script = ExtResource("3_piece")
@@ -61,8 +61,8 @@ transform = Transform3D(0.906, 0.423, 0, -0.423, 0.906, 0, 0, 0, 1, -0.17, 0.03,
 script = ExtResource("1_style")
 id = &"heavy_hammer"
 display_name = "Arma pesada"
-description = "Martelo de guerra: lento, dano de impacto que quebra Postura e carapaça. Botão direito avança com uma investida."
+description = "Martelo de guerra: clique esquerdo desfere balanços rápidos de impacto. Botão direito executa uma investida demolidora pesada que quebra carapaças e Postura."
 weight = 30.0
-primary = SubResource("Attack_smash")
-secondary = SubResource("Attack_lunge")
+primary = SubResource("Attack_swing")
+secondary = SubResource("Attack_smash_lunge")
 pieces = Array[ExtResource("3_piece")]([SubResource("Piece_hammer"), SubResource("Piece_pauldron_l"), SubResource("Piece_pauldron_r")])

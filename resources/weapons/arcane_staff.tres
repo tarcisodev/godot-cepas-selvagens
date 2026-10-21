@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponStyle" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="WeaponStyle" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="1_style"]
 [ext_resource type="Script" path="res://scripts/data/style_attack.gd" id="2_attack"]
@@ -6,39 +6,48 @@
 [ext_resource type="PackedScene" path="res://assets/models/weapons/staff_B.gltf" id="4_staff"]
 [ext_resource type="PackedScene" path="res://assets/models/props/fantasy/Bag.gltf" id="5_bag"]
 
+[sub_resource type="Resource" id="Attack_strike"]
+script = ExtResource("2_attack")
+kind = 0
+display_name = "Golpe de cajado"
+anims = Array[StringName]([&"Sword_Regular_A"])
+duration = 0.38
+hit_delay = 0.12
+active_time = 0.16
+damage = 18.0
+damage_type = 1
+poise_damage = 14.0
+break_mult = 1.0
+reach = 2.2
+cost_pool = &"vigor"
+cost = 10.0
+move_mult = 0.4
+
+[sub_resource type="Resource" id="Attack_aim"]
+script = ExtResource("2_attack")
+kind = 5
+display_name = "Mira arcana"
+anims = Array[StringName]([&"Spell_Simple_Idle"])
+cost_pool = &"ether"
+cost = 0.0
+move_mult = 0.6
+
 [sub_resource type="Resource" id="Attack_bolt"]
 script = ExtResource("2_attack")
 kind = 2
 display_name = "Dardo arcano"
 anims = Array[StringName]([&"Spell_Simple_Shoot"])
 duration = 0.45
-hit_delay = 0.2
+hit_delay = 0.18
 active_time = 1.4
-damage = 20.0
+damage = 24.0
 damage_type = 5
-poise_damage = 8.0
+poise_damage = 10.0
 break_mult = 0.8
-reach = 18.0
+reach = 25.0
 cost_pool = &"ether"
 cost = 8.0
-move_mult = 0.6
-
-[sub_resource type="Resource" id="Attack_burst"]
-script = ExtResource("2_attack")
-kind = 3
-display_name = "Explosão telúrica"
-anims = Array[StringName]([&"Spell_Simple_Shoot"])
-duration = 0.9
-hit_delay = 0.5
-active_time = 0.15
-damage = 40.0
-damage_type = 7
-poise_damage = 25.0
-break_mult = 1.4
-reach = 2.8
-cost_pool = &"ether"
-cost = 20.0
-move_mult = 0.05
+move_mult = 0.5
 
 [sub_resource type="Resource" id="Piece_staff"]
 script = ExtResource("3_piece")
@@ -56,8 +65,9 @@ transform = Transform3D(0, 0, -0.28, 0, 0.28, 0, 0.28, 0, 0, 0.2, -0.12, 0)
 script = ExtResource("1_style")
 id = &"arcane_staff"
 display_name = "Cajado arcano"
-description = "Dardo arcano mirado que gasta pouco Éter. Botão direito: explosão telúrica em área à sua frente, quase enraizado durante o conjuro."
+description = "Ataque físico de cajado (Vigor). Segure o botão direito para mirar pelo ombro com retícula e dispare dardos arcanos pelo visor (Éter)."
 weight = 8.0
-primary = SubResource("Attack_bolt")
-secondary = SubResource("Attack_burst")
+primary = SubResource("Attack_strike")
+secondary = SubResource("Attack_aim")
+aim_attack = SubResource("Attack_bolt")
 pieces = Array[ExtResource("3_piece")]([SubResource("Piece_staff"), SubResource("Piece_satchel")])

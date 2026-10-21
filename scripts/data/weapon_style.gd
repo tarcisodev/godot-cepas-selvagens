@@ -11,5 +11,9 @@ extends Resource
 @export var weight: float = 10.0
 @export var primary: StyleAttack
 @export var secondary: StyleAttack
+## Golpe executado ao clicar com botão esquerdo durante o modo de mira (armas com AIM)
+@export var aim_attack: StyleAttack
+## Golpe executado ao clicar com botão esquerdo durante o bloqueio (armas com BLOCK)
+@export var block_counter: StyleAttack
 ## Arma, escudo e armadura que aparecem no personagem.
 @export var pieces: Array[EquipmentPiece] = []

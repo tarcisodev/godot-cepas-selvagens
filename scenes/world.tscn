@@ -169,6 +169,98 @@ layout_mode = 2
 value = 100.0
 show_percentage = false
 
+[node name="Reticle" type="Control" parent="HUD"]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CenterDot" type="ColorRect" parent="HUD/Reticle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -2.0
+offset_top = -2.0
+offset_right = 2.0
+offset_bottom = 2.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 0.9)
+
+[node name="Top" type="ColorRect" parent="HUD/Reticle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -1.0
+offset_top = -14.0
+offset_right = 1.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.9, 0.95, 1, 0.75)
+
+[node name="Bottom" type="ColorRect" parent="HUD/Reticle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -1.0
+offset_top = 6.0
+offset_right = 1.0
+offset_bottom = 14.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.9, 0.95, 1, 0.75)
+
+[node name="Left" type="ColorRect" parent="HUD/Reticle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -14.0
+offset_top = -1.0
+offset_right = -6.0
+offset_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.9, 0.95, 1, 0.75)
+
+[node name="Right" type="ColorRect" parent="HUD/Reticle"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 6.0
+offset_top = -1.0
+offset_right = 14.0
+offset_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.9, 0.95, 1, 0.75)
+
 [node name="BottomMargin" type="MarginContainer" parent="HUD"]
 anchors_preset = 2
 anchor_top = 1.0
@@ -186,11 +278,10 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• Clique Esq./Dir.: os 2 golpes do estilo (espada: segure Dir. para bloquear)  |  E perto do Mestre de Armas: trocar estilo
-• WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)
-• Alt: Andar lento  |  Ctrl: Agachar  |  Espaço: Pular
-• Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas
-• Scroll / V: Zoom da câmera
+text = "• Cajado: Botão Dir. mira (ombro) + Botão Esq. atira dardo arcano  |  Botão Esq. sem mirar: golpe corpo a corpo
+• Espada: Esq. combo / Dir. bloqueio (Esq. bloqueando: escudo na cara)  |  Martelo: Esq. balanço / Dir. investida
+• WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)  |  E perto do Mestre de Armas: trocar estilo
+• Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas  |  Scroll / V: Zoom da câmera
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]

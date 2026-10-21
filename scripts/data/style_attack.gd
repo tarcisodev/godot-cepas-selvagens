@@ -10,6 +10,7 @@ enum Kind {
 	PROJECTILE,  ## Dispara um projétil na direção em que o corpo olha
 	AREA,        ## Explosão em volta do ponto à frente
 	BLOCK,       ## Segurar o botão: bloqueio frontal que gasta Vigor
+	AIM          ## Segurar o botão: entra em modo de mira com retícula over-the-shoulder
 }
 
 @export var kind: Kind = Kind.MELEE

@@ -71,14 +71,23 @@ func test_attack_phases() -> void:
 
 	player.equip_style(STAFF)
 	var ether_before: float = player.pools.current_ether
-	assert(player.try_attack(STAFF.primary), "Dardo arcano começa")
-	assert(player.pools.current_ether < ether_before, "Cajado gasta Éter")
+	assert(player.try_attack(STAFF.aim_attack), "Dardo arcano mirado começa")
+	assert(player.pools.current_ether < ether_before, "Dardo arcano gasta Éter")
 	var children_before: int = root.get_child_count()
-	player._process_attack(STAFF.primary.hit_delay + 0.01)
+	player._process_attack(STAFF.aim_attack.hit_delay + 0.01)
 	assert(root.get_child_count() == children_before + 1, "Dardo arcano é disparado no mundo")
 	var bolt: Node = root.get_child(root.get_child_count() - 1)
 	assert(bolt is ArcaneBolt, "O projétil é um ArcaneBolt")
 	bolt.free()
+	player._process_attack(STAFF.aim_attack.duration)
+	assert(player.current_attack == null and not player.is_attacking, "Dardo arcano termina")
+
+	vigor_before = player.pools.current_vigor
+	assert(player.try_attack(STAFF.primary), "Golpe melee de cajado começa")
+	assert(is_equal_approx(player.pools.current_vigor, vigor_before - STAFF.primary.cost), "Golpe melee gasta Vigor")
+	player._process_attack(STAFF.primary.duration)
+	assert(player.current_attack == null and not player.is_attacking, "Golpe melee termina")
+
 	player.free()
 	print("  ✓ Fases, custos e projétil funcionando")
 

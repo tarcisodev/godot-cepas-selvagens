@@ -11,6 +11,7 @@ class_name WorldHUD
 @onready var ether_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/EtherBar")
 @onready var vigor_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/VigorBar")
 @onready var poise_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/PoiseBar")
+@onready var reticle: Control = get_node_or_null("Reticle")
 
 var tips_visible: bool = true
 var current_posture: String = "Em Pé"
@@ -21,6 +22,8 @@ func _ready() -> void:
 		player.camera_rig.camera_mode_changed.connect(_on_camera_mode_changed)
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.connect(_on_posture_changed)
+	if player and player.has_signal("aim_changed"):
+		player.aim_changed.connect(_on_aim_changed)
 
 	if player and "pools" in player and player.pools != null:
 		player.pools.health_changed.connect(_on_health_changed)
@@ -34,8 +37,12 @@ func _ready() -> void:
 			_on_poise_changed(player.pools.current_poise, player.stats.get_stat(&"max_poise"))
 
 	# Dicas visíveis seguem a opção "Mostrar Dicas de Controle"
-	_set_tips_visible(GameSettings.get_value("video", "show_tips"))
-	GameSettings.setting_changed.connect(_on_setting_changed)
+	var gs = get_node_or_null("/root/GameSettings")
+	if gs:
+		_set_tips_visible(gs.get_value("video", "show_tips"))
+		gs.setting_changed.connect(_on_setting_changed)
+	else:
+		_set_tips_visible(true)
 
 func _process(_delta: float) -> void:
 	if day_night and time_label:
@@ -45,8 +52,12 @@ func _process(_delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
-		GameSettings.set_value("video", "show_tips", not tips_visible)
-		GameSettings.save()
+		var gs = get_node_or_null("/root/GameSettings")
+		if gs:
+			gs.set_value("video", "show_tips", not tips_visible)
+			gs.save()
+		else:
+			_set_tips_visible(not tips_visible)
 
 func _on_setting_changed(section: String, key: String, value: Variant) -> void:
 	if section == "video" and key == "show_tips":
@@ -63,6 +74,10 @@ func _on_camera_mode_changed(is_first_person: bool) -> void:
 func _on_posture_changed(posture: String) -> void:
 	current_posture = posture
 	_update_hud_status()
+
+func _on_aim_changed(is_aiming: bool) -> void:
+	if reticle:
+		reticle.visible = is_aiming
 
 func _update_hud_status() -> void:
 	if mode_label:

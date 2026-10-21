@@ -13,6 +13,10 @@ class_name CameraRig
 @export var min_distance: float = 0.0      # 0 = 1ª pessoa (nos olhos)
 @export var max_distance: float = 6.0      # Distância máxima de 3ª pessoa
 @export var default_distance: float = 3.5  # Distância inicial agradável
+@export var aim_distance: float = 1.9      # Distância aproximada durante a mira
+@export var aim_offset: Vector3 = Vector3(0.55, 0.15, 0.0) # Offset no ombro direito
+@export var normal_fov: float = 75.0
+@export var aim_fov: float = 58.0          # Zoom tático durante a mira
 @export var zoom_step: float = 0.5
 @export var zoom_smoothness: float = 12.0
 
@@ -21,16 +25,21 @@ class_name CameraRig
 
 var target_distance: float = 3.5
 var is_first_person: bool = false
+var is_aiming: bool = false
+var _current_offset: Vector3 = Vector3.ZERO
 var pitch: float = 0.0
 var yaw: float = 0.0
 
 signal camera_mode_changed(is_first_person: bool)
+signal aim_mode_changed(is_aiming: bool)
 
 func _ready() -> void:
 	# Captura o mouse na tela para controle suave de visão
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	target_distance = default_distance
 	spring_arm.spring_length = target_distance
+	if camera:
+		camera.fov = normal_fov
 	_update_camera_mode()
 
 func _input(event: InputEvent) -> void:
@@ -74,8 +83,49 @@ func _input(event: InputEvent) -> void:
 		_update_camera_mode()
 
 func _process(delta: float) -> void:
-	# Interpolação suave da distância da câmera
-	spring_arm.spring_length = lerp(spring_arm.spring_length, target_distance, zoom_smoothness * delta)
+	# Interpolação suave da distância da câmera, offset do ombro e FOV
+	var target_dist: float = aim_distance if is_aiming and not is_first_person else target_distance
+	var target_off: Vector3 = aim_offset if is_aiming and not is_first_person else Vector3.ZERO
+	var target_f: float = aim_fov if is_aiming and not is_first_person else normal_fov
+	var weight: float = clampf(zoom_smoothness * delta, 0.0, 1.0)
+
+	spring_arm.spring_length = lerp(spring_arm.spring_length, target_dist, weight)
+	_current_offset = _current_offset.lerp(target_off, weight)
+	spring_arm.position = _current_offset
+	if camera:
+		camera.fov = lerp(camera.fov, target_f, weight)
+
+func set_aiming(aiming: bool) -> void:
+	if is_aiming != aiming:
+		is_aiming = aiming
+		aim_mode_changed.emit(is_aiming)
+
+## Retorna o ponto 3D no mundo para onde a retícula do centro da tela aponta
+func get_aim_target(max_range: float = 60.0) -> Vector3:
+	if camera == null or not is_inside_tree() or get_viewport() == null:
+		return global_position + (-global_basis.z * max_range)
+	
+	var world_3d := get_world_3d()
+	var screen_center := get_viewport().get_visible_rect().size * 0.5
+	var ray_origin := camera.project_ray_origin(screen_center)
+	var ray_normal := camera.project_ray_normal(screen_center)
+	var ray_end := ray_origin + (ray_normal * max_range)
+	if world_3d == null:
+		return ray_end
+	
+	var space_state := world_3d.direct_space_state
+	
+	# Raycast contra colisão de cenário e hurtboxes de monstros (camadas 1 e 16)
+	var query := PhysicsRayQueryParameters3D.create(ray_origin, ray_end, 1 | 16)
+	var player_node := get_parent()
+	if player_node:
+		query.exclude = [player_node]
+	
+	var result := space_state.intersect_ray(query)
+	if not result.is_empty():
+		return result.position
+	
+	return ray_end
 
 func _update_camera_mode() -> void:
 	var was_first_person = is_first_person

@@ -39,6 +39,7 @@ var is_sitting: bool = false
 var is_dodging: bool = false
 var is_attacking: bool = false
 var is_casting: bool = false
+var is_aiming: bool = false
 var dodge_timer: float = 0.0
 var dodge_dir: Vector3 = Vector3.FORWARD
 const DODGE_DURATION: float = 0.36
@@ -72,6 +73,7 @@ const DOWNED_DURATION: float = 5.0
 var is_downed: bool = false
 var downed_timer: float = 0.0
 var spawn_point: Vector3 = Vector3.ZERO
+var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
 # Armeiro e outros NPCs com [E]
 const TALK_RANGE: float = 2.6
@@ -96,6 +98,7 @@ const SIT_CAM_Y: float = 0.65
 
 signal posture_changed(state_name: String)
 signal style_changed(style: WeaponStyle)
+signal aim_changed(is_aiming: bool)
 
 func _ready() -> void:
 	add_to_group("player")
@@ -106,7 +109,10 @@ func _ready() -> void:
 
 	_setup_footsteps()
 	_setup_combat_audio()
-	spawn_point = global_position
+	floor_snap_length = 0.35
+	floor_max_angle = deg_to_rad(55.0)
+	spawn_point = global_position if global_position.y > -5.0 else Vector3(0.0, 1.2, 0.0)
+	last_safe_position = spawn_point
 	if pools and not pools.health_depleted.is_connected(_on_health_depleted):
 		pools.health_depleted.connect(_on_health_depleted)
 	equip_style(weapon_style)
@@ -203,7 +209,7 @@ func _physics_process(delta: float) -> void:
 		posture_changed.emit("Agachado" if is_crouching else "Em Pé")
 
 	# Direção no espaço 3D relativa à câmera
-	var cam_yaw: float = camera_rig.global_rotation.y
+	var cam_yaw: float = camera_rig.global_rotation.y if camera_rig else 0.0
 	var move_direction: Vector3 = (Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw) * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
 	if is_downed:
@@ -219,16 +225,42 @@ func _physics_process(delta: float) -> void:
 
 	# Básicos do estilo (clique esq./dir.); menu aberto ou Postura quebrada travam o combate
 	_process_attack(delta)
-	var can_fight: bool = get_tree().get_nodes_in_group("open_menus").is_empty() and not is_stunned()
+	var tree := get_tree()
+	var can_fight: bool = (tree == null or tree.get_nodes_in_group("open_menus").is_empty()) and not is_stunned() and not is_downed
 	var secondary: StyleAttack = weapon_style.secondary if weapon_style else null
+
+	# Modo de Bloqueio (armas com secondary.kind == BLOCK)
 	is_blocking = can_fight and secondary != null and secondary.kind == StyleAttack.Kind.BLOCK \
 		and Input.is_action_pressed("cast") and current_attack == null and not is_dodging \
 		and not is_sitting and pools != null and pools.current_vigor > 0.0
+
+	# Modo de Mira (armas com secondary.kind == AIM)
+	var wants_aim: bool = can_fight and secondary != null and secondary.kind == StyleAttack.Kind.AIM \
+		and Input.is_action_pressed("cast") and not is_dodging and not is_sitting
+	_set_aiming(wants_aim)
+
 	if can_fight and weapon_style:
-		if Input.is_action_just_pressed("attack"):
-			try_attack(weapon_style.primary)
-		elif secondary and secondary.kind != StyleAttack.Kind.BLOCK and Input.is_action_just_pressed("cast"):
-			try_attack(secondary)
+		if is_aiming:
+			# Mirando: clique esquerdo dispara o tiro arcano mirado
+			if Input.is_action_just_pressed("attack"):
+				if weapon_style.aim_attack:
+					try_attack(weapon_style.aim_attack)
+				else:
+					try_attack(weapon_style.primary)
+		elif is_blocking:
+			# Bloqueando: clique esquerdo desfere contra-ataque / shield bash
+			if Input.is_action_just_pressed("attack"):
+				if weapon_style.block_counter:
+					try_attack(weapon_style.block_counter)
+				else:
+					try_attack(weapon_style.primary)
+		else:
+			# Neutro: clique esquerdo = golpe primário
+			if Input.is_action_just_pressed("attack"):
+				try_attack(weapon_style.primary)
+			# Neutro: clique direito = secundário se não for BLOCK nem AIM
+			elif secondary and secondary.kind != StyleAttack.Kind.BLOCK and secondary.kind != StyleAttack.Kind.AIM and Input.is_action_just_pressed("cast"):
+				try_attack(secondary)
 
 	# Processar Esquiva / Rolamento (tecla C ou Esquiva)
 	if is_dodging:
@@ -266,6 +298,8 @@ func _physics_process(delta: float) -> void:
 		move_direction = _attack_dir
 	elif current_attack:
 		target_speed = walk_speed * current_attack.move_mult # Mobilidade do golpe/conjuro (GDD-01 §4)
+	elif is_aiming:
+		target_speed = walk_speed * (weapon_style.secondary.move_mult if weapon_style and weapon_style.secondary else 0.6)
 	elif is_blocking:
 		target_speed = walk_speed * weapon_style.secondary.move_mult
 	elif is_sitting:
@@ -300,6 +334,14 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	# Atualiza última posição segura sobre o chão dentro do mapa
+	if is_on_floor() and global_position.y > -6.0 and absf(global_position.x) < 88.0 and absf(global_position.z) < 88.0:
+		last_safe_position = global_position
+
+	# Resgate automático caso caia no limbo ou atravesse o chão
+	if global_position.y < -20.0 or absf(global_position.x) > 130.0 or absf(global_position.z) > 130.0:
+		_recover_from_void()
+
 	# Altura da câmera e colisão suaves
 	_update_camera_height(delta)
 
@@ -315,6 +357,8 @@ func _update_collision_for_crouch() -> void:
 		collision_shape.position.y = 0.58 if is_crouching else 0.875
 
 func _update_camera_height(delta: float) -> void:
+	if camera_rig == null:
+		return
 	var target_cam_y: float = STAND_CAM_Y
 	if is_sitting:
 		target_cam_y = SIT_CAM_Y
@@ -343,6 +387,12 @@ func _update_animation(speed: float) -> void:
 	elif is_blocking:
 		var block_anims: Array[StringName] = weapon_style.secondary.anims
 		character_visual.play(block_anims[0] if not block_anims.is_empty() else &"Sword_Block")
+	elif is_aiming:
+		if moving:
+			character_visual.play(&"Walk", speed / walk_speed)
+		else:
+			var aim_anims: Array[StringName] = weapon_style.secondary.anims if weapon_style and weapon_style.secondary else []
+			character_visual.play(aim_anims[0] if not aim_anims.is_empty() else &"Spell_Simple_Idle")
 	elif flinch_timer > 0.0:
 		pass # deixa a reação ao golpe terminar
 	elif is_sitting:
@@ -372,6 +422,8 @@ func get_harvest_time() -> float:
 	return 3.0
 
 func _find_harvest_target() -> Node3D:
+	if get_tree() == null:
+		return null
 	var best: Node3D = null
 	var best_dist: float = HARVEST_RANGE
 	for node in get_tree().get_nodes_in_group("harvestable"):
@@ -390,7 +442,8 @@ func _cancel_harvest(reason: String) -> void:
 
 func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 	if not is_harvesting:
-		if Input.is_action_just_pressed("interact") and get_tree().get_nodes_in_group("open_menus").is_empty():
+		var tree := get_tree()
+		if Input.is_action_just_pressed("interact") and (tree == null or tree.get_nodes_in_group("open_menus").is_empty()):
 			var npc: Node3D = _find_nearest_in_group(&"talkable", TALK_RANGE)
 			if npc and _find_harvest_target() == null:
 				npc.talk_to(self)
@@ -454,16 +507,26 @@ func _handle_footsteps(delta: float, input_dir: Vector2) -> void:
 		footstep_timer = 0.15
 
 func _handle_rotation(delta: float, move_dir: Vector3) -> void:
-	if is_first_person:
-		visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, camera_rig.rotation.y, rotation_speed * 2.0 * delta)
-	elif is_blocking:
-		visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, camera_rig.global_rotation.y, rotation_speed * delta)
+	if is_first_person or is_aiming or is_blocking:
+		if camera_rig:
+			visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, camera_rig.global_rotation.y, rotation_speed * delta)
 	elif current_attack:
 		pass # o golpe sai para onde a câmera mirava quando começou
 	else:
 		if move_dir.length_squared() > 0.001 and not is_sitting:
 			var target_angle: float = atan2(-move_dir.x, -move_dir.z)
 			visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, target_angle, rotation_speed * delta)
+
+func _set_aiming(aiming: bool) -> void:
+	if is_aiming != aiming:
+		is_aiming = aiming
+		if camera_rig and camera_rig.has_method("set_aiming"):
+			camera_rig.set_aiming(is_aiming)
+		aim_changed.emit(is_aiming)
+		if is_aiming:
+			posture_changed.emit("Mirando")
+		elif current_attack == null and not is_blocking:
+			posture_changed.emit("Em Pé")
 
 func _on_camera_mode_changed(first_person: bool) -> void:
 	is_first_person = first_person
@@ -478,6 +541,8 @@ func toggle_sit(force_state = null) -> void:
 	posture_changed.emit("Sentado / Meditando" if is_sitting else "Em Pé")
 
 func _find_nearest_in_group(group: StringName, max_dist: float) -> Node3D:
+	if get_tree() == null:
+		return null
 	var best: Node3D = null
 	var best_dist: float = max_dist
 	for node in get_tree().get_nodes_in_group(group):
@@ -494,6 +559,8 @@ func _find_nearest_in_group(group: StringName, max_dist: float) -> Node3D:
 func equip_style(style: WeaponStyle) -> void:
 	if style == null:
 		return
+	if is_aiming:
+		_set_aiming(false)
 	weapon_style = style
 	_end_attack()
 	is_blocking = false
@@ -507,7 +574,7 @@ func equip_style(style: WeaponStyle) -> void:
 
 ## Começa um básico se o estado permitir e o recurso pagar; retorna se começou.
 func try_attack(attack: StyleAttack) -> bool:
-	if attack == null or attack.kind == StyleAttack.Kind.BLOCK:
+	if attack == null or attack.kind == StyleAttack.Kind.BLOCK or attack.kind == StyleAttack.Kind.AIM:
 		return false
 	if current_attack or is_sitting or is_dodging or is_harvesting or is_downed or is_stunned():
 		return false
@@ -557,9 +624,13 @@ func _release_attack(attack: StyleAttack) -> void:
 				attack_hitbox.activate_with_params(attack.active_time, attack.damage, attack.damage_type, attack.poise_damage, attack.break_mult)
 		StyleAttack.Kind.PROJECTILE:
 			var aim: Vector3 = _attack_dir
-			if camera_rig and not is_first_person:
+			var spawn_pos: Vector3 = global_position + Vector3.UP * 1.3 + _attack_dir * 0.6
+			if is_aiming and camera_rig and camera_rig.has_method("get_aim_target"):
+				var target_pt: Vector3 = camera_rig.get_aim_target(attack.reach)
+				aim = (target_pt - spawn_pos).normalized()
+			elif camera_rig and not is_first_person:
 				aim = -camera_rig.global_basis.z
-			ArcaneBolt.spawn(get_parent(), self, global_position + Vector3.UP * 1.3 + _attack_dir * 0.6, aim, attack)
+			ArcaneBolt.spawn(get_parent(), self, spawn_pos, aim, attack)
 		StyleAttack.Kind.AREA:
 			EarthBurst.spawn(get_parent(), self, global_position + _attack_dir * (attack.reach * 0.6), attack)
 
@@ -609,6 +680,8 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	if result.get(&"poise_broken", false):
 		_end_attack()
 		is_blocking = false
+		if is_aiming:
+			_set_aiming(false)
 		if is_harvesting:
 			_cancel_harvest("Postura quebrada!")
 	elif current_attack == null and not is_blocking and not is_dodging and character_visual:
@@ -620,6 +693,8 @@ func _on_health_depleted() -> void:
 	downed_timer = DOWNED_DURATION
 	_end_attack()
 	is_blocking = false
+	if is_aiming:
+		_set_aiming(false)
 	if is_harvesting:
 		_cancel_harvest("Caído")
 	posture_changed.emit("Caído! Voltando ao acampamento em %.0f s" % DOWNED_DURATION)
@@ -635,3 +710,24 @@ func _process_downed(delta: float) -> void:
 		if pools:
 			pools.reset_all()
 		posture_changed.emit("De volta ao acampamento")
+
+## Resgata o jogador se cair no vazio (limbo) ou atravessar a malha
+func _recover_from_void() -> void:
+	velocity = Vector3.ZERO
+	var target_pos: Vector3 = last_safe_position if (last_safe_position != Vector3.ZERO and last_safe_position.y > -5.0) else spawn_point
+	if target_pos.y < -5.0:
+		target_pos = Vector3(0.0, 1.2, 0.0)
+	target_pos.y += 1.0
+	global_position = target_pos
+	is_dodging = false
+	is_attacking = false
+	current_attack = null
+	_attack_hit_pending = false
+	is_blocking = false
+	if is_aiming:
+		_set_aiming(false)
+	if is_harvesting:
+		_cancel_harvest("Resgatado do abismo")
+	posture_changed.emit("Em Pé")
+	if character_visual:
+		character_visual.play(&"Idle")
