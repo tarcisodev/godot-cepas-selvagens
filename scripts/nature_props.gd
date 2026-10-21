@@ -45,11 +45,18 @@ const SHROOM_SCENES: Array = [
 	preload("res://assets/models/nature/Mushroom_Laetiporus.gltf"),
 ]
 
-# Ferramentas e itens do acampamento (KayKit RPG Tools)
+# Ferramentas e itens do acampamento (KayKit RPG Tools, Fantasy Props & Sci-Fi)
 const ANVIL_SCENE = preload("res://assets/models/tools/anvil.gltf")
 const GRINDSTONE_SCENE = preload("res://assets/models/tools/grindstone.gltf")
 const LANTERN_SCENE = preload("res://assets/models/tools/lantern.gltf")
 const BLUEPRINT_SCENE = preload("res://assets/models/tools/blueprint_stacked.gltf")
+const WORKBENCH_SCENE = preload("res://assets/models/props/fantasy/Workbench.gltf")
+const CHEST_SCENE = preload("res://assets/models/props/fantasy/Chest_Wood.gltf")
+const CAULDRON_SCENE = preload("res://assets/models/props/fantasy/Cauldron.gltf")
+const CRATE_SCENE = preload("res://assets/models/props/fantasy/Crate_Wooden.gltf")
+const BARREL_SCENE = preload("res://assets/models/props/fantasy/Barrel.gltf")
+const SATELLITE_SCENE = preload("res://assets/models/scifi/Prop_SatelliteDish.fbx")
+const SCIFI_BARREL_SCENE = preload("res://assets/models/scifi/Prop_Barrel1.fbx")
 
 var spawned_tree_positions: Array[Vector3] = []
 
@@ -107,6 +114,56 @@ func _spawn_resting_camp() -> void:
 	var bp: Node3D = BLUEPRINT_SCENE.instantiate()
 	bp.position = Vector3(0.5, 0.02, 0.5)
 	camp.add_child(bp)
+
+	# Bancada rústica de botânica / alquimia
+	var bench: Node3D = WORKBENCH_SCENE.instantiate()
+	bench.position = Vector3(-1.3, 0.0, 0.6)
+	bench.rotation.y = deg_to_rad(65.0)
+	bench.scale = Vector3(1.15, 1.15, 1.15)
+	camp.add_child(bench)
+
+	# Caldeirão de extratos e infusões
+	var cauldron: Node3D = CAULDRON_SCENE.instantiate()
+	cauldron.position = Vector3(-0.6, 0.0, -1.3)
+	cauldron.scale = Vector3(1.2, 1.2, 1.2)
+	camp.add_child(cauldron)
+
+	# Baú de madeira para sementes e materiais coletados
+	var chest: Node3D = CHEST_SCENE.instantiate()
+	chest.position = Vector3(-1.8, 0.0, -0.4)
+	chest.rotation.y = deg_to_rad(25.0)
+	chest.scale = Vector3(1.2, 1.2, 1.2)
+	camp.add_child(chest)
+
+	# Caixote e barril de suprimentos
+	var crate: Node3D = CRATE_SCENE.instantiate()
+	crate.position = Vector3(2.3, 0.0, 0.7)
+	crate.rotation.y = deg_to_rad(-15.0)
+	camp.add_child(crate)
+
+	var barrel: Node3D = BARREL_SCENE.instantiate()
+	barrel.position = Vector3(2.5, 0.0, 1.4)
+	camp.add_child(barrel)
+
+	# Estação Transmissora SOS Cyber-Western (Antena Parabólica + Barril Tecnológico)
+	var sat: Node3D = SATELLITE_SCENE.instantiate()
+	sat.position = Vector3(-2.6, 0.0, -2.4)
+	sat.scale = Vector3(38.0, 38.0, 38.0) # FBX scale em metros
+	sat.rotation.y = deg_to_rad(130.0)
+	camp.add_child(sat)
+
+	# Luz indicadora de sinal SOS (pulso ciano)
+	var sat_light: OmniLight3D = OmniLight3D.new()
+	sat_light.light_color = Color(0.2, 0.85, 1.0)
+	sat_light.light_energy = 1.2
+	sat_light.omni_range = 4.0
+	sat_light.position = Vector3(-2.6, 1.4, -2.4)
+	camp.add_child(sat_light)
+
+	var tech_barrel: Node3D = SCIFI_BARREL_SCENE.instantiate()
+	tech_barrel.position = Vector3(-2.2, 0.0, -1.9)
+	tech_barrel.scale = Vector3(90.0, 90.0, 90.0)
+	camp.add_child(tech_barrel)
 
 	add_child(camp)
 
