@@ -15,3 +15,6 @@ Thumbs.db
 __MACOSX/
 .vscode/
 .idea/
+
+# Builds exportados
+build/
