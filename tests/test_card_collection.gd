@@ -184,8 +184,9 @@ func test_card_album_ui() -> void:
 	album.select_card(earth_card)
 	assert(album._selected_card == earth_card, "Carta selecionada deve ser Elemento Terra")
 	assert(album.card_title_label.text == "Elemento Terra", "Título no painel deve refletir a carta")
-	assert(album.card_stats_label.text.contains("⚡ Éter: 2"), "Stats de mini-game devem aparecer no painel")
-	assert(album.card_trait_label.text.contains("Resonância Telúrica"), "Trait tático deve aparecer no painel")
+	assert(album.stat_ether_label.text == "2", "Stats de mini-game devem aparecer no painel")
+	assert(album.stat_poise_label.text == "7", "Postura deve aparecer no painel")
+	assert(album.card_trait_name_label.text.contains("Resonância Telúrica"), "Trait tático deve aparecer no painel")
 	
 	# Filtro por categoria
 	album._on_filter_button_pressed("Magia")

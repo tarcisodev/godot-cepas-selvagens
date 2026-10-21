@@ -1,6 +1,70 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/card_3d.gd" id="1_card"]
+[ext_resource type="Shader" path="res://materials/card_holo.gdshader" id="2_holo"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_holo"]
+render_priority = 10
+shader = ExtResource("2_holo")
+shader_parameter/strength = 0.0
+shader_parameter/tint = Color(1, 1, 1, 1)
+shader_parameter/rainbow = 0.0
+shader_parameter/card_size = Vector2(2.295, 3.213)
+shader_parameter/corner_radius = 0.13
+
+[sub_resource type="QuadMesh" id="QuadMesh_holo"]
+material = SubResource("ShaderMaterial_holo")
+size = Vector2(2.295, 3.213)
+
+[sub_resource type="Gradient" id="Gradient_spark_fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0.6, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_spark_fade"]
+gradient = SubResource("Gradient_spark_fade")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_spark"]
+emission_shape = 3
+emission_box_extents = Vector3(1.7, 2.0, 0.7)
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 0.05
+initial_velocity_max = 0.2
+gravity = Vector3(0, 0.08, 0)
+scale_min = 0.4
+scale_max = 1.2
+color = Color(1, 0.85, 0.4, 1)
+color_ramp = SubResource("GradientTexture1D_spark_fade")
+turbulence_enabled = true
+turbulence_noise_strength = 0.4
+turbulence_noise_scale = 2.0
+
+[sub_resource type="Gradient" id="Gradient_spark_dot"]
+offsets = PackedFloat32Array(0, 0.25, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.45, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_spark_dot"]
+gradient = SubResource("Gradient_spark_dot")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_spark"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_texture = SubResource("GradientTexture2D_spark_dot")
+billboard_mode = 3
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_spark"]
+material = SubResource("StandardMaterial3D_spark")
+size = Vector2(0.07, 0.07)
 
 [node name="Card3D" type="Node3D"]
 script = ExtResource("1_card")
@@ -10,16 +74,32 @@ script = ExtResource("1_card")
 [node name="CardRoot" type="Node3D" parent="Pivot"]
 
 [node name="ContainerAnchor" type="Node3D" parent="Pivot/CardRoot"]
+visible = false
 
 [node name="FrontAnchor" type="Node3D" parent="Pivot/CardRoot"]
+
+[node name="MaskAnchor" type="Node3D" parent="Pivot/CardRoot"]
 
 [node name="BackAnchor" type="Node3D" parent="Pivot/CardRoot"]
 
 [node name="DioramaAnchor" type="Node3D" parent="Pivot/CardRoot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.45, 0.02)
+
+[node name="HoloSheen" type="MeshInstance3D" parent="Pivot/CardRoot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+cast_shadow = 0
+mesh = SubResource("QuadMesh_holo")
 
 [node name="RimLight" type="OmniLight3D" parent="Pivot"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.3, 1.5, 1.6)
 light_color = Color(1, 0.85, 0.5, 1)
 light_energy = 1.0
-omni_range = 2.5
+omni_range = 4.5
+
+[node name="Sparkles" type="GPUParticles3D" parent="."]
+cast_shadow = 0
+amount = 48
+lifetime = 3.2
+preprocess = 3.0
+visibility_aabb = AABB(-2.5, -3, -1.5, 5, 6, 3)
+process_material = SubResource("ParticleProcessMaterial_spark")
+draw_pass_1 = SubResource("QuadMesh_spark")
