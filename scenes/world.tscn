@@ -90,7 +90,7 @@ day_night = NodePath("../Sun")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 
 [node name="DummyCreature" parent="." instance=ExtResource("14_dummy")]
-transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 1.8, 1.2, -3.8)
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -3.5, 1.2, -6.5)
 
 [node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("day_night", "player")]
 script = ExtResource("10_hud")

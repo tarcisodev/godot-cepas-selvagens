@@ -122,6 +122,7 @@ func generate_landscape() -> void:
 	# Configurar material natural
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.vertex_color_use_as_albedo = true
+	mat.vertex_color_is_srgb = true # as cores exportadas são sRGB; sem isso o verde sai lavado
 	mat.roughness = 0.95
 	mat.metallic_specular = 0.1
 	material_override = mat

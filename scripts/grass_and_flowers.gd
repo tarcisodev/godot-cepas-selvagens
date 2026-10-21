@@ -2,167 +2,105 @@ extends Node3D
 class_name GrassAndFlowers
 
 ## Gramado Vivo e Flores Silvestres
-# Renderiza milhares de tufos de grama e flores coloridas usando MultiMeshInstance3D
-# para altíssima performance e beleza cênica.
+# Espalha tufos de grama, trevos e flores do Stylized Nature Kit com MultiMeshInstance3D
+# (uma MultiMesh por variante) para altíssima performance e beleza cênica.
 
 const RiverClass = preload("res://scripts/river_system.gd")
 
+const GRASS_SCENES: Array[PackedScene] = [
+	preload("res://assets/models/nature/Grass_Common_Short.gltf"),
+	preload("res://assets/models/nature/Grass_Wispy_Short.gltf"),
+	preload("res://assets/models/nature/Grass_Common_Tall.gltf"),
+	preload("res://assets/models/nature/Grass_Wispy_Tall.gltf"),
+]
+const FLOWER_SCENES: Array[PackedScene] = [
+	preload("res://assets/models/nature/Flower_3_Group.gltf"),
+	preload("res://assets/models/nature/Flower_4_Group.gltf"),
+	preload("res://assets/models/nature/Clover_1.gltf"),
+	preload("res://assets/models/nature/Clover_2.gltf"),
+]
+
 @export var landscape: MeshInstance3D
-@export var grass_count: int = 1200
-@export var flower_count: int = 240
+@export var grass_count: int = 4000
+@export var flower_count: int = 320
 @export var spawn_radius: float = 65.0
+## Os modelos do kit têm ~1,3 m de altura; a escala os traz para tufos de 40–60 cm.
+@export var grass_scale: Vector2 = Vector2(0.32, 0.5)
+@export var flower_scale: Vector2 = Vector2(0.22, 0.34)
 
 func _ready() -> void:
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
 
-	_create_grass_multimesh()
-	_create_flowers_multimesh()
+	_scatter("GrassMultiMesh", GRASS_SCENES, grass_count, grass_scale, 333, 14.0, 0.95)
+	_scatter("FlowersMultiMesh", FLOWER_SCENES, flower_count, flower_scale, 444, 13.0, 0.95)
 
 func _get_ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
 		return landscape.get_height_at(x, z)
 	return 0.0
 
-func _create_grass_multimesh() -> void:
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.name = "GrassMultiMesh"
+## Distribui `count` instâncias entre as variantes, fora do leito do rio e do topo rochoso.
+func _scatter(group_name: String, scenes: Array[PackedScene], count: int, scale_range: Vector2, seed_value: int, max_y: float, river_margin: float) -> void:
+	var group := Node3D.new()
+	group.name = group_name
+	add_child(group)
 
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.instance_count = grass_count
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
 
-	# Malha simples de tufo de grama (2 planos cruzados em X)
-	var st: SurfaceTool = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var h: float = 0.45
-	var w: float = 0.28
+	# Sorteia todas as posições primeiro e reparte por variante
+	var per_variant: Array = []
+	for i in scenes.size():
+		per_variant.append([])
 
-	# Folha 1
-	st.add_vertex(Vector3(-w, 0, 0))
-	st.add_vertex(Vector3(w, 0, 0))
-	st.add_vertex(Vector3(0, h, 0))
-
-	# Folha 2 (cruzada)
-	st.add_vertex(Vector3(0, 0, -w))
-	st.add_vertex(Vector3(0, 0, w))
-	st.add_vertex(Vector3(0, h, 0))
-
-	st.generate_normals()
-	mm.mesh = st.commit()
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.85
-	mmi.material_override = mat
-
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 333
-
-	var placed: int = 0
-	for i in range(grass_count):
+	for i in count:
 		var x: float = rng.randf_range(-spawn_radius, spawn_radius)
 		var z: float = rng.randf_range(-spawn_radius, spawn_radius)
 
-		# Evita dentro d'água funda ou no topo pelado da montanha
+		# Não nasce no leito submerso
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		var water_hw: float = RiverClass.get_water_half_width(z)
-		if dist_river < (water_hw * 0.95):
-			# Não nasce no leito submerso
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0, -999, 0)))
+		if dist_river < (water_hw * river_margin):
 			continue
 
 		var y: float = _get_ground_y(x, z)
-		if y > 14.0: # Topo rochoso
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0, -999, 0)))
+		if y > max_y: # Topo rochoso
 			continue
 
-		var rot_y: float = rng.randf_range(0.0, TAU)
-		var scale_val: float = rng.randf_range(0.8, 1.35)
+		var s: float = rng.randf_range(scale_range.x, scale_range.y)
 		if dist_river < (water_hw * 1.8):
-			scale_val *= 1.3 # Grama mais alta e farta perto da água
+			s *= 1.25 # Mais alta e farta perto da água
 
-		var t: Transform3D = Transform3D()
-		t = t.scaled(Vector3(scale_val, scale_val, scale_val))
-		t = t.rotated(Vector3.UP, rot_y)
-		t.origin = Vector3(x, y, z)
+		var basis := Basis(Vector3.UP, rng.randf_range(0.0, TAU)).scaled(Vector3.ONE * s)
+		per_variant[rng.randi() % scenes.size()].append(Transform3D(basis, Vector3(x, y - 0.03, z)))
 
-		# Cor: mais esmeralda perto da água, mais dourada nas colinas
-		var grass_col: Color = Color(0.28, 0.48, 0.22)
-		if dist_river < (water_hw * 2.0):
-			grass_col = Color(0.20, 0.54, 0.24)
-		else:
-			grass_col = Color(0.35, 0.46, 0.24).lerp(Color(0.52, 0.46, 0.26), rng.randf_range(0.0, 0.4))
-
-		mm.set_instance_transform(i, t)
-		mm.set_instance_color(i, grass_col)
-		placed += 1
-
-	mmi.multimesh = mm
-	add_child(mmi)
-
-func _create_flowers_multimesh() -> void:
-	var mmi: MultiMeshInstance3D = MultiMeshInstance3D.new()
-	mmi.name = "FlowersMultiMesh"
-
-	var mm: MultiMesh = MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.instance_count = flower_count
-
-	# Pequena corola / pétala estilizada
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = 0.09
-	sphere.height = 0.08
-	mm.mesh = sphere
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.vertex_color_use_as_albedo = true
-	mat.roughness = 0.7
-	mmi.material_override = mat
-
-	var flower_palette: Array[Color] = [
-		Color(0.98, 0.95, 0.88), # Margarida branca
-		Color(0.98, 0.82, 0.25), # Dente-de-leão / flor dourada
-		Color(0.72, 0.38, 0.78), # Lavanda / orquídea da serra
-		Color(0.92, 0.42, 0.35), # Flor de fogo silvestre
-		Color(0.45, 0.70, 0.95)  # Miosótis azul da beira d'água
-	]
-
-	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	rng.seed = 444
-
-	for i in range(flower_count):
-		var x: float = rng.randf_range(-spawn_radius * 0.85, spawn_radius * 0.85)
-		var z: float = rng.randf_range(-spawn_radius * 0.85, spawn_radius * 0.85)
-
-		var dist_river: float = RiverClass.get_distance_to_river(x, z)
-		var water_hw: float = RiverClass.get_water_half_width(z)
-		if dist_river < (water_hw * 0.95):
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0, -999, 0)))
+	for v in scenes.size():
+		var mesh := _mesh_from_scene(scenes[v])
+		var transforms: Array = per_variant[v]
+		if mesh == null or transforms.is_empty():
 			continue
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = mesh
+		mm.instance_count = transforms.size()
+		for i in transforms.size():
+			mm.set_instance_transform(i, transforms[i])
 
-		var y: float = _get_ground_y(x, z)
-		if y > 13.0:
-			mm.set_instance_transform(i, Transform3D(Basis(), Vector3(0, -999, 0)))
-			continue
+		var mmi := MultiMeshInstance3D.new()
+		mmi.name = "%s_%d" % [group_name, v]
+		mmi.multimesh = mm
+		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		group.add_child(mmi)
 
-		var t: Transform3D = Transform3D()
-		var s: float = rng.randf_range(0.8, 1.4)
-		t = t.scaled(Vector3(s, s, s))
-		t.origin = Vector3(x, y + 0.28 * s, z)
-
-		# Miosótis azul perto da água, outras cores nas colinas
-		var chosen_color: Color
-		if dist_river < (water_hw * 1.8) and rng.randf() > 0.4:
-			chosen_color = flower_palette[4] # Azul da água
-		else:
-			chosen_color = flower_palette[rng.randi_range(0, 3)]
-
-		mm.set_instance_transform(i, t)
-		mm.set_instance_color(i, chosen_color)
-
-	mmi.multimesh = mm
-	add_child(mmi)
+## Pega a malha (com materiais) do primeiro MeshInstance3D de uma cena importada.
+func _mesh_from_scene(scene: PackedScene) -> Mesh:
+	var inst := scene.instantiate()
+	var mesh: Mesh = null
+	var found := inst.find_children("*", "MeshInstance3D", true, false)
+	if inst is MeshInstance3D:
+		mesh = (inst as MeshInstance3D).mesh
+	elif not found.is_empty():
+		mesh = (found[0] as MeshInstance3D).mesh
+	inst.free()
+	return mesh

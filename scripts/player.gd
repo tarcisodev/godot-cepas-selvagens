@@ -21,13 +21,10 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var collision_shape: CollisionShape3D = $CollisionShape3D
 @onready var camera_rig: Node3D = $CameraRig
 @onready var visual_mesh: Node3D = $VisualMesh
-@onready var body_group: Node3D = $VisualMesh/BodyGroup
-@onready var left_leg: MeshInstance3D = $VisualMesh/LeftLeg
-@onready var right_leg: MeshInstance3D = $VisualMesh/RightLeg
+@onready var character_visual: CharacterVisual = get_node_or_null("VisualMesh/CharacterVisual")
 @onready var stats: StatsComponent = $StatsComponent
 @onready var pools: PoolsComponent = $PoolsComponent
 @onready var attack_hitbox: HitboxComponent = $VisualMesh/AttackHitbox
-@onready var machete_mesh: Node3D = get_node_or_null("VisualMesh/BodyGroup/Axe")
 @onready var mastery: MasteryComponent = get_node_or_null("MasteryComponent")
 @onready var inventory: InventoryComponent = get_node_or_null("InventoryComponent")
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
@@ -55,7 +52,6 @@ var dodge_player: AudioStreamPlayer3D
 var attack_whoosh_player: AudioStreamPlayer3D
 var footstep_sounds: Array[AudioStream] = []
 var footstep_timer: float = 0.4
-var walk_phase: float = 0.0
 
 # Alturas da câmera
 const STAND_CAM_Y: float = 1.5
@@ -270,8 +266,8 @@ func _physics_process(delta: float) -> void:
 	# Altura da câmera e colisão suaves
 	_update_camera_height(delta)
 
-	# Animação procedural e passos
-	_handle_procedural_animation(delta, move_direction, current_velocity_xz.length())
+	# Animação e passos
+	_update_animation(Vector3(velocity.x, 0, velocity.z).length())
 	_handle_footsteps(delta, input_dir)
 	_handle_rotation(delta, move_direction)
 
@@ -290,65 +286,32 @@ func _update_camera_height(delta: float) -> void:
 
 	camera_rig.position.y = lerp(camera_rig.position.y, target_cam_y, 8.0 * delta)
 
-func _handle_procedural_animation(delta: float, move_dir: Vector3, speed: float) -> void:
-	if not body_group:
+## Escolhe a animação do UAL1 pelo estado atual (prioridade: ações > postura > locomoção).
+func _update_animation(speed: float) -> void:
+	if character_visual == null:
 		return
-
-	var is_moving: bool = speed > 0.15 and is_on_floor() and not is_sitting
-
-	if is_sitting:
-		# Posição sentada no chão
-		visual_mesh.position.y = lerp(visual_mesh.position.y, -0.45, 6.0 * delta)
-		left_leg.rotation.x = deg_to_rad(-80.0)
-		right_leg.rotation.x = deg_to_rad(-80.0)
-		body_group.position.y = lerp(body_group.position.y, -0.15, 6.0 * delta)
-		return
+	var moving: bool = speed > 0.15
 
 	if is_dodging:
-		# Postura de rolamento / mergulho na esquiva
-		visual_mesh.position.y = lerp(visual_mesh.position.y, -0.3, 14.0 * delta)
-		body_group.rotation.x = lerp(body_group.rotation.x, deg_to_rad(45.0), 16.0 * delta)
-		left_leg.rotation.x = deg_to_rad(-40.0)
-		right_leg.rotation.x = deg_to_rad(-40.0)
-		return
-
-	body_group.rotation.x = lerp(body_group.rotation.x, 0.0, 10.0 * delta)
-	visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, 8.0 * delta)
-
-	# Animação dinâmica de golpe / swing da arma
-	if is_attacking:
-		var progress: float = 1.0 - (attack_timer / ATTACK_DURATION)
-		body_group.rotation.y = sin(progress * PI) * deg_to_rad(-55.0)
-		body_group.rotation.x = sin(progress * PI) * deg_to_rad(25.0)
-		if machete_mesh:
-			machete_mesh.rotation.z = deg_to_rad(-85.0) * sin(progress * PI)
-			machete_mesh.rotation.y = deg_to_rad(40.0) * sin(progress * PI)
+		character_visual.play_timed(&"Roll", DODGE_DURATION)
+	elif is_attacking:
+		character_visual.play_timed(&"Sword_Attack", ATTACK_DURATION)
+	elif is_casting:
+		character_visual.play_timed(&"Spell_Simple_Shoot", CAST_DURATION)
+	elif is_sitting:
+		character_visual.play(&"Sitting_Idle")
+	elif not is_on_floor():
+		character_visual.play(&"Jump")
+	elif is_crouching:
+		character_visual.play(&"Crouch_Fwd" if moving else &"Crouch_Idle")
+	elif not moving:
+		character_visual.play(&"Idle")
+	elif speed > walk_speed + 0.5:
+		character_visual.play(&"Sprint", speed / sprint_speed)
+	elif speed > slow_walk_speed + 0.3:
+		character_visual.play(&"Jog_Fwd", speed / walk_speed)
 	else:
-		body_group.rotation.y = lerp(body_group.rotation.y, 0.0, 12.0 * delta)
-		if machete_mesh:
-			machete_mesh.rotation.z = lerp(machete_mesh.rotation.z, 0.0, 10.0 * delta)
-			machete_mesh.rotation.y = lerp(machete_mesh.rotation.y, 0.0, 10.0 * delta)
-
-	if is_moving:
-		walk_phase += delta * speed * 3.4
-		# Gingado do tronco e cabeça ao caminhar
-		var bob_y: float = abs(sin(walk_phase)) * 0.04
-		var sway_z: float = sin(walk_phase * 0.5) * 0.02
-		body_group.position.y = (0.2 if is_crouching else 0.0) + bob_y
-		body_group.rotation.z = sway_z
-
-		# Movimento alternado das pernas
-		var leg_swing: float = sin(walk_phase) * (0.35 if not is_crouching else 0.2)
-		left_leg.rotation.x = leg_swing
-		right_leg.rotation.x = -leg_swing
-	else:
-		# Respiração sutil parado (idle)
-		var t: float = Time.get_ticks_msec() * 0.001
-		var idle_breath: float = sin(t * 1.8) * 0.012
-		body_group.position.y = (0.2 if is_crouching else 0.0) + idle_breath
-		body_group.rotation.z = lerp(body_group.rotation.z, 0.0, 6.0 * delta)
-		left_leg.rotation.x = lerp(left_leg.rotation.x, 0.0, 8.0 * delta)
-		right_leg.rotation.x = lerp(right_leg.rotation.x, 0.0, 8.0 * delta)
+		character_visual.play(&"Walk", maxf(speed / slow_walk_speed, 0.4))
 
 func _handle_footsteps(delta: float, input_dir: Vector2) -> void:
 	if is_on_floor() and input_dir != Vector2.ZERO and not is_sitting:

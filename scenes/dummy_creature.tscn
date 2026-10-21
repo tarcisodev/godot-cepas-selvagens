@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/components/anatomy_component.gd" id="4_anatomy"]
 [ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="5_hurtbox"]
 [ext_resource type="PackedScene" path="res://assets/models/monsters/Puglin.glb" id="6_puglin"]
+[ext_resource type="Script" path="res://scripts/components/character_visual.gd" id="7_visual"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_root"]
 radius = 0.5
@@ -22,14 +23,13 @@ bottom_radius = 0.55
 height = 1.5
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_horn"]
-albedo_color = Color(0.95, 0.72, 0.28, 1)
-metallic = 0.6
-roughness = 0.35
+albedo_color = Color(0.86, 0.8, 0.66, 1)
+roughness = 0.55
 
 [sub_resource type="PrismMesh" id="PrismMesh_horn"]
 material = SubResource("StandardMaterial3D_horn")
 left_to_right = 0.5
-size = Vector3(0.35, 0.6, 0.25)
+size = Vector3(0.14, 0.32, 0.12)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_horn"]
 size = Vector3(0.5, 0.7, 0.4)
@@ -54,8 +54,11 @@ script = ExtResource("4_anatomy")
 
 [node name="VisualMesh" type="Node3D" parent="."]
 
-[node name="Body" parent="VisualMesh" instance=ExtResource("6_puglin")]
+[node name="Body" type="Node3D" parent="VisualMesh"]
 transform = Transform3D(1.3, 0, 0, 0, 1.3, 0, 0, 0, 1.3, 0, 0, 0)
+script = ExtResource("7_visual")
+model_scene = ExtResource("6_puglin")
+weapon_scene = null
 
 [node name="Horn" type="MeshInstance3D" parent="VisualMesh"]
 transform = Transform3D(1, 0, 0, 0, 0.866025, 0.5, 0, -0.5, 0.866025, 0, 1.45, -0.32)
@@ -85,9 +88,10 @@ damage_multiplier = 1.25
 shape = SubResource("BoxShape3D_horn")
 
 [node name="StatusLabel" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, 0)
 billboard = 1
 text = "Besta de Sucata"
-font_size = 20
+font_size = 14
+visibility_range_end = 14.0
 outline_size = 4
 outline_color = Color(0, 0, 0, 0.8)

@@ -41,7 +41,15 @@ func _ready() -> void:
 		_original_body_mat = first_mesh.mesh.surface_get_material(0).duplicate()
 	else:
 		_original_body_mat = null
-	
+
+	# O chifre acompanha a cabeça da besta animada
+	if visual_body is CharacterVisual and visual_horn:
+		var cv := visual_body as CharacterVisual
+		if cv.skeleton:
+			var head_rest: Transform3D = cv.skeleton.get_bone_global_rest(cv.skeleton.find_bone(&"Head"))
+			visual_horn.global_position = cv.skeleton.to_global(head_rest.origin) + Vector3.UP * 0.32
+			cv.attach_to_bone(visual_horn, &"Head")
+
 	_update_label()
 
 func _setup_components() -> void:
@@ -136,6 +144,12 @@ func _process(delta: float) -> void:
 		visual_body.rotation.z = lerp(visual_body.rotation.z, 0.0, 10.0 * delta)
 		visual_body.rotation.x = lerp(visual_body.rotation.x, 0.0, 10.0 * delta)
 
+	# Volta ao idle quando a reação de golpe termina (morta, fica no chão)
+	if visual_body is CharacterVisual:
+		var cv := visual_body as CharacterVisual
+		if cv.current() != &"Death01" and not cv.is_playing():
+			cv.play(&"Idle")
+
 func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	# Flash visual de impacto
 	_flash_timer = 0.1
@@ -144,7 +158,9 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	flash_mat.emission_enabled = true
 	flash_mat.emission = Color(1.0, 0.4, 0.1, 1.0)
 	_set_body_material_override(flash_mat)
-	
+	if visual_body is CharacterVisual and pools and pools.current_health > 0.0:
+		(visual_body as CharacterVisual).play(&"Hit_Chest", 1.3, true)
+
 	# Áudio de impacto de carne / sucata
 	if hit_audio_player and is_inside_tree() and hit_audio_player.is_inside_tree() and not hit_sounds.is_empty():
 		hit_audio_player.stream = hit_sounds.pick_random()
@@ -225,6 +241,8 @@ func _on_part_broken(part_id: StringName) -> void:
 		_update_label("💥 CARAPAÇA RACHADA: Placa coletada • Carta: Colmeia!")
 
 func _on_health_depleted() -> void:
+	if visual_body is CharacterVisual:
+		(visual_body as CharacterVisual).play(&"Death01")
 	# Loot condicional (GDD-03 §4 e B07): se o chifre estava intacto no momento da morte
 	if anatomy and anatomy.is_part_intact(&"horn"):
 		_award_loot_to_player(&"chifre_integro", 1)

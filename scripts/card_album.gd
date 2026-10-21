@@ -80,7 +80,7 @@ func _setup_filters() -> void:
 				child.pressed.connect(cb)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_just_pressed("ui_cancel") and visible:
+	if event.is_action_pressed("ui_cancel") and visible:
 		close_album()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo:
