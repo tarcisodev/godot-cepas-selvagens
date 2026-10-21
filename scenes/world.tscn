@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="13_pause"]
 [ext_resource type="PackedScene" path="res://scenes/dummy_creature.tscn" id="14_dummy"]
 [ext_resource type="PackedScene" path="res://scenes/card_album.tscn" id="15_album"]
+[ext_resource type="Script" path="res://scripts/animated_fauna.gd" id="16_fauna"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -75,6 +76,10 @@ landscape = NodePath("../Landscape")
 
 [node name="WildBushes" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("7_bushes")
+landscape = NodePath("../Landscape")
+
+[node name="AnimatedFauna" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("16_fauna")
 landscape = NodePath("../Landscape")
 
 [node name="WildlifeAmbient" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]

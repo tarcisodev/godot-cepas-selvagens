@@ -46,6 +46,11 @@ const ATTACK_DURATION: float = 0.32
 const ATTACK_VIGOR_COST: float = 14.0
 const CAST_DURATION: float = 0.48
 const CAST_ETHER_COST: float = 20.0
+# Golpes seguidos dentro da janela alternam a animação (combo A → B do UAL2)
+const COMBO_ANIMS: Array[StringName] = [&"Sword_Regular_A", &"Sword_Regular_B"]
+const COMBO_WINDOW_MS: int = 700
+var combo_step: int = 0
+var last_attack_ms: int = -100000
 
 var footstep_player: AudioStreamPlayer3D
 var dodge_player: AudioStreamPlayer3D
@@ -175,6 +180,9 @@ func _physics_process(delta: float) -> void:
 		if pools and pools.consume_vigor(ATTACK_VIGOR_COST):
 			is_attacking = true
 			attack_timer = ATTACK_DURATION
+			var now_ms: int = Time.get_ticks_msec()
+			combo_step = (combo_step + 1) % COMBO_ANIMS.size() if now_ms - last_attack_ms < COMBO_WINDOW_MS else 0
+			last_attack_ms = now_ms
 			if attack_hitbox:
 				attack_hitbox.activate_with_params(0.24, 25.0, DamageType.Type.SLASH, 15.0, 1.2)
 			if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
@@ -295,7 +303,7 @@ func _update_animation(speed: float) -> void:
 	if is_dodging:
 		character_visual.play_timed(&"Roll", DODGE_DURATION)
 	elif is_attacking:
-		character_visual.play_timed(&"Sword_Attack", ATTACK_DURATION)
+		character_visual.play_timed(COMBO_ANIMS[combo_step], ATTACK_DURATION)
 	elif is_casting:
 		character_visual.play_timed(&"Spell_Simple_Shoot", CAST_DURATION)
 	elif is_sitting:

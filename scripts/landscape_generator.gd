@@ -7,6 +7,8 @@ class_name LandscapeGenerator
 # bacia da lagoa e rio sinuoso pelo vale.
 
 const RiverClass = preload("res://scripts/river_system.gd")
+const RIVER_SHADER: Shader = preload("res://materials/river_water.gdshader")
+const WATERFALL_SHADER: Shader = preload("res://materials/waterfall.gdshader")
 
 @export var terrain_size: Vector2 = Vector2(180.0, 180.0)
 @export var subdivisions: Vector2i = Vector2i(120, 120)
@@ -16,7 +18,7 @@ const RiverClass = preload("res://scripts/river_system.gd")
 # Cores do bioma e relevo
 @export var peak_rock_color: Color = Color(0.34, 0.33, 0.32)    # Rocha nua do pico
 @export var cliff_rock_color: Color = Color(0.26, 0.26, 0.28)   # Paredão da cachoeira
-@export var lush_bank_color: Color = Color(0.20, 0.52, 0.22)    # Margens úmidas da mata ciliar
+@export var lush_bank_color: Color = Color(0.27, 0.44, 0.22)    # Margens úmidas da mata ciliar
 @export var grass_color: Color = Color(0.32, 0.46, 0.28)        # Verde musgo natural
 @export var earth_color: Color = Color(0.48, 0.38, 0.28)        # Terra avermelhada nos cumes secos
 @export var riverbed_color: Color = Color(0.22, 0.21, 0.18)     # Seixos e cascalho do fundo
@@ -224,12 +226,10 @@ func _build_river_and_waterfall() -> void:
 	st.generate_normals()
 	water_mesh_instance.mesh = st.commit()
 
-	var water_mat: StandardMaterial3D = StandardMaterial3D.new()
-	water_mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
-	water_mat.albedo_color = Color(0.18, 0.52, 0.60, 0.78)
-	water_mat.roughness = 0.08
-	water_mat.metallic_specular = 0.8
+	var water_mat := ShaderMaterial.new()
+	water_mat.shader = RIVER_SHADER
 	water_mesh_instance.material_override = water_mat
+	water_mesh_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(water_mesh_instance)
 
 	# 2. Cortina Vertical da Cachoeira
@@ -269,13 +269,10 @@ func _build_river_and_waterfall() -> void:
 	waterfall_instance.mesh = st_wf.commit()
 
 	# Material de espuma e queda espumante
-	var wf_mat: StandardMaterial3D = StandardMaterial3D.new()
-	wf_mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
-	wf_mat.albedo_color = Color(0.92, 0.96, 1.0, 0.92) # Espuma branca
-	wf_mat.roughness = 0.2
-	wf_mat.emission_enabled = true
-	wf_mat.emission = Color(0.15, 0.25, 0.35)
+	var wf_mat := ShaderMaterial.new()
+	wf_mat.shader = WATERFALL_SHADER
 	waterfall_instance.material_override = wf_mat
+	waterfall_instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	# Luz suave no spray da cachoeira
 	var mist_light: OmniLight3D = OmniLight3D.new()
