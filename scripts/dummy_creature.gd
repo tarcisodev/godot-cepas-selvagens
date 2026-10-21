@@ -26,6 +26,10 @@ const CORPSE_LIFETIME: float = 300.0
 var harvest_queue: Array[Dictionary] = []
 var corpse_time_left: float = 0.0
 
+# Besta de treino: renasce depois que o corpo é esfolado ou se decompõe
+const RESPAWN_DELAY: float = 20.0
+var respawn_timer: float = -1.0
+
 func _ready() -> void:
 	_setup_components()
 	_setup_audio()
@@ -73,9 +77,7 @@ func _setup_components() -> void:
 	
 	# Garante 3 partes anatômicas no componente (GDD-03 e B07)
 	if anatomy:
-		anatomy.register_part(&"horn", 50.0, false)
-		anatomy.register_part(&"carapace", 120.0, false)
-		anatomy.register_part(&"tail", 60.0, true)
+		_register_parts()
 		if not anatomy.part_broken.is_connected(_on_part_broken):
 			anatomy.part_broken.connect(_on_part_broken)
 	
@@ -86,6 +88,33 @@ func _setup_components() -> void:
 			pools.poise_recovered.connect(_on_poise_recovered)
 		if not pools.health_depleted.is_connected(_on_health_depleted):
 			pools.health_depleted.connect(_on_health_depleted)
+
+func _register_parts() -> void:
+	anatomy.register_part(&"horn", 50.0, false)
+	anatomy.register_part(&"carapace", 120.0, false)
+	anatomy.register_part(&"tail", 60.0, true)
+
+## Volta inteira: vida, postura, partes, chifre e sem as penalidades da quebra.
+func respawn() -> void:
+	respawn_timer = -1.0
+	corpse_time_left = 0.0
+	harvest_queue.clear()
+	remove_from_group("harvestable")
+	_is_stunned = false
+	if stats:
+		stats.remove_modifiers_from_source(self)
+	if anatomy:
+		_register_parts()
+	if pools:
+		pools.reset_all()
+	if visual_horn:
+		visual_horn.visible = true
+	if visual_body is CharacterVisual:
+		(visual_body as CharacterVisual).play(&"Idle")
+	_update_label()
+
+func _start_respawn_countdown() -> void:
+	respawn_timer = RESPAWN_DELAY
 
 func _setup_audio() -> void:
 	if hit_audio_player != null:
@@ -140,7 +169,13 @@ func _process(delta: float) -> void:
 		if corpse_time_left <= 0.0 and not harvest_queue.is_empty():
 			harvest_queue.clear()
 			remove_from_group("harvestable")
+			_start_respawn_countdown()
 			_update_label("🍂 O corpo se decompôs.")
+
+	if respawn_timer > 0.0:
+		respawn_timer -= delta
+		if respawn_timer <= 0.0:
+			respawn()
 
 	# Feedback de flash de dano
 	if _flash_timer > 0.0:
@@ -287,7 +322,8 @@ func harvest_next(harvester: Node = null) -> String:
 		harvester.mastery.add_xp(&"esfola", 25.0)
 	if harvest_queue.is_empty():
 		remove_from_group("harvestable")
-		_update_label("🔪 Esfolado: %s\nCorpo vazio." % entry.label)
+		_start_respawn_countdown()
+		_update_label("🔪 Esfolado: %s\nCorpo vazio. Outra besta chega em %.0f s." % [entry.label, RESPAWN_DELAY])
 	else:
 		_update_label("🔪 Esfolado: %s\nFaltam %d partes [E]" % [entry.label, harvest_queue.size()])
 	return entry.label

@@ -113,6 +113,13 @@ func test_creature_parts_and_conditional_loot() -> void:
 	dummy3._process(DummyCreature.CORPSE_LIFETIME + 1.0)
 	assert(not dummy3.is_harvestable(), "Depois de 5 min o corpo não é mais esfolável")
 	dummy3.free()
+
+	# Besta de treino renasce inteira depois de esfolada
+	assert(dummy2.respawn_timer > 0.0, "Corpo esvaziado inicia a contagem para renascer")
+	dummy2._process(DummyCreature.RESPAWN_DELAY + 0.1)
+	assert(dummy2.pools.current_health > 0.0, "Besta renasce com vida cheia")
+	assert(dummy2.anatomy.is_part_intact(&"horn"), "Besta renasce com o chifre intacto")
+	assert(not dummy2.is_harvestable(), "Besta viva não é esfolável")
 	
 	dummy.free()
 	dummy2.free()
