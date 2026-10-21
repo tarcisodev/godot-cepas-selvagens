@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="CharacterDNA" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/character_dna.gd" id="1_caoj7"]
+
+[resource]
+script = ExtResource("1_caoj7")
+dna_seed = 1313
+stature = 1.02
+femininity = 0.05
+mass = 0.45
+muscle = 0.5
+leg_length = 0.9938134
+torso_length = 0.9338847
+arm_length = 0.9949445
+neck_length = 1.115319
+jaw_width = 0.7
+nose_size = 0.8481658
+skin_color = Color(0.7764706, 0.5411765, 0.38431373, 1)
+eye_color = Color(0.35686275, 0.23137255, 0.1254902, 1)
+hair_style = 7
+hair_color = Color(0.5411765, 0.3529412, 0.2, 1)
+hair_length = 0.85
+beard = 3
+beard_length = 0.9
+shirt_color = Color(0.7882353, 0.7058824, 0.5411765, 1)
+pants_color = Color(0.14745098, 0.23215687, 0.28235295, 1)
+boots_color = Color(0.43137255, 0.2901961, 0.17254902, 1)
+belt_color = Color(0.2901961, 0.1882353, 0.1254902, 1)
+sleeve_length = 0.45
+boot_height = 0.3

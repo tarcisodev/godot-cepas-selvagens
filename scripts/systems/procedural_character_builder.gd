@@ -432,8 +432,9 @@ func _hair(md: MeshData) -> void:
 		CharacterDNA.HairStyle.PONYTAIL:
 			cap.call(1.06, 0.37, 0.68, 0.06)
 			var root := _head_point(PI, 0.38 * PI, 1.04)
+			var k := 0.7 + 0.9 * dna.hair_length
 			var tail := []
-			var points := [root, root + Vector3(0.0, -0.06, -0.06), root + Vector3(0.0, -0.17, -0.07), root + Vector3(0.0, -0.27, -0.05)]
+			var points := [root, root + Vector3(0.0, -0.06, -0.06), root + Vector3(0.0, -0.17 * k, -0.07 - 0.02 * k), root + Vector3(0.0, -0.27 * k, -0.05 - 0.03 * k)]
 			var radii := [0.03, 0.028, 0.022, 0.01]
 			for i in points.size():
 				var w := head if i < 2 else _mix(head, {_bone("neck_01"): 1.0}, 0.3 * (i - 1))
@@ -441,15 +442,10 @@ func _hair(md: MeshData) -> void:
 			md.loft(tail, 8, Vector3.RIGHT)
 		CharacterDNA.HairStyle.LONG:
 			cap.call(1.09, 0.38, 0.82, 0.0)
-			var top := _head_point(PI, 0.55 * PI, 1.0)
-			var bottom_y := _pos("spine_03").y + 0.04
-			var curtain := []
-			for t in [0.0, 0.35, 0.7, 1.0]:
-				var y := lerpf(top.y, bottom_y, t)
-				var z := lerpf(top.z, _pos("spine_03").z - 0.11, t)
-				var w := _mix(head, {_bone("spine_03"): 1.0}, smoothstep(0.2, 1.0, t))
-				curtain.append({c = Vector3(0.0, y, z), rx = lerpf(0.08, 0.07, t) * dna.head_size, rz = lerpf(0.055, 0.02, t), col = color, w = w})
-			md.loft(curtain, 12, Vector3.BACK, 2.4)
+			_long_hair(md, 1.0, dna.hair_length > 0.35)
+		CharacterDNA.HairStyle.MANE:
+			cap.call(1.14, 0.35, 0.86, 0.0)
+			_long_hair(md, 1.3, true)
 		CharacterDNA.HairStyle.MOHAWK:
 			var ridge := []
 			for i in 8:
@@ -460,6 +456,52 @@ func _hair(md: MeshData) -> void:
 				var height := 0.045 * sin(PI * (0.15 + 0.7 * float(i) / 7.0))
 				ridge.append({c = base + up * height * 0.5, rx = height * 0.5 + 0.008, rz = 0.016, col = color, w = head})
 			md.loft(ridge, 8, Vector3.RIGHT)
+
+## Cortina de cabelo nas costas (comprimento por `hair_length`) e, com `locks`, mechas na frente dos ombros.
+## `volume` engrossa tudo (juba).
+func _long_hair(md: MeshData, volume: float, locks: bool) -> void:
+	var color := dna.hair_color
+	var head := {_bone("Head"): 1.0}
+	var spine_03 := _pos("spine_03")
+	var spine_02 := _pos("spine_02")
+	var neck := _pos("neck_01")
+	# Cabelo pesado demais na cabeça estica quando ela gira; abaixo da nuca ele segue a coluna.
+	var weights := func(y: float) -> Dictionary:
+		var w := _mix(head, {_bone("spine_03"): 1.0}, 0.8 * (1.0 - smoothstep(spine_03.y + 0.02, neck.y + 0.05, y)))
+		return _mix(w, {_bone("spine_02"): 1.0}, 1.0 - smoothstep(spine_02.y, spine_03.y, y))
+	# Costas: a superfície fica mais para trás com massa e músculo.
+	var back_z := func(y: float) -> float:
+		var upper := spine_03.z - 0.1 - 0.02 * dna.muscle - 0.02 * dna.mass
+		var lower := spine_02.z - 0.1 - 0.04 * dna.mass
+		return lerpf(lower, upper, smoothstep(spine_02.y, spine_03.y + 0.1, y)) - 0.015
+
+	var top := _head_point(PI, 0.5 * PI, 1.0)
+	var bottom_y := lerpf(neck.y - 0.03, spine_02.y - 0.02, dna.hair_length)
+	var curtain := []
+	for i in 6:
+		var t := i / 5.0
+		var y := lerpf(top.y, bottom_y, t)
+		var z := lerpf(top.z, back_z.call(y), smoothstep(0.0, 0.45, t))
+		curtain.append({c = Vector3(0.0, y, z), rx = lerpf(0.085, 0.072, t) * dna.head_size * volume,
+			rz = lerpf(0.055, 0.02, t) * volume, col = color, w = weights.call(y)})
+	md.loft(curtain, 12, Vector3.BACK, 2.4)
+
+	if not locks:
+		return
+	var lock_end_y := lerpf(neck.y - 0.01, spine_03.y - 0.02, dna.hair_length)
+	for sx in [1.0, -1.0]:
+		var start := _head_point(deg_to_rad(78.0) * sx, 0.55 * PI, 1.0 + 0.06 * volume)
+		var end := Vector3(sx * (0.095 + 0.01 * volume + 0.02 * dna.mass), lock_end_y, start.z + 0.03)
+		var lock := []
+		for i in 6:
+			var t := i / 5.0
+			var c := start.lerp(end, t)
+			# Leve ondulação para a mecha não parecer uma vara.
+			c.x += sx * 0.01 * sin(PI * t)
+			c.z += 0.006 * sin(TAU * t)
+			var r := lerpf(0.022, 0.009, t * t) * (0.85 + 0.15 * volume)
+			lock.append({c = c, rx = r, rz = r * 0.85, col = color, w = weights.call(c.y)})
+		md.loft(lock, 8, Vector3.BACK)
 
 func _beard(md: MeshData) -> void:
 	var color := dna.hair_color
@@ -477,6 +519,26 @@ func _beard(md: MeshData) -> void:
 		md.patch(_head_point.bind(1.06), _head_center, -reach, reach, edge, 6, 4, color, w)
 	if dna.beard == CharacterDNA.Beard.MUSTACHE or dna.beard == CharacterDNA.Beard.FULL:
 		md.ellipsoid(_face_point(0.0, -0.3, -0.018), Vector3(0.036, 0.009, 0.011) * dna.head_size, color, w, 10, 5)
+
+	# Barba comprida: desce do queixo rente ao peito, afinando na ponta.
+	var full := dna.beard == CharacterDNA.Beard.FULL
+	if dna.beard_length < 0.02 or not (full or dna.beard == CharacterDNA.Beard.GOATEE):
+		return
+	var start := _head_point(0.0, (0.8 if full else 0.84) * PI, 1.03)
+	var drop := (0.05 + 0.24 * dna.beard_length) if full else (0.03 + 0.11 * dna.beard_length)
+	var width := (0.045 + 0.015 * dna.jaw_width) * dna.head_size if full else 0.022
+	var chest_z := _pos("spine_03").z + 0.13 + 0.025 * dna.mass + 0.02
+	var strand := []
+	var depth := 0.038 if full else 0.018
+	for i in 6:
+		var t := i / 5.0
+		var y := start.y - drop * t
+		var z := maxf(lerpf(start.z, chest_z, t), start.z - 0.02 * t)
+		# Cheia no meio e afinando em ponta, como uma barba de verdade.
+		var bulge := 1.0 + 0.15 * sin(PI * t)
+		strand.append({c = Vector3(0.0, y, z), rx = lerpf(width, width * 0.2, pow(t, 1.3)) * bulge, rz = lerpf(depth, depth * 0.35, t) * bulge,
+			col = color, w = _mix(w, {_bone("spine_03"): 1.0}, 0.45 * t * t)})
+	md.loft(strand, 10, Vector3.BACK)
 
 # --- Utilidades ------------------------------------------------------------------------------
 

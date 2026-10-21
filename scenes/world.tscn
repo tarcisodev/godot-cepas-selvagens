@@ -17,6 +17,7 @@
 [ext_resource type="PackedScene" path="res://scenes/card_album.tscn" id="15_album"]
 [ext_resource type="Script" path="res://scripts/animated_fauna.gd" id="16_fauna"]
 [ext_resource type="PackedScene" path="res://scenes/weapon_trainer.tscn" id="17_trainer"]
+[ext_resource type="PackedScene" path="res://scenes/character_stylist.tscn" id="22_stylist"]
 [ext_resource type="Script" path="res://scripts/monster_arena.gd" id="18_arena"]
 [ext_resource type="PackedScene" path="res://scenes/monsters/slime.tscn" id="19_slime"]
 [ext_resource type="PackedScene" path="res://scenes/monsters/skeleton.tscn" id="20_skeleton"]
@@ -104,6 +105,9 @@ transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -3.5, 1.2,
 
 [node name="WeaponTrainer" parent="." instance=ExtResource("17_trainer")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6.2)
+
+[node name="CharacterStylist" parent="." instance=ExtResource("22_stylist")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, 0, 6.6)
 
 [node name="MonsterArena" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 6)

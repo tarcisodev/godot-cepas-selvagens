@@ -5,7 +5,8 @@ extends Resource
 ## Tudo o que o ProceduralCharacterBuilder precisa para gerar o mesmo personagem em qualquer máquina:
 ## o mesmo DNA (ou a mesma seed em `randomized`) dá sempre o mesmo corpo, rosto e roupa.
 
-enum HairStyle { BALD, BUZZ, SHORT, PONYTAIL, LONG, MOHAWK, TOPKNOT }
+## Novos estilos entram sempre no fim: o .tres e o save guardam o número.
+enum HairStyle { BALD, BUZZ, SHORT, PONYTAIL, LONG, MOHAWK, TOPKNOT, MANE }
 enum Beard { NONE, MUSTACHE, GOATEE, FULL }
 
 const SKIN_TONES: Array[Color] = [
@@ -51,7 +52,11 @@ const LEATHER_COLORS: Array[Color] = [
 @export var eye_color: Color = EYE_COLORS[0]
 @export var hair_style: HairStyle = HairStyle.SHORT
 @export var hair_color: Color = HAIR_COLORS[1]
+## Rabo de cavalo, cabelo longo e juba: 0 = no ombro, 1 = no meio das costas.
+@export_range(0.0, 1.0) var hair_length: float = 0.4
 @export var beard: Beard = Beard.NONE
+## Barba cheia e cavanhaque: 0 = rente ao queixo, 1 = descendo até o peito.
+@export_range(0.0, 1.0) var beard_length: float = 0.0
 
 @export_group("Roupa")
 @export var shirt_color: Color = CLOTH_COLORS[0]
@@ -92,8 +97,8 @@ static func randomized(p_seed: int) -> CharacterDNA:
 	var hair_index := rng.randi_range(0, HAIR_COLORS.size() - 3) if rng.randf() < 0.85 else rng.randi_range(HAIR_COLORS.size() - 2, HAIR_COLORS.size() - 1)
 	dna.hair_color = HAIR_COLORS[hair_index].lerp(Color.BLACK, rng.randf_range(0.0, 0.15))
 
-	var styles: Array[HairStyle] = [HairStyle.BALD, HairStyle.BUZZ, HairStyle.SHORT, HairStyle.PONYTAIL, HairStyle.LONG, HairStyle.MOHAWK, HairStyle.TOPKNOT]
-	var style_weights: PackedFloat32Array = [0.9, 1.4, 2.2, 1.0, 0.8, 0.3, 0.6] if not feminine else [0.05, 0.3, 1.2, 2.0, 2.4, 0.2, 1.0]
+	var styles: Array[HairStyle] = [HairStyle.BALD, HairStyle.BUZZ, HairStyle.SHORT, HairStyle.PONYTAIL, HairStyle.LONG, HairStyle.MOHAWK, HairStyle.TOPKNOT, HairStyle.MANE]
+	var style_weights: PackedFloat32Array = [0.9, 1.4, 2.2, 1.0, 0.8, 0.3, 0.6, 0.4] if not feminine else [0.05, 0.3, 1.2, 2.0, 2.4, 0.2, 1.0, 0.6]
 	dna.hair_style = styles[rng.rand_weighted(style_weights)]
 	dna.beard = Beard.NONE
 	if dna.femininity < 0.4 and rng.randf() < 0.55:
@@ -107,6 +112,9 @@ static func randomized(p_seed: int) -> CharacterDNA:
 	dna.pants_length = 1.0 if rng.randf() < 0.8 else 0.0
 	dna.boot_height = rng.randf()
 	dna.gloves = rng.randf() < 0.25
+	# Sorteados por último para não mudar o resto do personagem das seeds antigas.
+	dna.hair_length = rng.randf()
+	dna.beard_length = rng.randf() * 0.7 if dna.beard == Beard.FULL or dna.beard == Beard.GOATEE else 0.0
 	return dna
 
 ## Dicionário compacto (cores em hex) para rede e save.
@@ -122,8 +130,16 @@ static func from_dict(data: Dictionary) -> CharacterDNA:
 	for prop in dna._stored_properties():
 		if not data.has(prop):
 			continue
+		# JSON devolve todo número como float; enums, seed e bools voltam ao tipo original.
 		var value: Variant = data[prop]
-		dna.set(prop, Color.html(value) if dna.get(prop) is Color else value)
+		var current: Variant = dna.get(prop)
+		if current is Color:
+			value = Color.html(value)
+		elif current is int:
+			value = int(value)
+		elif current is bool:
+			value = bool(value)
+		dna.set(prop, value)
 	return dna
 
 func _stored_properties() -> Array[String]:

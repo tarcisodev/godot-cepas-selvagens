@@ -1,7 +1,7 @@
 extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
-# Guarda: posição, hora do dia, materiais, elmo equipado, maestrias, cartas e objetivos.
+# Guarda: posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas e objetivos.
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
 
@@ -60,6 +60,9 @@ func collect(player: Node) -> Dictionary:
 	var sun := _world_sun(player)
 	if sun and "current_time_hours" in sun:
 		data["time_hours"] = sun.current_time_hours
+	var visual = player.get("character_visual")
+	if visual and visual.dna:
+		data["appearance"] = visual.dna.to_dict()
 	var inv = player.get("inventory")
 	if inv:
 		data["materials"] = _keys_to_str(inv.materials)
@@ -99,6 +102,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		data = read_save()
 	if data.is_empty():
 		return
+
+	var visual = player.get("character_visual")
+	if visual and data.has("appearance"):
+		visual.rebuild(CharacterDNA.from_dict(data["appearance"]))
 
 	var inv = player.get("inventory")
 	if inv:

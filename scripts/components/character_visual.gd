@@ -36,6 +36,10 @@ func _ready() -> void:
 
 ## Troca o DNA e remonta o personagem (corpo, animações e arma).
 func rebuild(new_dna: CharacterDNA) -> void:
+	# Antes do _ready só troca o DNA; o _ready monta uma vez.
+	if not is_node_ready():
+		dna = new_dna
+		return
 	if model:
 		model.free()
 	model = null
