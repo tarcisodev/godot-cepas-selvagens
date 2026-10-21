@@ -89,10 +89,30 @@ func test_creature_parts_and_conditional_loot() -> void:
 	dummy2._setup_components()
 	assert(dummy2.anatomy.is_part_intact(&"horn"), "Chifre do dummy 2 deve estar intacto")
 	
-	# Abate com chifre intacto
+	# Abate com chifre intacto: o loot fica no corpo até ser esfolado (GDD-03 §8)
 	dummy2._on_health_depleted()
+	assert(inv.get_material_count(&"chifre_integro") == 0, "Loot do corpo não cai sozinho; precisa esfolar")
+	assert(dummy2.is_harvestable(), "Corpo deve ficar esfolável")
+	assert(dummy2.next_harvest_label() == "Chifre Íntegro", "Primeira parte a esfolar é o chifre intacto")
+	var esfola_xp_before: float = player.mastery.get_xp(&"esfola")
+	var steps := 0
+	while dummy2.is_harvestable():
+		dummy2.harvest_next(player)
+		steps += 1
+	assert(steps == 2, "Corpo com chifre intacto tem 2 partes para esfolar")
 	assert(inv.get_material_count(&"chifre_integro") == 1, "Player deve ter recebido 1 Chifre Íntegro pelo abate cuidadoso")
 	assert(inv.get_material_count(&"placa_carapaca") >= 2, "Player deve ter recebido placas de carapaça")
+	assert(player.mastery.get_xp(&"esfola") > esfola_xp_before or player.mastery.get_level(&"esfola") > 1, "Esfolar dá XP de esfola")
+	assert(player.get_harvest_time() == 3.0, "Esfola leva 3 s por parte no nível inicial")
+
+	# Corpo que se decompõe perde o que não foi esfolado
+	var dummy3: DummyCreature = DummyScene.instantiate() as DummyCreature
+	root.add_child(dummy3)
+	dummy3._setup_components()
+	dummy3._on_health_depleted()
+	dummy3._process(DummyCreature.CORPSE_LIFETIME + 1.0)
+	assert(not dummy3.is_harvestable(), "Depois de 5 min o corpo não é mais esfolável")
+	dummy3.free()
 	
 	dummy.free()
 	dummy2.free()

@@ -52,6 +52,13 @@ const COMBO_WINDOW_MS: int = 700
 var combo_step: int = 0
 var last_attack_ms: int = -100000
 
+# Esfola manual (GDD-03 §8): segurar [E] perto do corpo; mover, soltar ou levar dano interrompe
+const HARVEST_RANGE: float = 2.6
+var is_harvesting: bool = false
+var harvest_timer: float = 0.0
+var harvest_target: Node3D = null
+var harvest_start_health: float = 0.0
+
 var footstep_player: AudioStreamPlayer3D
 var dodge_player: AudioStreamPlayer3D
 var attack_whoosh_player: AudioStreamPlayer3D
@@ -230,9 +237,13 @@ func _physics_process(delta: float) -> void:
 		if pools == null or pools.consume_vigor(12.0):
 			velocity.y = jump_velocity
 
+	_handle_harvest(delta, input_dir)
+
 	# Definir velocidade alvo
 	var target_speed: float = walk_speed
-	if is_dodging:
+	if is_harvesting:
+		target_speed = 0.0
+	elif is_dodging:
 		target_speed = DODGE_SPEED
 		move_direction = dodge_dir
 	elif is_casting:
@@ -300,7 +311,9 @@ func _update_animation(speed: float) -> void:
 		return
 	var moving: bool = speed > 0.15
 
-	if is_dodging:
+	if is_harvesting:
+		character_visual.play_timed(&"Farm_Harvest", get_harvest_time())
+	elif is_dodging:
 		character_visual.play_timed(&"Roll", DODGE_DURATION)
 	elif is_attacking:
 		character_visual.play_timed(COMBO_ANIMS[combo_step], ATTACK_DURATION)
@@ -320,6 +333,74 @@ func _update_animation(speed: float) -> void:
 		character_visual.play(&"Jog_Fwd", speed / walk_speed)
 	else:
 		character_visual.play(&"Walk", maxf(speed / slow_walk_speed, 0.4))
+
+## Tempo de esfola por parte, encurtado pelos marcos de maestria (GDD-02 §5).
+func get_harvest_time() -> float:
+	var level: int = mastery.get_level(&"esfola") if mastery else 1
+	if level >= 100:
+		return 0.5
+	elif level >= 50:
+		return 1.5
+	elif level >= 10:
+		return 2.5
+	return 3.0
+
+func _find_harvest_target() -> Node3D:
+	var best: Node3D = null
+	var best_dist: float = HARVEST_RANGE
+	for node in get_tree().get_nodes_in_group("harvestable"):
+		if node is Node3D and node.has_method("is_harvestable") and node.is_harvestable():
+			var d: float = global_position.distance_to((node as Node3D).global_position)
+			if d < best_dist:
+				best = node
+				best_dist = d
+	return best
+
+func _cancel_harvest(reason: String) -> void:
+	is_harvesting = false
+	harvest_target = null
+	harvest_timer = 0.0
+	posture_changed.emit(reason)
+
+func _handle_harvest(delta: float, input_dir: Vector2) -> void:
+	if not is_harvesting:
+		if Input.is_action_pressed("interact") and is_on_floor() and not (is_attacking or is_casting or is_dodging or is_sitting):
+			harvest_target = _find_harvest_target()
+			if harvest_target:
+				is_harvesting = true
+				harvest_timer = 0.0
+				harvest_start_health = pools.current_health if pools else 0.0
+				posture_changed.emit("Esfolando: %s" % harvest_target.next_harvest_label())
+		return
+
+	# Interrupções: soltar a tecla, andar, levar dano ou o corpo esvaziar/sumir
+	if not Input.is_action_pressed("interact") or input_dir != Vector2.ZERO or is_attacking or is_casting or is_dodging:
+		_cancel_harvest("Esfola interrompida")
+		return
+	if pools and pools.current_health < harvest_start_health:
+		_cancel_harvest("Esfola interrompida pelo dano!")
+		return
+	if not is_instance_valid(harvest_target) or not harvest_target.is_harvestable():
+		_cancel_harvest("Em Pé")
+		return
+
+	# Vira para o corpo enquanto trabalha
+	var to_target: Vector3 = harvest_target.global_position - global_position
+	if to_target.length_squared() > 0.01:
+		visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, atan2(-to_target.x, -to_target.z), 8.0 * delta)
+
+	harvest_timer += delta
+	if harvest_timer >= get_harvest_time():
+		var got: String = harvest_target.harvest_next(self)
+		harvest_timer = 0.0
+		if harvest_target.is_harvestable():
+			posture_changed.emit("Coletado: %s • Esfolando: %s" % [got, harvest_target.next_harvest_label()])
+			if character_visual:
+				character_visual.play_timed(&"Farm_Harvest", get_harvest_time(), true)
+		else:
+			is_harvesting = false
+			harvest_target = null
+			posture_changed.emit("Coletado: %s" % got)
 
 func _handle_footsteps(delta: float, input_dir: Vector2) -> void:
 	if is_on_floor() and input_dir != Vector2.ZERO and not is_sitting:

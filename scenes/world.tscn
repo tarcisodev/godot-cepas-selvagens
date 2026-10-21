@@ -172,10 +172,11 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• Clique Esquerdo: Atacar com Machete (gasta Vigor)  |  Clique Direito: Conjurar Cajado (gasta Éter)
+text = "• Clique Esquerdo: Atacar com Machado (gasta Vigor)  |  Clique Direito: Conjurar Cajado (gasta Éter)
 • WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)
 • Alt: Andar lento  |  Ctrl: Agachar  |  Espaço: Pular
-• Tab: Ações & Forja  |  Scroll / V: Zoom da câmera
+• Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas
+• Scroll / V: Zoom da câmera
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]

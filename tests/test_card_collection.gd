@@ -112,6 +112,9 @@ func test_combat_reward_unlock() -> void:
 	
 	assert(not cards.is_card_unlocked(&"polinization"), "Polinização não deve estar destrancada antes")
 	dummy2._on_health_depleted()
+	# A carta vem junto com o Chifre Íntegro, na esfola do corpo (GDD-03 §8)
+	assert(not cards.is_card_unlocked(&"polinization"), "Carta só sai ao esfolar o chifre intacto")
+	dummy2.harvest_next(player)
 	assert(cards.is_card_unlocked(&"polinization"), "Carta Polinização Arcana deve ter sido desbloqueada pelo abate cuidadoso!")
 	
 	dummy.free()

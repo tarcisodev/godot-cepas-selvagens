@@ -21,6 +21,11 @@ var hit_sounds: Array[AudioStream] = []
 var bone_break_player: AudioStreamPlayer3D
 var poise_break_player: AudioStreamPlayer3D
 
+# Esfola do corpo (GDD-03 §8)
+const CORPSE_LIFETIME: float = 300.0
+var harvest_queue: Array[Dictionary] = []
+var corpse_time_left: float = 0.0
+
 func _ready() -> void:
 	_setup_components()
 	_setup_audio()
@@ -129,6 +134,14 @@ func _set_body_material_override(mat: Material) -> void:
 			(child as MeshInstance3D).material_override = mat
 
 func _process(delta: float) -> void:
+	# Corpo se decompõe: o que não foi esfolado se perde
+	if corpse_time_left > 0.0:
+		corpse_time_left -= delta
+		if corpse_time_left <= 0.0 and not harvest_queue.is_empty():
+			harvest_queue.clear()
+			remove_from_group("harvestable")
+			_update_label("🍂 O corpo se decompôs.")
+
 	# Feedback de flash de dano
 	if _flash_timer > 0.0:
 		_flash_timer -= delta
@@ -243,17 +256,41 @@ func _on_part_broken(part_id: StringName) -> void:
 func _on_health_depleted() -> void:
 	if visual_body is CharacterVisual:
 		(visual_body as CharacterVisual).play(&"Death01")
-	# Loot condicional (GDD-03 §4 e B07): se o chifre estava intacto no momento da morte
+	# Loot condicional (GDD-03 §4 e B07): o que der para esfolar depende de como foi a caça.
+	# Esfola manual (GDD-03 §8): cada parte vira um passo de ~3 s no corpo, que dura 5 min.
+	harvest_queue.clear()
 	if anatomy and anatomy.is_part_intact(&"horn"):
-		_award_loot_to_player(&"chifre_integro", 1)
-		_award_loot_to_player(&"placa_carapaca", 2)
-		_unlock_card_for_player(&"polinization")
-		_unlock_card_for_player(&"element_earth")
-		_update_label("💀 DERROTADO COM CHIFRE INTACTO!\nLoot: Chifre Íntegro • Carta: Polinização Arcana!")
+		harvest_queue.append({"label": "Chifre Íntegro", "materials": {&"chifre_integro": 1}, "cards": [&"polinization"]})
+	harvest_queue.append({"label": "2x Placas de Carapaça", "materials": {&"placa_carapaca": 2}, "cards": [&"element_earth"]})
+	corpse_time_left = CORPSE_LIFETIME
+	add_to_group("harvestable")
+	_update_label("💀 DERROTADO!\nSegure [E] perto do corpo para esfolar (%d partes)" % harvest_queue.size())
+
+## true enquanto o corpo ainda tem partes para esfolar.
+func is_harvestable() -> bool:
+	return not harvest_queue.is_empty() and corpse_time_left > 0.0
+
+## Nome da próxima parte a esfolar (para o HUD do player).
+func next_harvest_label() -> String:
+	return harvest_queue[0].label if is_harvestable() else ""
+
+## Conclui um passo de esfola: entrega os materiais e cartas da próxima parte.
+func harvest_next(harvester: Node = null) -> String:
+	if not is_harvestable():
+		return ""
+	var entry: Dictionary = harvest_queue.pop_front()
+	for mat_id in entry.materials:
+		_award_loot_to_player(mat_id, entry.materials[mat_id])
+	for card_id in entry.cards:
+		_unlock_card_for_player(card_id)
+	if harvester and "mastery" in harvester and harvester.mastery:
+		harvester.mastery.add_xp(&"esfola", 25.0)
+	if harvest_queue.is_empty():
+		remove_from_group("harvestable")
+		_update_label("🔪 Esfolado: %s\nCorpo vazio." % entry.label)
 	else:
-		_award_loot_to_player(&"placa_carapaca", 2)
-		_unlock_card_for_player(&"element_earth")
-		_update_label("💀 DERROTADO!\nLoot: 2x Placas • Carta: Elemento Terra")
+		_update_label("🔪 Esfolado: %s\nFaltam %d partes [E]" % [entry.label, harvest_queue.size()])
+	return entry.label
 
 func _update_label(custom_msg: String = "") -> void:
 	if status_label == null:
@@ -262,7 +299,15 @@ func _update_label(custom_msg: String = "") -> void:
 	if not custom_msg.is_empty():
 		status_label.text = custom_msg
 		return
-	
+
+	# Morta, a etiqueta mostra o que resta no corpo
+	if pools and pools.current_health <= 0.0:
+		if is_harvestable():
+			status_label.text = "💀 Besta de Sucata\nSegure [E] para esfolar: %s (%d)" % [next_harvest_label(), harvest_queue.size()]
+		else:
+			status_label.text = "💀 Besta de Sucata\nCorpo vazio."
+		return
+
 	var horn_str: String = "Íntegro" if not anatomy.is_part_broken(&"horn") else "Quebrado"
 	status_label.text = "Besta de Sucata\nVida: %.0f / %.0f\nPostura: %.0f / %.0f\nChifre: %s (%.0f)" % [
 		pools.current_health, stats.get_stat(&"max_health"),
