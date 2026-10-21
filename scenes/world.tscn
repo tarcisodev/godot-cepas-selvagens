@@ -13,6 +13,7 @@
 [ext_resource type="Script" path="res://scripts/actions_menu.gd" id="11_actions"]
 [ext_resource type="Script" path="res://scripts/nature_audio.gd" id="12_audio"]
 [ext_resource type="Script" path="res://scripts/pause_menu.gd" id="13_pause"]
+[ext_resource type="PackedScene" path="res://scenes/dummy_creature.tscn" id="14_dummy"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -87,6 +88,9 @@ day_night = NodePath("../Sun")
 [node name="Player" parent="." instance=ExtResource("9_player")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 
+[node name="DummyCreature" parent="." instance=ExtResource("14_dummy")]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 1.8, 1.2, -3.8)
+
 [node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("day_night", "player")]
 script = ExtResource("10_hud")
 day_night = NodePath("../Sun")
@@ -155,12 +159,10 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• WASD: Caminhar
-• Shift: Correr (gasta Vigor)  |  C: Esquivar / Rolar (gasta Vigor)
-• Alt: Andar lento  |  Ctrl: Agachar
-• Espaço: Pular (gasta Vigor)
-• Tab: Aba de Ações (Sentar, Aguardar...)
-• Scroll / V: Zoom da câmera
+text = "• Clique Esquerdo: Atacar com Machete (gasta Vigor)
+• WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)
+• Alt: Andar lento  |  Ctrl: Agachar  |  Espaço: Pular
+• Tab: Ações do Andarilho  |  Scroll / V: Zoom da câmera
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]

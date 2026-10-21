@@ -26,16 +26,22 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var right_leg: MeshInstance3D = $VisualMesh/RightLeg
 @onready var stats: StatsComponent = $StatsComponent
 @onready var pools: PoolsComponent = $PoolsComponent
+@onready var attack_hitbox: HitboxComponent = $VisualMesh/AttackHitbox
+@onready var machete_mesh: MeshInstance3D = get_node_or_null("VisualMesh/BodyGroup/Machete")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var is_first_person: bool = false
 var is_crouching: bool = false
 var is_sitting: bool = false
 var is_dodging: bool = false
+var is_attacking: bool = false
 var dodge_timer: float = 0.0
+var attack_timer: float = 0.0
 var dodge_dir: Vector3 = Vector3.FORWARD
 const DODGE_DURATION: float = 0.36
 const DODGE_SPEED: float = 8.5
+const ATTACK_DURATION: float = 0.32
+const ATTACK_VIGOR_COST: float = 14.0
 
 var footstep_player: AudioStreamPlayer3D
 var footstep_timer: float = 0.4
@@ -88,13 +94,27 @@ func _physics_process(delta: float) -> void:
 	var cam_yaw: float = camera_rig.global_rotation.y
 	var move_direction: Vector3 = (Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw) * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
+	# Processar Ataque (Clique Esquerdo)
+	if is_attacking:
+		attack_timer -= delta
+		if attack_timer <= 0.0:
+			is_attacking = false
+			posture_changed.emit("Em Pé")
+	elif Input.is_action_just_pressed("attack") and not is_sitting and not is_dodging:
+		if pools and pools.consume_vigor(ATTACK_VIGOR_COST):
+			is_attacking = true
+			attack_timer = ATTACK_DURATION
+			if attack_hitbox:
+				attack_hitbox.activate(0.24)
+			posture_changed.emit("Golpe")
+
 	# Processar Esquiva / Rolamento (tecla C ou Esquiva)
 	if is_dodging:
 		dodge_timer -= delta
 		if dodge_timer <= 0.0:
 			is_dodging = false
 			posture_changed.emit("Em Pé")
-	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting:
+	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting and not is_attacking:
 		var dodge_cost: float = stats.get_stat(&"dodge_cost") if stats else 25.0
 		if pools and pools.consume_vigor(dodge_cost):
 			is_dodging = true
@@ -103,7 +123,7 @@ func _physics_process(delta: float) -> void:
 			posture_changed.emit("Esquiva")
 
 	# Pulo suave (consome 12 de vigor)
-	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_sitting and not is_dodging:
+	if Input.is_action_just_pressed("jump") and is_on_floor() and not is_crouching and not is_sitting and not is_dodging and not is_attacking:
 		if pools == null or pools.consume_vigor(12.0):
 			velocity.y = jump_velocity
 
@@ -112,6 +132,8 @@ func _physics_process(delta: float) -> void:
 	if is_dodging:
 		target_speed = DODGE_SPEED
 		move_direction = dodge_dir
+	elif is_attacking:
+		target_speed = walk_speed * 0.4 # Reduz mobilidade durante o golpe (GDD-01 §4)
 	elif is_sitting:
 		target_speed = 0.0
 	elif is_crouching:
@@ -184,6 +206,20 @@ func _handle_procedural_animation(delta: float, move_dir: Vector3, speed: float)
 
 	body_group.rotation.x = lerp(body_group.rotation.x, 0.0, 10.0 * delta)
 	visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, 8.0 * delta)
+
+	# Animação dinâmica de golpe / swing da arma
+	if is_attacking:
+		var progress: float = 1.0 - (attack_timer / ATTACK_DURATION)
+		body_group.rotation.y = sin(progress * PI) * deg_to_rad(-55.0)
+		body_group.rotation.x = sin(progress * PI) * deg_to_rad(25.0)
+		if machete_mesh:
+			machete_mesh.rotation.z = deg_to_rad(-85.0) * sin(progress * PI)
+			machete_mesh.rotation.y = deg_to_rad(40.0) * sin(progress * PI)
+	else:
+		body_group.rotation.y = lerp(body_group.rotation.y, 0.0, 12.0 * delta)
+		if machete_mesh:
+			machete_mesh.rotation.z = lerp(machete_mesh.rotation.z, 0.0, 10.0 * delta)
+			machete_mesh.rotation.y = lerp(machete_mesh.rotation.y, 0.0, 10.0 * delta)
 
 	if is_moving:
 		walk_phase += delta * speed * 3.4

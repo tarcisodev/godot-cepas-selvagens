@@ -48,8 +48,14 @@ static func resolve_hit(hit: HitEvent) -> Dictionary:
 	
 	# 4. Quebra de parte anatômica (se a parte for especificada)
 	var broke_part := false
-	if not hit.part_id.is_empty() and hit.target.has_method("damage_part"):
-		broke_part = hit.target.damage_part(hit.part_id, hit.part_break_damage if hit.part_break_damage > 0.0 else dealt_damage)
+	var part_dmg: float = hit.part_break_damage if hit.part_break_damage > 0.0 else dealt_damage
+	if not hit.part_id.is_empty():
+		if hit.target.has_method("damage_part"):
+			broke_part = hit.target.damage_part(hit.part_id, part_dmg)
+		else:
+			var anatomy: AnatomyComponent = hit.target.get_node_or_null("AnatomyComponent") as AnatomyComponent
+			if anatomy != null:
+				broke_part = anatomy.damage_part(hit.part_id, part_dmg)
 	
 	# 5. Preencher resultado
 	result[&"success"] = true

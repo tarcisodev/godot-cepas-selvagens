@@ -1,0 +1,93 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/dummy_creature.gd" id="1_dummy"]
+[ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="2_stats"]
+[ext_resource type="Script" path="res://scripts/components/pools_component.gd" id="3_pools"]
+[ext_resource type="Script" path="res://scripts/components/anatomy_component.gd" id="4_anatomy"]
+[ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="5_hurtbox"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_root"]
+radius = 0.5
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.45, 0.35, 0.25, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+material = SubResource("StandardMaterial3D_body")
+top_radius = 0.45
+bottom_radius = 0.55
+height = 1.5
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_horn"]
+albedo_color = Color(0.95, 0.72, 0.28, 1)
+metallic = 0.6
+roughness = 0.35
+
+[sub_resource type="PrismMesh" id="PrismMesh_horn"]
+material = SubResource("StandardMaterial3D_horn")
+left_to_right = 0.5
+size = Vector3(0.35, 0.6, 0.25)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_horn"]
+size = Vector3(0.5, 0.7, 0.4)
+
+[node name="DummyCreature" type="CharacterBody3D"]
+collision_layer = 4
+collision_mask = 1
+script = ExtResource("1_dummy")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_root")
+
+[node name="StatsComponent" type="Node" parent="."]
+script = ExtResource("2_stats")
+
+[node name="PoolsComponent" type="Node" parent="."]
+script = ExtResource("3_pools")
+
+[node name="AnatomyComponent" type="Node" parent="."]
+script = ExtResource("4_anatomy")
+
+[node name="VisualMesh" type="Node3D" parent="."]
+
+[node name="Body" type="MeshInstance3D" parent="VisualMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+mesh = SubResource("CylinderMesh_body")
+
+[node name="Horn" type="MeshInstance3D" parent="VisualMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+mesh = SubResource("PrismMesh_horn")
+
+[node name="BodyHurtbox" type="Area3D" parent="." node_paths=PackedStringArray("entity")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hurtbox")
+entity = NodePath("..")
+part_id = &"body"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="BodyHurtbox"]
+shape = SubResource("CapsuleShape3D_root")
+
+[node name="HornHurtbox" type="Area3D" parent="." node_paths=PackedStringArray("entity")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("5_hurtbox")
+entity = NodePath("..")
+part_id = &"horn"
+damage_multiplier = 1.25
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HornHurtbox"]
+shape = SubResource("BoxShape3D_horn")
+
+[node name="StatusLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
+billboard = 1
+text = "Besta de Sucata"
+font_size = 20
+outline_size = 4
+outline_color = Color(0, 0, 0, 0.8)

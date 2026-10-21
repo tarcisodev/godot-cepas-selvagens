@@ -8,6 +8,7 @@ func _init() -> void:
 	test_stats_modifiers_formula()
 	test_pools_behavior()
 	test_combat_resolution()
+	test_anatomy_part_breaking()
 	
 	print("\n🎉 TODOS OS TESTES PASSARAM COM SUCESSO!")
 	print("==========================================\n")
@@ -117,3 +118,37 @@ func test_combat_resolution() -> void:
 	
 	target.free()
 	print("  ✓ CombatResolver e cálculo de resistência validados!")
+
+func test_anatomy_part_breaking() -> void:
+	print("\n[4/4] Testando AnatomyComponent e quebra de partes...")
+	var target := Node.new()
+	var stats := StatsComponent.new()
+	stats.name = "StatsComponent"
+	target.add_child(stats)
+	
+	var pools := PoolsComponent.new()
+	pools.name = "PoolsComponent"
+	pools.stats = stats
+	target.add_child(pools)
+	pools.reset_all()
+	
+	var anatomy := AnatomyComponent.new()
+	anatomy.name = "AnatomyComponent"
+	target.add_child(anatomy)
+	anatomy.register_part(&"horn", 50.0)
+	
+	# Acerto no Chifre com 30 de dano
+	var hit1 := HitEvent.new(null, target, 30.0, DamageType.Type.IMPACT, 10.0, &"horn")
+	var res1: Dictionary = CombatResolver.resolve_hit(hit1)
+	assert(res1[&"success"], "Hit no chifre deve ser resolvido")
+	assert(not res1[&"part_broken"], "30 de dano em 50 de integridade não deve quebrar o chifre")
+	assert(is_equal_approx(anatomy.get_part_hp(&"horn"), 20.0), "Integridade restante deve ser 20")
+	
+	# Segundo acerto com 25 de dano -> quebra a parte!
+	var hit2 := HitEvent.new(null, target, 25.0, DamageType.Type.IMPACT, 10.0, &"horn")
+	var res2: Dictionary = CombatResolver.resolve_hit(hit2)
+	assert(res2[&"part_broken"], "Dano excedente deve quebrar a parte anatômica")
+	assert(anatomy.is_part_broken(&"horn"), "Status da parte deve ser quebrada")
+	
+	target.free()
+	print("  ✓ Quebra de partes anatômicas e drop validados com sucesso!")

@@ -11,5 +11,7 @@
 .DS_Store
 Thumbs.db
 *.tmp
+*.zip
+__MACOSX/
 .vscode/
 .idea/
