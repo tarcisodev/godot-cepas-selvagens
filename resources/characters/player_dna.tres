@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="CharacterDNA" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/character_dna.gd" id="1_taeww"]
+
+[resource]
+script = ExtResource("1_taeww")
+dna_seed = 2026
+femininity = 0.08
+mass = 0.3
+muscle = 0.55
+leg_length = 1.0708102
+torso_length = 1.038164
+arm_length = 1.0177172
+neck_length = 0.9519287
+head_size = 1.046099
+jaw_width = 0.554216
+nose_size = 0.05926717
+eye_color = Color(0.41960785, 0.41960785, 0.3529412, 1)
+hair_color = Color(0.3529412, 0.23137255, 0.14901961, 1)
+beard = 3
+shirt_color = Color(0.30980393, 0.3647059, 0.18431373, 1)
+pants_color = Color(0.22235294, 0.20470588, 0.18705882, 1)
+boots_color = Color(0.36862746, 0.23921569, 0.14117648, 1)
+belt_color = Color(0.16470589, 0.14117648, 0.1254902, 1)
+sleeve_length = 1.0
+boot_height = 0.75
+gloves = true

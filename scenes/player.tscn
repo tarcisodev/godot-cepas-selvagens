@@ -18,6 +18,8 @@
 
 [ext_resource type="Script" path="res://scripts/components/character_visual.gd" id="9_visual"]
 
+[ext_resource type="Resource" path="res://resources/characters/player_dna.tres" id="10_dna"]
+
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
 height = 1.75
@@ -38,6 +40,7 @@ shape = SubResource("CapsuleShape3D_body")
 
 [node name="CharacterVisual" type="Node3D" parent="VisualMesh"]
 script = ExtResource("9_visual")
+dna = ExtResource("10_dna")
 
 [node name="AttackHitbox" type="Area3D" parent="VisualMesh" node_paths=PackedStringArray("attacker")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -0.9)

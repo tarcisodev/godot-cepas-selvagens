@@ -5,7 +5,7 @@
 [ext_resource type="Script" path="res://scripts/components/pools_component.gd" id="3_pools"]
 [ext_resource type="Script" path="res://scripts/components/anatomy_component.gd" id="4_anatomy"]
 [ext_resource type="Script" path="res://scripts/components/hurtbox_component.gd" id="5_hurtbox"]
-[ext_resource type="PackedScene" path="res://assets/models/monsters/Puglin.glb" id="6_puglin"]
+[ext_resource type="Resource" path="res://resources/characters/brute_dna.tres" id="6_dna"]
 [ext_resource type="Script" path="res://scripts/components/character_visual.gd" id="7_visual"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_root"]
@@ -57,7 +57,7 @@ script = ExtResource("4_anatomy")
 [node name="Body" type="Node3D" parent="VisualMesh"]
 transform = Transform3D(1.3, 0, 0, 0, 1.3, 0, 0, 0, 1.3, 0, 0, 0)
 script = ExtResource("7_visual")
-model_scene = ExtResource("6_puglin")
+dna = ExtResource("6_dna")
 weapon_scene = null
 
 [node name="Horn" type="MeshInstance3D" parent="VisualMesh"]

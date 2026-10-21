@@ -7,6 +7,9 @@ class_name CharacterVisual
 # Trocar o visual = trocar `model_scene` (Male_Ranger, Female_Ranger, Male_Peasant…).
 
 @export var model_scene: PackedScene = preload("res://assets/models/character/Male_Ranger.gltf")
+## Personagem procedural (B09); quando preenchido, substitui `model_scene`.
+## O esqueleto vem da primeira biblioteca de `animation_sources`.
+@export var dna: CharacterDNA
 ## Bibliotecas de animação; ao tocar um nome, vale a primeira que o tiver.
 @export var animation_sources: Array[PackedScene] = [
 	preload("res://assets/models/character/animations/UAL1_Standard.glb"),
@@ -27,10 +30,25 @@ var _current: StringName = &""
 func _ready() -> void:
 	_build()
 
+## Troca o DNA e remonta o personagem (corpo, animações e arma).
+func rebuild(new_dna: CharacterDNA) -> void:
+	if model:
+		model.free()
+	model = null
+	skeleton = null
+	anim_player = null
+	weapon = null
+	_current = &""
+	dna = new_dna
+	_build()
+
 func _build() -> void:
-	if model_scene == null:
+	if dna and not animation_sources.is_empty():
+		model = ProceduralCharacterBuilder.build(dna, animation_sources[0])
+	elif model_scene:
+		model = model_scene.instantiate() as Node3D
+	else:
 		return
-	model = model_scene.instantiate() as Node3D
 	model.name = "Model"
 	# Os modelos do kit olham para +Z; no Godot o "frente" do player é -Z.
 	model.rotation.y = PI
