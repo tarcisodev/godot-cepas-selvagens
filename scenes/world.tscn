@@ -1,0 +1,212 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/day_night_cycle.gd" id="1_sun"]
+[ext_resource type="Script" path="res://scripts/landscape_generator.gd" id="2_terrain"]
+[ext_resource type="Script" path="res://scripts/nature_props.gd" id="3_props"]
+[ext_resource type="Script" path="res://scripts/river_plants.gd" id="4_plants"]
+[ext_resource type="Script" path="res://scripts/fish_school.gd" id="5_fish"]
+[ext_resource type="Script" path="res://scripts/grass_and_flowers.gd" id="6_grass"]
+[ext_resource type="Script" path="res://scripts/wild_bushes.gd" id="7_bushes"]
+[ext_resource type="Script" path="res://scripts/wildlife_ambient.gd" id="8_wildlife"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="9_player"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="10_hud"]
+[ext_resource type="Script" path="res://scripts/actions_menu.gd" id="11_actions"]
+[ext_resource type="Script" path="res://scripts/nature_audio.gd" id="12_audio"]
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="13_pause"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
+sky_top_color = Color(0.32, 0.48, 0.68, 1)
+sky_horizon_color = Color(0.72, 0.76, 0.82, 1)
+ground_bottom_color = Color(0.22, 0.20, 0.18, 1)
+ground_horizon_color = Color(0.64, 0.62, 0.58, 1)
+sun_angle_max = 28.0
+
+[sub_resource type="Sky" id="Sky_world"]
+sky_material = SubResource("ProceduralSkyMaterial_world")
+
+[sub_resource type="Environment" id="Environment_world"]
+background_mode = 2
+sky = SubResource("Sky_world")
+ambient_light_source = 3
+ambient_light_sky_contribution = 0.5
+ambient_light_energy = 0.6
+tonemap_mode = 2
+tonemap_exposure = 1.05
+glow_enabled = true
+glow_intensity = 0.2
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.005
+volumetric_fog_albedo = Color(0.85, 0.88, 0.94, 1)
+
+[sub_resource type="LabelSettings" id="LabelSettings_time"]
+font_size = 20
+outline_size = 3
+outline_color = Color(0, 0, 0, 0.65)
+
+[node name="World" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_world")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, -0.40558, 0.40558, 0, 0.707107, 0.707107, -0.573576, -0.579228, 0.579228, 0, 10, 0)
+shadow_enabled = true
+directional_shadow_max_distance = 120.0
+script = ExtResource("1_sun")
+
+[node name="Landscape" type="MeshInstance3D" parent="."]
+script = ExtResource("2_terrain")
+
+[node name="NatureProps" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("3_props")
+landscape = NodePath("../Landscape")
+
+[node name="RiverPlants" type="Node3D" parent="."]
+script = ExtResource("4_plants")
+
+[node name="FishSchool" type="Node3D" parent="."]
+script = ExtResource("5_fish")
+
+[node name="GrassAndFlowers" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("6_grass")
+landscape = NodePath("../Landscape")
+
+[node name="WildBushes" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("7_bushes")
+landscape = NodePath("../Landscape")
+
+[node name="WildlifeAmbient" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("8_wildlife")
+landscape = NodePath("../Landscape")
+
+[node name="NatureAudio" type="Node3D" parent="." node_paths=PackedStringArray("day_night")]
+process_mode = 3
+script = ExtResource("12_audio")
+day_night = NodePath("../Sun")
+
+[node name="Player" parent="." instance=ExtResource("9_player")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+
+[node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("day_night", "player")]
+script = ExtResource("10_hud")
+day_night = NodePath("../Sun")
+player = NodePath("../Player")
+
+[node name="MarginContainer" type="MarginContainer" parent="HUD"]
+anchors_preset = 0
+offset_right = 320.0
+offset_bottom = 80.0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/MarginContainer"]
+layout_mode = 2
+
+[node name="TimeLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "⏰ 08:00 · Manhã Clara"
+label_settings = SubResource("LabelSettings_time")
+
+[node name="ModeLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 0.8)
+theme_override_font_sizes/font_size = 14
+text = "🌄 3ª Pessoa (Visão panorâmica)"
+
+[node name="BottomMargin" type="MarginContainer" parent="HUD"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_top = -140.0
+offset_right = 420.0
+grow_vertical = 0
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="TipsContainer" type="VBoxContainer" parent="HUD/BottomMargin"]
+layout_mode = 2
+
+[node name="ControlsTip" type="Label" parent="HUD/BottomMargin/TipsContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
+theme_override_font_sizes/font_size = 13
+text = "• WASD: Caminhar
+• Shift: Correr  |  Alt: Andar lento
+• Ctrl: Agachar
+• Tab: Aba de Ações (Sentar, Aguardar...)
+• Espaço: Pular
+• Scroll: Zoom (3ª pessoa ↔ 1ª pessoa)
+• V: Alternar 1ª/3ª pessoa
+• H: Ocultar dicas  |  ESC: Menu / Configurações"
+
+[node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("11_actions")
+player = NodePath("../../Player")
+day_night = NodePath("../../Sun")
+
+[node name="PanelContainer" type="PanelContainer" parent="HUD/ActionsMenu"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -130.0
+offset_right = 160.0
+offset_bottom = 130.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="HUD/ActionsMenu/PanelContainer"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/ActionsMenu/PanelContainer/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 17
+text = "⛺ Ações do Andarilho"
+horizontal_alignment = 1
+
+[node name="SitButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "🧘 Sentar no Chão e Descansar"
+
+[node name="WaitButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "🌅 Aguardar (Avançar 4h)"
+
+[node name="PovButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "👁 Alternar 1ª / 3ª Pessoa"
+
+[node name="CloseButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 13
+text = "Fechar (Tab / Esc)"
+
+[node name="PauseMenu" type="Control" parent="HUD"]
+process_mode = 3
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("13_pause")

@@ -1,0 +1,15 @@
+# Godot 4+ specific ignores
+.godot/
+*.translation
+
+# Mono / C# specific (if used later)
+.mono/
+[Bb]in/
+[Oo]bj/
+
+# OS and Editor ignores
+.DS_Store
+Thumbs.db
+*.tmp
+.vscode/
+.idea/
