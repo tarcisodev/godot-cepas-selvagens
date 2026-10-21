@@ -64,24 +64,42 @@ const SIT_CAM_Y: float = 0.65
 signal posture_changed(state_name: String)
 
 func _ready() -> void:
-	if camera_rig:
-		camera_rig.camera_mode_changed.connect(_on_camera_mode_changed)
+	add_to_group("player")
+	_setup_components()
 
-	if mastery == null:
-		mastery = MasteryComponent.new()
-		mastery.name = "MasteryComponent"
-		add_child(mastery)
-	
-	if inventory == null:
-		inventory = InventoryComponent.new()
-		inventory.name = "InventoryComponent"
-		inventory.stats = stats
-		add_child(inventory)
+	if camera_rig and camera_rig.has_signal("camera_mode_changed"):
+		camera_rig.camera_mode_changed.connect(_on_camera_mode_changed)
 
 	_setup_footsteps()
 	_setup_combat_audio()
 
+func _setup_components() -> void:
+	if not is_in_group("player"):
+		add_to_group("player")
+	if stats == null:
+		stats = get_node_or_null("StatsComponent") as StatsComponent
+	if pools == null:
+		pools = get_node_or_null("PoolsComponent") as PoolsComponent
+	if pools and stats:
+		pools.stats = stats
+	if mastery == null:
+		mastery = get_node_or_null("MasteryComponent") as MasteryComponent
+		if mastery == null:
+			mastery = MasteryComponent.new()
+			mastery.name = "MasteryComponent"
+			add_child(mastery)
+	if inventory == null:
+		inventory = get_node_or_null("InventoryComponent") as InventoryComponent
+		if inventory == null:
+			inventory = InventoryComponent.new()
+			inventory.name = "InventoryComponent"
+			add_child(inventory)
+	if inventory and stats:
+		inventory.stats = stats
+
 func _setup_footsteps() -> void:
+	if footstep_player != null:
+		return
 	footstep_player = AudioStreamPlayer3D.new()
 	footstep_player.name = "FootstepAudio"
 	footstep_player.bus = &"Efeitos"
@@ -97,6 +115,8 @@ func _setup_footsteps() -> void:
 			footstep_sounds.append(s)
 
 func _setup_combat_audio() -> void:
+	if attack_whoosh_player != null:
+		return
 	# Áudio de corte / swing de ataque
 	attack_whoosh_player = AudioStreamPlayer3D.new()
 	attack_whoosh_player.name = "AttackWhooshAudio"
@@ -154,7 +174,7 @@ func _physics_process(delta: float) -> void:
 			attack_timer = ATTACK_DURATION
 			if attack_hitbox:
 				attack_hitbox.activate_with_params(0.24, 25.0, DamageType.Type.SLASH, 15.0, 1.2)
-			if attack_whoosh_player:
+			if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
 				attack_whoosh_player.pitch_scale = randf_range(0.96, 1.12)
 				attack_whoosh_player.play()
 			posture_changed.emit("Golpe")
@@ -172,7 +192,7 @@ func _physics_process(delta: float) -> void:
 			if attack_hitbox:
 				# Magia telúrica: 40 de dano TERRA e 25 de postura, cast enraizado
 				attack_hitbox.activate_with_params(0.38, 40.0, DamageType.Type.EARTH, 25.0, 1.4)
-			if attack_whoosh_player:
+			if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
 				attack_whoosh_player.pitch_scale = 0.75 # Som mais grave/arcano
 				attack_whoosh_player.play()
 			posture_changed.emit("Conjuração")
@@ -189,7 +209,7 @@ func _physics_process(delta: float) -> void:
 			is_dodging = true
 			dodge_timer = DODGE_DURATION
 			dodge_dir = move_direction if move_direction != Vector3.ZERO else -Transform3D.IDENTITY.rotated(Vector3.UP, cam_yaw).basis.z
-			if dodge_player:
+			if dodge_player and is_inside_tree() and dodge_player.is_inside_tree():
 				dodge_player.pitch_scale = randf_range(1.05, 1.25)
 				dodge_player.play()
 			posture_changed.emit("Esquiva")

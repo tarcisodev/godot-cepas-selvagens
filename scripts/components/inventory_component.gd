@@ -66,7 +66,11 @@ func craft_and_equip_horn_helmet(use_horn_type: StringName) -> bool:
 	
 	var is_integro: bool = (use_horn_type == &"chifre_integro")
 	var quality: int = 4 if is_integro else 2
-	var traits: Array[StringName] = [&"Casca Rígida"] if is_integro else [&"Reforçado"]
+	var traits: Array[StringName] = []
+	if is_integro:
+		traits.append(&"Casca Rígida")
+	else:
+		traits.append(&"Reforçado")
 	
 	# Remove modificadores de capacete anteriores deste componente
 	if stats != null:

@@ -22,6 +22,7 @@ var bone_break_player: AudioStreamPlayer3D
 var poise_break_player: AudioStreamPlayer3D
 
 func _ready() -> void:
+	_setup_components()
 	_setup_audio()
 	
 	if visual_body and visual_body.material_override:
@@ -32,22 +33,45 @@ func _ready() -> void:
 		_original_body_mat = StandardMaterial3D.new()
 		_original_body_mat.albedo_color = Color(0.42, 0.32, 0.22, 1.0)
 	
-	visual_body.material_override = _original_body_mat
+	if visual_body:
+		visual_body.material_override = _original_body_mat
+	
+	_update_label()
+
+func _setup_components() -> void:
+	if stats == null:
+		stats = get_node_or_null("StatsComponent") as StatsComponent
+	if pools == null:
+		pools = get_node_or_null("PoolsComponent") as PoolsComponent
+	if anatomy == null:
+		anatomy = get_node_or_null("AnatomyComponent") as AnatomyComponent
+	if visual_body == null:
+		visual_body = get_node_or_null("VisualMesh/Body") as MeshInstance3D
+	if visual_horn == null:
+		visual_horn = get_node_or_null("VisualMesh/Horn") as MeshInstance3D
+	if status_label == null:
+		status_label = get_node_or_null("StatusLabel") as Label3D
 	
 	# Garante 3 partes anatômicas no componente (GDD-03 e B07)
 	if anatomy:
 		anatomy.register_part(&"horn", 50.0, false)
 		anatomy.register_part(&"carapace", 120.0, false)
 		anatomy.register_part(&"tail", 60.0, true)
-		anatomy.part_broken.connect(_on_part_broken)
+		if not anatomy.part_broken.is_connected(_on_part_broken):
+			anatomy.part_broken.connect(_on_part_broken)
 	
-	pools.poise_broken.connect(_on_poise_broken)
-	pools.poise_recovered.connect(_on_poise_recovered)
-	pools.health_depleted.connect(_on_health_depleted)
-	
-	_update_label()
+	if pools:
+		if not pools.poise_broken.is_connected(_on_poise_broken):
+			pools.poise_broken.connect(_on_poise_broken)
+		if not pools.poise_recovered.is_connected(_on_poise_recovered):
+			pools.poise_recovered.connect(_on_poise_recovered)
+		if not pools.health_depleted.is_connected(_on_health_depleted):
+			pools.health_depleted.connect(_on_health_depleted)
 
 func _setup_audio() -> void:
+	if hit_audio_player != null:
+		return
+
 	# Áudio de impacto / acerto
 	hit_audio_player = AudioStreamPlayer3D.new()
 	hit_audio_player.name = "HitAudioPlayer"
@@ -106,10 +130,11 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	flash_mat.albedo_color = Color(1.0, 0.9, 0.6, 1.0) # Brilho quente de impacto
 	flash_mat.emission_enabled = true
 	flash_mat.emission = Color(1.0, 0.4, 0.1, 1.0)
-	visual_body.material_override = flash_mat
+	if visual_body:
+		visual_body.material_override = flash_mat
 	
 	# Áudio de impacto de carne / sucata
-	if hit_audio_player and not hit_sounds.is_empty():
+	if hit_audio_player and is_inside_tree() and hit_audio_player.is_inside_tree() and not hit_sounds.is_empty():
 		hit_audio_player.stream = hit_sounds.pick_random()
 		hit_audio_player.pitch_scale = randf_range(0.92, 1.08)
 		hit_audio_player.play()
@@ -118,7 +143,7 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 
 func _on_poise_broken() -> void:
 	_is_stunned = true
-	if poise_break_player:
+	if poise_break_player and is_inside_tree() and poise_break_player.is_inside_tree():
 		poise_break_player.pitch_scale = randf_range(0.95, 1.05)
 		poise_break_player.play()
 	_update_label("⚠️ POSTURA QUEBRADA! (Vulnerável)")
@@ -128,17 +153,26 @@ func _on_poise_recovered() -> void:
 	_update_label()
 
 func _award_loot_to_player(mat_id: StringName, amount: int = 1) -> void:
-	var player: Node = get_tree().get_first_node_in_group("player") if is_inside_tree() else null
-	if player == null and is_inside_tree() and get_parent() != null:
-		player = get_parent().get_node_or_null("Player")
-	if player != null:
-		var inv: InventoryComponent = player.get_node_or_null("InventoryComponent") as InventoryComponent
+	var player_node: Node = null
+	if is_inside_tree() and get_tree() != null:
+		player_node = get_tree().get_first_node_in_group("player")
+	if player_node == null and get_parent() != null:
+		player_node = get_parent().get_node_or_null("Player")
+		if player_node == null:
+			for child in get_parent().get_children():
+				if child.is_in_group("player") or child is Player:
+					player_node = child
+					break
+	if player_node != null:
+		var inv: InventoryComponent = player_node.get_node_or_null("InventoryComponent") as InventoryComponent
+		if inv == null and "inventory" in player_node:
+			inv = player_node.inventory
 		if inv != null:
 			inv.add_material(mat_id, amount)
 
 func _on_part_broken(part_id: StringName) -> void:
 	# Toca som de osso estalando / partindo
-	if bone_break_player:
+	if bone_break_player and is_inside_tree() and bone_break_player.is_inside_tree():
 		bone_break_player.pitch_scale = randf_range(0.96, 1.08)
 		bone_break_player.play()
 

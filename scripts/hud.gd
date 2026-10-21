@@ -8,6 +8,7 @@ class_name WorldHUD
 @onready var mode_label: Label = $MarginContainer/VBoxContainer/ModeLabel
 @onready var tips_container: VBoxContainer = $BottomMargin/TipsContainer
 @onready var health_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/HealthBar")
+@onready var ether_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/EtherBar")
 @onready var vigor_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/VigorBar")
 @onready var poise_bar: ProgressBar = get_node_or_null("MarginContainer/VBoxContainer/StatusBars/PoiseBar")
 
@@ -23,10 +24,12 @@ func _ready() -> void:
 
 	if player and "pools" in player and player.pools != null:
 		player.pools.health_changed.connect(_on_health_changed)
+		player.pools.ether_changed.connect(_on_ether_changed)
 		player.pools.vigor_changed.connect(_on_vigor_changed)
 		player.pools.poise_changed.connect(_on_poise_changed)
 		if player.stats != null:
 			_on_health_changed(player.pools.current_health, player.stats.get_stat(&"max_health"))
+			_on_ether_changed(player.pools.current_ether, player.stats.get_stat(&"max_ether"))
 			_on_vigor_changed(player.pools.current_vigor, player.stats.get_stat(&"max_vigor"))
 			_on_poise_changed(player.pools.current_poise, player.stats.get_stat(&"max_poise"))
 
@@ -83,6 +86,11 @@ func _on_health_changed(current: float, max_val: float) -> void:
 	if health_bar:
 		health_bar.max_value = max_val
 		health_bar.value = current
+
+func _on_ether_changed(current: float, max_val: float) -> void:
+	if ether_bar:
+		ether_bar.max_value = max_val
+		ether_bar.value = current
 
 func _on_vigor_changed(current: float, max_val: float) -> void:
 	if vigor_bar:

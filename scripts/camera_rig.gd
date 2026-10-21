@@ -45,8 +45,11 @@ func _input(event: InputEvent) -> void:
 
 	# Rotação da visão pelo mouse (sensibilidade e inversão vêm das Configurações)
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-		var sensitivity: float = mouse_sensitivity * GameSettings.get_value("controls", "mouse_sensitivity")
-		var invert: float = -1.0 if GameSettings.get_value("controls", "invert_y") else 1.0
+		var gs: Node = get_node_or_null("/root/GameSettings")
+		var sens_mult: float = float(gs.get_value("controls", "mouse_sensitivity")) if gs != null and gs.has_method("get_value") else 1.0
+		var is_invert: bool = bool(gs.get_value("controls", "invert_y")) if gs != null and gs.has_method("get_value") else false
+		var sensitivity: float = mouse_sensitivity * sens_mult
+		var invert: float = -1.0 if is_invert else 1.0
 		yaw -= event.relative.x * sensitivity
 		pitch -= event.relative.y * sensitivity * invert
 		pitch = clamp(pitch, min_pitch, max_pitch)

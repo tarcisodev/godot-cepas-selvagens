@@ -5,6 +5,8 @@
 [ext_resource type="Script" path="res://scripts/components/stats_component.gd" id="3_stats"]
 [ext_resource type="Script" path="res://scripts/components/pools_component.gd" id="4_pools"]
 [ext_resource type="Script" path="res://scripts/components/hitbox_component.gd" id="5_hitbox"]
+[ext_resource type="Script" path="res://scripts/components/mastery_component.gd" id="6_mastery"]
+[ext_resource type="Script" path="res://scripts/components/inventory_component.gd" id="7_inventory"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -181,3 +183,9 @@ script = ExtResource("3_stats")
 
 [node name="PoolsComponent" type="Node" parent="."]
 script = ExtResource("4_pools")
+
+[node name="MasteryComponent" type="Node" parent="."]
+script = ExtResource("6_mastery")
+
+[node name="InventoryComponent" type="Node" parent="."]
+script = ExtResource("7_inventory")
