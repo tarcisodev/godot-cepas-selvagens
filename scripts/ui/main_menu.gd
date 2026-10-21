@@ -2,9 +2,11 @@ extends Control
 class_name MainMenu
 
 ## Tela de título: Continuar (se houver save), Novo jogo, Configurações e Sair.
+## Novo jogo passa pela criação de personagem antes de entrar no mundo.
 # O fundo é uma captura do vale; as Configurações reaproveitam o PauseMenu.
 
 const BACKGROUND: String = "res://assets/ui/menu_background.png"
+const CHARACTER_CREATION: String = "res://scenes/character_creation.tscn"
 
 var continue_button: Button
 var settings_menu: PauseMenu
@@ -27,10 +29,10 @@ func _ready() -> void:
 
 	_confirm_new = ConfirmationDialog.new()
 	_confirm_new.title = "Novo jogo"
-	_confirm_new.dialog_text = "Começar do zero apaga o progresso salvo. Continuar?"
+	_confirm_new.dialog_text = "Começar do zero apaga o progresso salvo ao entrar no mundo. Continuar?"
 	_confirm_new.ok_button_text = "Começar do zero"
 	_confirm_new.cancel_button_text = "Cancelar"
-	_confirm_new.confirmed.connect(func(): SaveGame.enter_world(false))
+	_confirm_new.confirmed.connect(_open_character_creation)
 	add_child(_confirm_new)
 
 	if continue_button.disabled:
@@ -98,6 +100,8 @@ func _build_column() -> void:
 
 	continue_button = _make_button("▶  Continuar", func(): SaveGame.enter_world(true))
 	continue_button.disabled = not SaveGame.has_save()
+	if not continue_button.disabled and SaveGame.saved_name() != "":
+		continue_button.text = "▶  Continuar — %s" % SaveGame.saved_name()
 	if continue_button.disabled:
 		continue_button.tooltip_text = "Nenhum jogo salvo ainda"
 	box.add_child(continue_button)
@@ -124,4 +128,7 @@ func _on_new_game() -> void:
 	if SaveGame.has_save():
 		_confirm_new.popup_centered()
 	else:
-		SaveGame.enter_world(false)
+		_open_character_creation()
+
+func _open_character_creation() -> void:
+	get_tree().change_scene_to_file(CHARACTER_CREATION)

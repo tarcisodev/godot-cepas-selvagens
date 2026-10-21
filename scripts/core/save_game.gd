@@ -1,7 +1,7 @@
 extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
-# Guarda: posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas e objetivos.
+# Guarda: nome, posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas e objetivos.
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
 
@@ -14,6 +14,10 @@ signal saved()
 signal loaded()
 
 var load_on_enter: bool = false
+## Nome do personagem atual (vem da criação de personagem ou do save).
+var character_name: String = ""
+## Aparência escolhida na criação de personagem, aplicada quando o mundo abre.
+var _new_character: CharacterDNA = null
 var _autosave_timer: float = AUTOSAVE_SECONDS
 var _applied_to: Node = null
 
@@ -29,6 +33,11 @@ func _process(delta: float) -> void:
 		_applied_to = player
 		load_on_enter = false
 		apply_save(player)
+	# Personagem recém-criado: veste o DNA escolhido e já grava o primeiro save
+	if _new_character and _applied_to != player and player.is_node_ready():
+		_applied_to = player
+		dress_new_character(player)
+		save_game()
 	_autosave_timer -= delta
 	if _autosave_timer <= 0.0:
 		_autosave_timer = AUTOSAVE_SECONDS
@@ -40,6 +49,23 @@ func has_save() -> bool:
 func delete_save() -> void:
 	if has_save():
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+
+## Começa um jogo novo com o personagem montado na tela de criação.
+func start_new_game(dna: CharacterDNA, p_name: String) -> void:
+	_new_character = dna
+	character_name = p_name
+	enter_world(false)
+
+## Veste no player o DNA vindo da criação de personagem.
+func dress_new_character(player: Node) -> void:
+	var visual = player.get("character_visual")
+	if visual and _new_character:
+		visual.rebuild(_new_character)
+	_new_character = null
+
+## Nome gravado no save (vazio se não houver).
+func saved_name() -> String:
+	return str(read_save().get("name", ""))
 
 ## Abre o mundo; com `continue_game`, aplica o save ao entrar.
 func enter_world(continue_game: bool) -> void:
@@ -55,6 +81,7 @@ func enter_world(continue_game: bool) -> void:
 ## Monta o dicionário do progresso a partir do player e do mundo.
 func collect(player: Node) -> Dictionary:
 	var data := {"version": SAVE_VERSION}
+	data["name"] = character_name
 	var pos := _get_pos(player as Node3D)
 	data["position"] = [pos.x, pos.y, pos.z]
 	var sun := _world_sun(player)
@@ -103,6 +130,7 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	if data.is_empty():
 		return
 
+	character_name = str(data.get("name", ""))
 	var visual = player.get("character_visual")
 	if visual and data.has("appearance"):
 		visual.rebuild(CharacterDNA.from_dict(data["appearance"]))
