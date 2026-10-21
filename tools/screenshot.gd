@@ -1,7 +1,8 @@
 extends SceneTree
 
 ## Captura de tela automática para revisão visual.
-# Uso: godot --path . -s res://tools/screenshot.gd -- <saida.png> [frames] [yaw_graus] [distancia] [hora]
+# Uso: godot --path . -s res://tools/screenshot.gd -- <saida.png> [frames] [yaw_graus] [distancia] [hora] [limpo]
+# [limpo] = 1 esconde toda a interface (CanvasLayers), para capas e fundos.
 # Carrega o mundo, espera alguns frames, gira a câmera do player e salva o PNG.
 
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -11,6 +12,7 @@ var _frames_left: int = 120
 var _yaw_deg: float = 0.0
 var _distance: float = -1.0
 var _hour: float = -1.0
+var _clean: bool = false
 var _configured: bool = false
 
 func _initialize() -> void:
@@ -25,12 +27,18 @@ func _initialize() -> void:
 		_distance = float(args[3])
 	if args.size() > 4:
 		_hour = float(args[4])
+	if args.size() > 5:
+		_clean = args[5] == "1"
 	change_scene_to_file(WORLD_SCENE)
 
 func _process(_delta: float) -> bool:
 	if not _configured and current_scene != null:
 		_configure_camera()
 	_frames_left -= 1
+	# Esconde a interface alguns frames antes, para o frame capturado já sair limpo
+	if _clean and _frames_left == 3:
+		for layer in current_scene.find_children("*", "CanvasLayer", true, false):
+			layer.visible = false
 	if _frames_left > 0:
 		return false
 	var image := root.get_texture().get_image()

@@ -6,6 +6,8 @@ class_name PauseMenu
 # A tela de Configurações altera o GameSettings na hora e salva ao voltar.
 
 var is_open: bool = false
+## Na tela de título o menu só serve para Configurações: "Voltar" fecha e o mouse continua livre.
+var in_title_screen: bool = false
 
 var main_panel: PanelContainer
 var settings_panel: PanelContainer
@@ -32,6 +34,8 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
+	if in_title_screen and not is_open:
+		return
 	if not is_open:
 		open_menu()
 	elif settings_panel.visible:
@@ -46,7 +50,8 @@ func open_menu() -> void:
 	add_to_group("open_menus")
 	get_tree().paused = true
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
-	_show_main()
+	if not in_title_screen:
+		_show_main()
 
 func close_menu() -> void:
 	GameSettings.save()
@@ -54,18 +59,34 @@ func close_menu() -> void:
 	visible = false
 	remove_from_group("open_menus")
 	get_tree().paused = false
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+	if not in_title_screen:
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+
+## Abre direto nas Configurações (usado pela tela de título).
+func open_settings() -> void:
+	open_menu()
+	_show_settings()
 
 func _show_main() -> void:
 	GameSettings.save()
+	if in_title_screen:
+		close_menu()
+		return
 	settings_panel.visible = false
 	main_panel.visible = true
+	_center.call_deferred(main_panel)
 	continue_button.grab_focus()
 
 func _show_settings() -> void:
 	main_panel.visible = false
 	settings_panel.visible = true
+	_center.call_deferred(settings_panel)
 	back_button.grab_focus()
+
+## Recentraliza o painel com o tamanho atual (o menu pode ter sido criado antes de ter tamanho).
+func _center(panel: Control) -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER, Control.PRESET_MODE_KEEP_SIZE)
 
 # --- Construção da interface -------------------------------------------------
 
@@ -120,7 +141,16 @@ func _build_main_panel() -> void:
 	continue_button = _make_button("▶ Continuar", close_menu)
 	box.add_child(continue_button)
 	box.add_child(_make_button("⚙ Configurações", _show_settings))
-	box.add_child(_make_button("🚪 Sair do Jogo", func(): GameSettings.save(); get_tree().quit()))
+	box.add_child(_make_button("💾 Salvar e voltar ao título", _save_and_return_to_title))
+	box.add_child(_make_button("🚪 Salvar e sair do jogo", func(): GameSettings.save(); SaveGame.save_game(); get_tree().quit()))
+
+func _save_and_return_to_title() -> void:
+	SaveGame.save_game()
+	GameSettings.save()
+	is_open = false
+	remove_from_group("open_menus")
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 func _build_settings_panel() -> void:
 	var parts: Array = _make_panel(440.0)

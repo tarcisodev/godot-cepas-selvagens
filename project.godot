@@ -13,7 +13,7 @@ config_version=5
 config/name="Cepas Selvagens"
 config/description="Um refúgio natural de contemplação e descoberta"
 config/version="0.1.0"
-run/main_scene="res://scenes/world.tscn"
+run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
@@ -21,6 +21,8 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 GameSettings="*res://scripts/game_settings.gd"
 EventBus="*res://scripts/core/event_bus.gd"
 NetworkManager="*res://scripts/core/network_manager.gd"
+Objectives="*res://scripts/core/objectives.gd"
+SaveGame="*res://scripts/core/save_game.gd"
 
 [display]
 
