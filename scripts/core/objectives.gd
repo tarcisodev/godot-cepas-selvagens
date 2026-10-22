@@ -12,7 +12,7 @@ const STEPS: Array[Dictionary] = [
 	{"id": &"find", "text": "Encontre a Besta de Sucata no morro a noroeste"},
 	{"id": &"break", "text": "Quebre o chifre dela ou derrote-a (clique esq./dir.)"},
 	{"id": &"harvest", "text": "Segure [E] no corpo para esfolar"},
-	{"id": &"forge", "text": "Forje o Elmo Chifre-de-Pedra ([Tab] → Forja)"},
+	{"id": &"forge", "text": "Forje o Elmo Chifre-de-Pedra na bigorna do acampamento ([E])"},
 	{"id": &"album", "text": "Veja suas cartas no álbum ([K])"},
 ]
 const FIND_DISTANCE: float = 9.0

@@ -317,6 +317,13 @@ func _build_board() -> void:
 	board.set("city", self)
 	add_child(board)
 
+	# Bigorna do acampamento: a forja de verdade (GDD-06 §6)
+	var anvil := ForgeStation.new()
+	anvil.name = "Bigorna"
+	anvil.city = self
+	anvil.position = Vector3(4.5, _get_ground_y(4.5, 4.6), 4.6)
+	add_child(anvil)
+
 	_board_layer = CanvasLayer.new()
 	_board_layer.layer = 12
 	add_child(_board_layer)

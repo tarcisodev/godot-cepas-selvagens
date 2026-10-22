@@ -108,18 +108,14 @@ func _update_button_texts() -> void:
 func _on_forge_pressed() -> void:
 	if player == null or player.inventory == null:
 		return
-
-	var inv: InventoryComponent = player.inventory
-	var horn := inv.best_stack(&"chifre_rinolito")
-	var integro: bool = not horn.is_empty() and horn.traits.has(&"integro")
-	if inv.craft_and_equip_horn_helmet(horn):
-		if forge_status_label:
-			if integro:
-				forge_status_label.text = "✨ Forjado Elmo Íntegro!\nTrait 'Casca Rígida' (+25% Poise, +20% Defesa) ativo."
-			else:
-				forge_status_label.text = "🔨 Forjado Elmo Fragmentado!\nTrait 'Reforçado' (+12% Poise, +10% Defesa) ativo."
-	elif forge_status_label:
-		forge_status_label.text = "❌ Faltam materiais!\nDerrote a besta (Íntegro) ou quebre o chifre (Lascado)."
+	# A forja é na bigorna do acampamento (GDD-06 §6): longe dela, só avisa
+	var station := ForgeStation.nearest_in_range(player)
+	if station:
+		close_menu()
+		station.open_for(player)
+		return
+	if forge_status_label:
+		forge_status_label.text = "⚒️ Forja: vá até a bigorna do acampamento e aperte [E]"
 
 func _on_sit_pressed() -> void:
 	if player:

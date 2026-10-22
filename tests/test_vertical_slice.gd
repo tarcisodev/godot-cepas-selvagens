@@ -154,7 +154,7 @@ func test_crafting_and_trait_modifiers() -> void:
 	var new_slash_resist: float = stats.get_stat(&"resist_slash")
 	assert(new_poise_resist > initial_poise_resist, "Resistência a quebra de postura deve subir (+25%)")
 	assert(new_slash_resist > initial_slash_resist, "Mitigação de corte deve subir (+20%)")
-	assert(stats.get_stat(&"load") >= 18.0, "Carga do elmo deve ser contabilizada (+18 load)")
+	assert(stats.get_stat(&"load") >= 14.0, "Carga do elmo deve ser contabilizada (+14, GDD-06 §6)")
 	
 	player.free()
 	print("  ✓ Forja modular, herança de traits e aplicação no StatsComponent validados!")

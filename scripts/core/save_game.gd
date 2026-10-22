@@ -1,7 +1,7 @@
 extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
-# Guarda: nome, posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas, objetivos
+# Guarda: nome, posição, hora e dia, aparência (DNA), materiais, peças forjadas e equipadas, maestrias, cartas, objetivos
 # construções (totens e peças) e obras da vila com a Reputação.
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
@@ -97,7 +97,7 @@ func collect(player: Node) -> Dictionary:
 	var inv = player.get("inventory")
 	if inv:
 		data["materials"] = inv.stacks_to_save()
-		data["equipped"] = _keys_to_str(inv.equipped)
+		data["gear"] = inv.items_to_save()
 	var wallet = player.get("wallet")
 	if wallet:
 		data["money"] = wallet.money
@@ -157,17 +157,8 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var inv = player.get("inventory")
 	if inv:
 		inv.load_from_save(data.get("materials", []))
-		# O elmo volta refazendo a forja com o mesmo chifre (reaplica os modificadores)
-		var head: String = data.get("equipped", {}).get("head", "")
-		if head != "":
-			var integro := "Íntegro" in head
-			var traits: Array = [&"integro"] if integro else []
-			inv.add_material(&"chifre_rinolito", 1, 3 if integro else 2, traits)
-			inv.add_material(&"placa_carapaca", 1)
-			for s in inv.get_stacks(&"chifre_rinolito"):
-				if s.traits.has(&"integro") == integro and s.quality == (3 if integro else 2):
-					inv.craft_and_equip_horn_helmet(s)
-					break
+		# Peças forjadas e o que estava equipado (reaplica os efeitos)
+		inv.load_items(data.get("gear", {}))
 
 	# Maestrias depois do elmo: a forja de restauração não pode contar XP
 	var mastery = player.get("mastery")

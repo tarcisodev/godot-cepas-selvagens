@@ -150,6 +150,12 @@ func _setup_components() -> void:
 		inventory.stats = stats
 	if inventory and not inventory.item_used.is_connected(_on_item_used):
 		inventory.item_used.connect(_on_item_used)
+	if get_node_or_null("GearVisual") == null and character_visual and inventory:
+		var gear := GearVisual.new()
+		gear.name = "GearVisual"
+		gear.visual = character_visual
+		gear.inventory = inventory
+		add_child(gear)
 	if wallet == null:
 		wallet = get_node_or_null("WalletComponent") as WalletComponent
 		if wallet == null:
@@ -736,6 +742,9 @@ func filter_incoming_hit(hit: HitEvent) -> void:
 func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	if is_downed or result.get(&"effective_damage", 0.0) <= 0.0:
 		return
+	# Cada golpe que passa gasta a armadura (GDD-06 §4)
+	if inventory:
+		inventory.wear_equipped(1.0)
 	if result.get(&"poise_broken", false):
 		_end_attack()
 		is_blocking = false
@@ -748,6 +757,9 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 		character_visual.play_timed(&"Hit_Chest", FLINCH_TIME, true)
 
 func _on_health_depleted() -> void:
+	# Cair tira 10% da durabilidade máxima do que está equipado (GDD-06 §4)
+	if inventory:
+		inventory.wear_equipped(0.0, 0.10)
 	is_downed = true
 	downed_timer = DOWNED_DURATION
 	_end_attack()

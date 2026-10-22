@@ -2,7 +2,8 @@ class_name InventoryComponent
 extends Node
 
 ## Gerencia inventário de materiais de caça e forja de equipamentos (GDD-03, GDD-05 e GDD-06).
-## Permite forjar o Elmo Chifre-de-Pedra aplicando modificadores ao StatsComponent do portador.
+## Peças forjadas (GDD-06 §6) ficam em `items`; uma por encaixe em `equipped_items`, com os
+## efeitos aplicados ao StatsComponent. `equipped` guarda só os nomes (HUD, objetivos).
 
 ## Materiais ficam em pilhas (ADR-0005): { "id", "quality" (1–5), "traits" (ordenados), "amount" }.
 ## Unidades só se juntam com id, qualidade e traits iguais. A API por id (add/get/consume)
@@ -28,13 +29,19 @@ var materials: Dictionary:
 			totals[s.id] = totals.get(s.id, 0) + s.amount
 		return totals
 
-# Slots equipados
+## Nomes do que está equipado por encaixe (head, body, hands)
 var equipped: Dictionary = {
 	&"head": &"",
-	&"body": &""
+	&"body": &"",
+	&"hands": &"",
 }
+## Peças forjadas guardadas e as equipadas (encaixe -> ForgedItem)
+var items: Array[ForgedItem] = []
+var equipped_items: Dictionary = {}
+## Fonte dos modificadores de cada encaixe (para tirar só os daquela peça)
+var _slot_sources: Dictionary = {}
 
-var _craft_source: RefCounted = RefCounted.new()
+signal items_changed()
 
 func _init() -> void:
 	_add_to_stack(&"placa_carapaca", 2, 1, []) # Já inicia com 2 placas de carapaça para o slice
@@ -221,53 +228,100 @@ func _drop_empty() -> void:
 		if stacks[i].amount <= 0:
 			stacks.remove_at(i)
 
-## Forja e equipa o Elmo Chifre-de-Pedra (GDD-06 §5) com a pilha de chifre dada
-## (vazia = o melhor chifre que houver). Qualidade e trait do elmo vêm do chifre.
+# ---------------------------------------------------------------- peças forjadas (GDD-06 §6)
+
+func add_item(item: ForgedItem) -> void:
+	items.append(item)
+	item_crafted.emit(StringName(item.display_name), item.quality, item.traits)
+	items_changed.emit()
+
+## Equipa no encaixe da peça (troca a que estava). A peça precisa estar em `items`.
+func equip(item: ForgedItem) -> void:
+	if not items.has(item):
+		return
+	equipped_items[item.slot] = item
+	_refresh_slot(item.slot)
+
+func unequip(slot: int) -> void:
+	equipped_items.erase(slot)
+	_refresh_slot(slot)
+
+## Tira uma peça da mochila (desmanche); desequipa se estiver em uso
+func remove_item(item: ForgedItem) -> void:
+	if equipped_items.get(item.slot) == item:
+		unequip(item.slot)
+	items.erase(item)
+	items_changed.emit()
+
+func equipped_in(slot: int) -> ForgedItem:
+	return equipped_items.get(slot)
+
+## Reaplica os efeitos do encaixe (peça quebrada não protege, mas ainda pesa)
+func _refresh_slot(slot: int) -> void:
+	if not _slot_sources.has(slot):
+		_slot_sources[slot] = RefCounted.new()
+	var src: RefCounted = _slot_sources[slot]
+	var item: ForgedItem = equipped_items.get(slot)
+	var key: StringName = ForgedItem.SLOT_KEYS[slot]
+	if stats:
+		stats.remove_modifiers_from_source(src)
+		if item:
+			var fx := item.effects()
+			for stat in fx:
+				if item.is_broken() and stat != &"load":
+					continue
+				stats.add_modifier(ModifierData.new(stat, ModifierData.Op.FLAT, fx[stat], src))
+	equipped[key] = StringName(item.display_name) if item else &""
+	equipment_changed.emit(key, equipped[key])
+	items_changed.emit()
+
+## Desgaste: golpe recebido (−1) ou queda (−10% do máximo, GDD-06 §4)
+func wear_equipped(amount: float, fraction_of_max: float = 0.0) -> void:
+	for slot in equipped_items:
+		var item: ForgedItem = equipped_items[slot]
+		var was_broken := item.is_broken()
+		if fraction_of_max > 0.0:
+			item.max_durability = maxf(1.0, item.max_durability * (1.0 - fraction_of_max))
+			item.durability = minf(item.durability, item.max_durability)
+		item.durability = maxf(0.0, item.durability - amount)
+		if item.is_broken() != was_broken:
+			_refresh_slot(slot)
+	items_changed.emit()
+
+func items_to_save() -> Dictionary:
+	var eq := {}
+	for slot in equipped_items:
+		eq[str(slot)] = items.find(equipped_items[slot])
+	return {"items": items.map(func(it): return it.to_dict()), "equipped": eq}
+
+func load_items(data: Dictionary) -> void:
+	for slot in equipped_items.keys():
+		unequip(slot)
+	items.clear()
+	for d in data.get("items", []):
+		items.append(ForgedItem.from_dict(d))
+	var eq: Dictionary = data.get("equipped", {})
+	for slot in eq:
+		var idx := int(eq[slot])
+		if idx >= 0 and idx < items.size():
+			equip(items[idx])
+	items_changed.emit()
+
+## Atalho do slice: forja o Elmo Chifre-de-Pedra com o chifre dado (ou o melhor) e as placas,
+## e já equipa. Usado pelo menu e pelos testes antigos.
 func craft_and_equip_horn_helmet(horn: Dictionary = {}) -> bool:
 	if horn.is_empty():
 		horn = best_stack(&"chifre_rinolito")
-	if horn.is_empty() or get_material_count(&"placa_carapaca") < 1:
+	var plates := _stacks_matching(&"placa_carapaca").filter(func(s): return s.amount >= 2)
+	if horn.is_empty() or plates.is_empty():
 		return false
-	consume_stack(horn, 1)
-	consume_materials({&"placa_carapaca": 1})
-
-	var is_integro: bool = horn.traits.has(&"integro")
-	var quality: int = horn.quality + 1 if is_integro else horn.quality
-	var traits: Array[StringName] = []
-	if is_integro:
-		traits.append(&"Casca Rígida")
-	else:
-		traits.append(&"Reforçado")
-	
-	# Remove modificadores de capacete anteriores deste componente
-	if stats != null:
-		stats.remove_modifiers_from_source(_craft_source)
-		
-		# Modificadores de armadura e poise
-		var poise_bonus: float = 0.25 if is_integro else 0.12
-		var armor_bonus: float = 0.20 if is_integro else 0.10
-		var load_weight: float = 18.0 if is_integro else 12.0
-		
-		stats.add_modifier(ModifierData.new(&"poise_resist", ModifierData.Op.FLAT, poise_bonus, _craft_source))
-		stats.add_modifier(ModifierData.new(&"resist_slash", ModifierData.Op.FLAT, armor_bonus, _craft_source))
-		stats.add_modifier(ModifierData.new(&"resist_impact", ModifierData.Op.FLAT, armor_bonus, _craft_source))
-		stats.add_modifier(ModifierData.new(&"load", ModifierData.Op.FLAT, load_weight, _craft_source))
-		
-		# Aumento de peso reduz velocidade de cast e aumenta custo de esquiva
-		var dodge_cost_inc: float = 8.0 if is_integro else 4.0
-		stats.add_modifier(ModifierData.new(&"dodge_cost", ModifierData.Op.FLAT, dodge_cost_inc, _craft_source))
-	
-	var helmet_name: StringName = &"Elmo Chifre-de-Pedra (Íntegro)" if is_integro else &"Elmo Chifre-de-Pedra (Fragmentado)"
-	equipped[&"head"] = helmet_name
-	
-	item_crafted.emit(helmet_name, quality, traits)
-	equipment_changed.emit(&"head", helmet_name)
-	
-	# Concede XP de maestria de forja
-	var parent: Node = get_parent()
-	if parent != null:
-		var mastery: MasteryComponent = parent.get_node_or_null("MasteryComponent") as MasteryComponent
-		if mastery != null:
-			mastery.add_xp(&"forja", 45.0 if is_integro else 25.0)
-	
+	var mastery: MasteryComponent = get_parent().get_node_or_null("MasteryComponent") as MasteryComponent if get_parent() else null
+	var level: int = mastery.get_level(&"forja") if mastery else 1
+	var item := Forge.forge(self, &"elmo_chifre_de_pedra", horn, plates[plates.size() - 1], {}, level, false, RandomNumberGenerator.new())
+	if item == null:
+		return false
+	add_item(item)
+	equip(item)
+	if mastery:
+		mastery.add_xp(&"forja", 45.0 if item.traits.has(&"integro") else 25.0)
 	return true
