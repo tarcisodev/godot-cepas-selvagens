@@ -24,6 +24,8 @@ const WATERFALL_SHADER: Shader = preload("res://materials/waterfall.gdshader")
 @export var riverbed_color: Color = Color(0.22, 0.21, 0.18)     # Seixos e cascalho do fundo
 
 var noise: FastNoiseLite
+## Alturas da grade do terreno (malha e colisão)
+var _heights := PackedFloat32Array()
 
 func _ready() -> void:
 	_init_noise()
@@ -103,50 +105,68 @@ func get_height_at(x: float, z: float) -> float:
 func generate_landscape() -> void:
 	_init_noise()
 
-	var st: SurfaceTool = SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-
 	var half_size: Vector2 = terrain_size * 0.5
 	var step_x: float = terrain_size.x / float(subdivisions.x)
 	var step_z: float = terrain_size.y / float(subdivisions.y)
-
-	# Altura de cada vértice calculada uma vez só (cada um é compartilhado por 4 quadrados)
-	var heights := PackedFloat32Array()
-	heights.resize((subdivisions.x + 1) * (subdivisions.y + 1))
-	for zi in range(subdivisions.y + 1):
-		for xi in range(subdivisions.x + 1):
-			heights[zi * (subdivisions.x + 1) + xi] = get_height_at(-half_size.x + xi * step_x, -half_size.y + zi * step_z)
 	var row: int = subdivisions.x + 1
+	var count: int = row * (subdivisions.y + 1)
 
-	for z_idx in range(subdivisions.y):
-		for x_idx in range(subdivisions.x):
-			var x0: float = -half_size.x + x_idx * step_x
-			var x1: float = x0 + step_x
-			var z0: float = -half_size.y + z_idx * step_z
-			var z1: float = z0 + step_z
+	# Grade de vértices compartilhados: altura e cor uma vez por ponto (malha indexada)
+	_heights.resize(count)
+	var verts := PackedVector3Array()
+	var colors := PackedColorArray()
+	var uvs := PackedVector2Array()
+	verts.resize(count)
+	colors.resize(count)
+	uvs.resize(count)
+	for zi in range(subdivisions.y + 1):
+		for xi in range(row):
+			var i: int = zi * row + xi
+			var x: float = -half_size.x + xi * step_x
+			var z: float = -half_size.y + zi * step_z
+			var y: float = get_height_at(x, z)
+			_heights[i] = y
+			var v := Vector3(x, y, z)
+			verts[i] = v
+			colors[i] = _vertex_color(v)
+			uvs[i] = Vector2(x * 0.1, z * 0.1)
 
-			var y00: float = heights[z_idx * row + x_idx]
-			var y10: float = heights[z_idx * row + x_idx + 1]
-			var y01: float = heights[(z_idx + 1) * row + x_idx]
-			var y11: float = heights[(z_idx + 1) * row + x_idx + 1]
+	# Normais pela diferença das alturas vizinhas (relevo suave, sem custo de generate_normals)
+	var normals := PackedVector3Array()
+	normals.resize(count)
+	for zi in range(subdivisions.y + 1):
+		for xi in range(row):
+			var hl: float = _heights[zi * row + maxi(xi - 1, 0)]
+			var hr: float = _heights[zi * row + mini(xi + 1, row - 1)]
+			var hd: float = _heights[maxi(zi - 1, 0) * row + xi]
+			var hu: float = _heights[mini(zi + 1, subdivisions.y) * row + xi]
+			normals[zi * row + xi] = Vector3((hl - hr) / (2.0 * step_x), 1.0, (hd - hu) / (2.0 * step_z)).normalized()
 
-			var v00: Vector3 = Vector3(x0, y00, z0)
-			var v10: Vector3 = Vector3(x1, y10, z0)
-			var v01: Vector3 = Vector3(x0, y01, z1)
-			var v11: Vector3 = Vector3(x1, y11, z1)
+	var indices := PackedInt32Array()
+	indices.resize(subdivisions.x * subdivisions.y * 6)
+	var k: int = 0
+	for zi in range(subdivisions.y):
+		for xi in range(subdivisions.x):
+			var a: int = zi * row + xi
+			# Dois triângulos por quadrado (mesma ordem de antes: v00, v10, v01 / v10, v11, v01)
+			indices[k] = a
+			indices[k + 1] = a + 1
+			indices[k + 2] = a + row
+			indices[k + 3] = a + 1
+			indices[k + 4] = a + row + 1
+			indices[k + 5] = a + row
+			k += 6
 
-			# Triângulo 1 (v00, v10, v01)
-			_add_vertex_colored(st, v00)
-			_add_vertex_colored(st, v10)
-			_add_vertex_colored(st, v01)
-
-			# Triângulo 2 (v10, v11, v01)
-			_add_vertex_colored(st, v10)
-			_add_vertex_colored(st, v11)
-			_add_vertex_colored(st, v01)
-
-	st.generate_normals()
-	mesh = st.commit()
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh = am
 
 	# Configurar material natural
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
@@ -159,7 +179,7 @@ func generate_landscape() -> void:
 	_rebuild_collision()
 	_build_river_and_waterfall()
 
-func _add_vertex_colored(st: SurfaceTool, pos: Vector3) -> void:
+func _vertex_color(pos: Vector3) -> Color:
 	var col: Color = grass_color
 	var dist_river: float = RiverClass.get_distance_to_river(pos.x, pos.z)
 	var water_hw: float = RiverClass.get_water_half_width(pos.z)
@@ -182,10 +202,7 @@ func _add_vertex_colored(st: SurfaceTool, pos: Vector3) -> void:
 		# Colinas e relevo geral
 		var t_hill: float = clamp(pos.y / (max_height * 0.9), 0.0, 1.0)
 		col = grass_color.lerp(earth_color, t_hill)
-
-	st.set_color(col)
-	st.set_uv(Vector2(pos.x * 0.1, pos.z * 0.1))
-	st.add_vertex(pos)
+	return col
 
 func _rebuild_collision() -> void:
 	for child in get_children():
@@ -195,8 +212,14 @@ func _rebuild_collision() -> void:
 	var static_body: StaticBody3D = StaticBody3D.new()
 	static_body.name = "TerrainCollision"
 	static_body.collision_layer = 1
+	# Mapa de alturas: bem mais leve que malha de triângulos para física e para montar
 	var col_shape: CollisionShape3D = CollisionShape3D.new()
-	col_shape.shape = mesh.create_trimesh_shape()
+	var hm := HeightMapShape3D.new()
+	hm.map_width = subdivisions.x + 1
+	hm.map_depth = subdivisions.y + 1
+	hm.map_data = _heights
+	col_shape.shape = hm
+	col_shape.scale = Vector3(terrain_size.x / float(subdivisions.x), 1.0, terrain_size.y / float(subdivisions.y))
 	static_body.add_child(col_shape)
 
 	# 1. Paredes invisíveis nos 4 limites do mapa para evitar queda no abismo/limbo

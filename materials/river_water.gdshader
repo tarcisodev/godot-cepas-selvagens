@@ -6,6 +6,7 @@ render_mode blend_mix, depth_draw_never, cull_back, specular_schlick_ggx;
 // fundo = escurece até azul-petróleo. Espuma onde a água encosta na margem e nas pedras.
 // Ondulação corre no sentido do fluxo (UV.y = ao longo do rio) e mexe no reflexo.
 
+uniform float emission_strength = 0.45; // cai à noite (o rio não brilha no escuro)
 uniform sampler2D screen_texture : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear_mipmap;
 
@@ -69,7 +70,7 @@ void fragment() {
 	foam = clamp(foam, 0.0, 1.0);
 
 	ALBEDO = mix(col * 0.55, foam_color, foam);
-	EMISSION = col * 0.45 * (1.0 - foam);
+	EMISSION = col * emission_strength * (1.0 - foam);
 	ROUGHNESS = mix(0.04, 0.5, foam);
 	SPECULAR = 0.65;
 	ALPHA = 1.0;

@@ -2,7 +2,8 @@ extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
 # Guarda: nome, posição, hora e dia, aparência (DNA), materiais, peças forjadas e equipadas, maestrias, cartas, objetivos
-# construções (totens e peças) e obras da vila com a Reputação.
+# construções (totens e peças), obras da vila com a Reputação, montarias e a natureza
+# (plantas, bichos, solo, clima e cheia do rio).
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
 
@@ -118,6 +119,18 @@ func collect(player: Node) -> Dictionary:
 		var eco := player.get_tree().get_first_node_in_group("ecosystem")
 		if eco:
 			data["mounts"] = eco.owned_state()
+		# Natureza (GDD-10): plantas e bichos vivos, solo, clima e cheia do rio
+		var nature := {}
+		if eco:
+			nature = eco.nature_state()
+		var ecology := player.get_tree().get_first_node_in_group("ecology")
+		if ecology:
+			nature["soil"] = ecology.get_state()
+		var weather := player.get_tree().get_first_node_in_group("weather")
+		if weather:
+			nature["weather"] = weather.get_state()
+		if not nature.is_empty():
+			data["nature"] = nature
 	return data
 
 func save_game() -> bool:
@@ -207,6 +220,16 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var eco := player.get_tree().get_first_node_in_group("ecosystem") if player.is_inside_tree() else null
 	if eco and data.has("mounts"):
 		eco.restore_owned(data["mounts"])
+	if data.has("nature") and player.is_inside_tree():
+		var nature: Dictionary = data["nature"]
+		if eco and nature.has("plants"):
+			eco.restore_nature(nature)
+		var ecology := player.get_tree().get_first_node_in_group("ecology")
+		if ecology and nature.has("soil"):
+			ecology.apply_state(nature["soil"])
+		var weather := player.get_tree().get_first_node_in_group("weather")
+		if weather and nature.has("weather"):
+			weather.apply_state(nature["weather"])
 	loaded.emit()
 
 # O player é filho direto do mundo; fora da árvore só a posição local existe

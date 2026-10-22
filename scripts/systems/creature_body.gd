@@ -22,7 +22,7 @@ var _torso: Node3D
 var head_down: bool = false
 var _phase: float = 0.0
 var _flap: float = 0.0
-var _batches: Dictionary = {}  # pivô -> SurfaceTool
+var _batches: Dictionary = {}  # pivô -> MeshBatch
 
 func _ready() -> void:
 	if dna == null:
@@ -244,18 +244,16 @@ func _pattern(body: Vector3, center: Vector3) -> void:
 
 static var _shared_mats: Dictionary = {}
 
-func _batch(parent: Node3D) -> SurfaceTool:
+func _batch(parent: Node3D) -> MeshBatch:
 	if not _batches.has(parent):
-		var st := SurfaceTool.new()
-		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		_batches[parent] = st
+		_batches[parent] = MeshBatch.new()
 	return _batches[parent]
 
 ## Fecha as malhas acumuladas: uma MeshInstance por pivô
 func _flush() -> void:
 	for parent in _batches:
 		var mi := MeshInstance3D.new()
-		mi.mesh = (_batches[parent] as SurfaceTool).commit()
+		mi.mesh = (_batches[parent] as MeshBatch).commit()
 		mi.material_override = _material(dna.is_mutant())
 		mi.visibility_range_end = 90.0
 		# Peixe nada debaixo d'água: sombra não aparece e custa uma passada a mais
@@ -280,7 +278,7 @@ func _ellipsoid(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> vo
 	sm.height = 1.0
 	sm.radial_segments = 12
 	sm.rings = 6
-	_append(parent, sm, Transform3D(Basis.IDENTITY.scaled(size), pos), color)
+	_append(parent, sm, "creature_sphere", Transform3D(Basis.IDENTITY.scaled(size), pos), color)
 
 func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis = Basis.IDENTITY) -> void:
 	var cm := CapsuleMesh.new()
@@ -288,7 +286,7 @@ func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color:
 	cm.height = maxf(height, radius * 2.0)
 	cm.radial_segments = 10
 	cm.rings = 4
-	_append(parent, cm, Transform3D(rot, pos), color)
+	_append(parent, cm, "", Transform3D(rot, pos), color)
 
 func _cone(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis) -> void:
 	var cm := CylinderMesh.new()
@@ -296,16 +294,7 @@ func _cone(parent: Node3D, radius: float, height: float, pos: Vector3, color: Co
 	cm.bottom_radius = radius
 	cm.height = height
 	cm.radial_segments = 8
-	_append(parent, cm, Transform3D(rot, pos), color)
+	_append(parent, cm, "", Transform3D(rot, pos), color)
 
-func _append(parent: Node3D, mesh: PrimitiveMesh, xform: Transform3D, color: Color) -> void:
-	var st := _batch(parent)
-	var arrays := mesh.get_mesh_arrays()
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	var nb := xform.basis.inverse().transposed()
-	for idx in indices:
-		st.set_color(color)
-		st.set_normal((nb * normals[idx]).normalized())
-		st.add_vertex(xform * verts[idx])
+func _append(parent: Node3D, mesh: PrimitiveMesh, key: String, xform: Transform3D, color: Color) -> void:
+	_batch(parent).append(MeshBatch.arrays_of(mesh, key), xform, color)

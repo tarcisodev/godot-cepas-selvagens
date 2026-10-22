@@ -29,7 +29,7 @@ var age: float = 0.0
 var progress: float = 0.0
 var stress: float = 0.0
 
-var _st: SurfaceTool
+var _st: MeshBatch
 var _rng := RandomNumberGenerator.new()
 var _crown: Array[Vector3] = []
 static var _material: StandardMaterial3D
@@ -86,8 +86,7 @@ func build() -> void:
 		return
 	_rng.seed = dna.dna_seed
 	_crown.clear()
-	_st = SurfaceTool.new()
-	_st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_st = MeshBatch.new()
 	match dna.kind:
 		PlantDNA.Kind.ARVORE:
 			_build_tree()
@@ -281,7 +280,7 @@ func _add_sphere(xform: Transform3D, color: Color) -> void:
 	sm.height = 1.0
 	sm.radial_segments = 8
 	sm.rings = 5
-	_append(sm, xform, color)
+	_st.append(MeshBatch.arrays_of(sm, "plant_sphere"), xform, color)
 
 func _add_cylinder(a: Vector3, b: Vector3, r_bottom: float, r_top: float, color: Color) -> void:
 	var cm := CylinderMesh.new()
@@ -293,15 +292,4 @@ func _add_cylinder(a: Vector3, b: Vector3, r_bottom: float, r_top: float, color:
 	var up := (b - a).normalized()
 	var side := up.cross(Vector3.FORWARD if absf(up.dot(Vector3.FORWARD)) < 0.95 else Vector3.RIGHT).normalized()
 	var rot := Basis(side, up, side.cross(up))
-	_append(cm, Transform3D(rot, (a + b) * 0.5), color)
-
-func _append(mesh: PrimitiveMesh, xform: Transform3D, color: Color) -> void:
-	var arrays := mesh.get_mesh_arrays()
-	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
-	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
-	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
-	var nb := xform.basis.inverse().transposed()
-	for idx in indices:
-		_st.set_color(color)
-		_st.set_normal((nb * normals[idx]).normalized())
-		_st.add_vertex(xform * verts[idx])
+	_st.append(MeshBatch.arrays_of(cm), Transform3D(rot, (a + b) * 0.5), color)

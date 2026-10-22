@@ -45,6 +45,25 @@ static func seed_of(parent: PlantDNA, p_seed: int, mutation_chance: float) -> Pl
 			d.leaf_color = d.leaf_color.lerp(d.flower_color, 0.35)
 	return d
 
+func to_dict() -> Dictionary:
+	return {
+		"kind": kind, "seed": dna_seed, "porte": porte, "branches": branches, "petals": petals,
+		"leaf": leaf_color.to_html(), "flower": flower_color.to_html(), "trunk": trunk_color.to_html(), "mutant": mutant,
+	}
+
+static func from_dict(d: Dictionary) -> PlantDNA:
+	var p := PlantDNA.new()
+	p.kind = int(d.get("kind", 0)) as Kind
+	p.dna_seed = int(d.get("seed", 0))
+	p.porte = Array(d.get("porte", ["T", "t"]))
+	p.branches = int(d.get("branches", 4))
+	p.petals = int(d.get("petals", 5))
+	p.leaf_color = Color.html(str(d.get("leaf", "4d8c40")))
+	p.flower_color = Color.html(str(d.get("flower", "e66680")))
+	p.trunk_color = Color.html(str(d.get("trunk", "664729")))
+	p.mutant = bool(d.get("mutant", false))
+	return p
+
 static func randomized(p_kind: Kind, p_seed: int) -> PlantDNA:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = p_seed

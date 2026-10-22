@@ -51,8 +51,11 @@ func _ready() -> void:
 	_dialog = CaptureDialog.new()
 	layer.add_child(_dialog)
 	_dialog.chosen.connect(_on_capture_choice)
-	_spawn_plants()
-	_spawn_fauna()
+	# Continuando um jogo com a natureza salva: ela volta pelo save, não precisa semear agora
+	var save := get_node_or_null("/root/SaveGame")
+	if not (save and save.load_on_enter and save.read_save().has("nature")):
+		_spawn_plants()
+		_spawn_fauna()
 	_build_stable()
 
 # ---------------------------------------------------------------- flora
@@ -99,9 +102,9 @@ func _spawn_fauna() -> void:
 		for i in 4:
 			_add_wild(CreatureDNA.Species.LAMBARI, _river_spot(z + i * 0.6), 10.0)
 
-func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float) -> WildCreature:
+func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float, p_dna: CreatureDNA = null) -> WildCreature:
 	var c := WildCreature.new()
-	c.dna = CreatureDNA.randomized(species, _rng.randi())
+	c.dna = p_dna if p_dna else CreatureDNA.randomized(species, _rng.randi())
 	c.roam_radius = roam
 	c.position = pos
 	c.captured.connect(_on_captured)
@@ -163,6 +166,68 @@ func spawn_offspring(a: WildCreature, b: WildCreature) -> bool:
 	c.thirst = 0.3
 	c.breed_cooldown = WildCreature.BREED_COOLDOWN
 	return true
+
+# ---------------------------------------------------------------- save da natureza (GDD-10)
+
+## Plantas e bichos vivos como estão agora (posição, DNA, idade, fome, sede)
+func nature_state() -> Dictionary:
+	var plants := []
+	for n in get_tree().get_nodes_in_group("plants"):
+		var p := n as PlantBody
+		if p == null or p.is_queued_for_deletion():
+			continue
+		var pos := p.global_position
+		plants.append({
+			"dna": p.dna.to_dict(), "stage": p.stage, "age": snappedf(p.age, 0.01), "progress": snappedf(p.progress, 0.01),
+			"stress": snappedf(p.stress, 0.01), "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)],
+			"rot": snappedf(p.rotation.y, 0.01),
+		})
+	var wild := []
+	for n in get_tree().get_nodes_in_group("wild_creatures"):
+		var c := n as WildCreature
+		if c == null or c.is_queued_for_deletion() or not c.is_alive() or c.state == WildCreature.State.CAPTURED:
+			continue
+		var pos := c.global_position
+		wild.append({
+			"dna": c.dna.to_dict(), "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)],
+			"home": [snappedf(c.home.x, 0.01), snappedf(c.home.y, 0.01), snappedf(c.home.z, 0.01)], "roam": c.roam_radius,
+			"age": snappedf(c.age_days, 0.01), "life": snappedf(c.lifespan_days, 0.01), "hunger": snappedf(c.hunger, 0.01),
+			"thirst": snappedf(c.thirst, 0.01), "breed": snappedf(c.breed_cooldown, 0.01),
+		})
+	return {"plants": plants, "wild": wild}
+
+## Troca a natureza do mundo pela do save
+func restore_nature(d: Dictionary) -> void:
+	for n in get_tree().get_nodes_in_group("plants"):
+		n.remove_from_group("plants")
+		n.queue_free()
+	for n in get_tree().get_nodes_in_group("wild_creatures"):
+		var c := n as WildCreature
+		if c and c.state != WildCreature.State.CAPTURED:
+			c.remove_from_group("wild_creatures")
+			c.queue_free()
+	for e in d.get("plants", []):
+		var plant := PlantBody.new()
+		plant.dna = PlantDNA.from_dict(e.get("dna", {}))
+		plant.stage = int(e.get("stage", PlantBody.Stage.ADULTA)) as PlantBody.Stage
+		plant.age = float(e.get("age", 0.0))
+		plant.progress = float(e.get("progress", 0.0))
+		plant.stress = float(e.get("stress", 0.0))
+		plant.position = _vec(e.get("pos", [0, 0, 0]))
+		plant.rotation.y = float(e.get("rot", 0.0))
+		add_child(plant)
+	for e in d.get("wild", []):
+		var dna := CreatureDNA.from_dict(e.get("dna", {}))
+		var c := _add_wild(dna.species, _vec(e.get("pos", [0, 0, 0])), float(e.get("roam", 14.0)), dna)
+		c.home = _vec(e.get("home", e.get("pos", [0, 0, 0])))
+		c.age_days = float(e.get("age", 4.0))
+		c.lifespan_days = float(e.get("life", 15.0))
+		c.hunger = float(e.get("hunger", 0.2))
+		c.thirst = float(e.get("thirst", 0.2))
+		c.breed_cooldown = float(e.get("breed", 0.0))
+
+static func _vec(a: Array) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 func _say(msg: String) -> void:
 	if _pending_player and is_instance_valid(_pending_player) and _pending_player.has_signal("posture_changed"):

@@ -51,6 +51,24 @@ func _init_grid() -> void:
 			moisture[i] = clampf(0.45 + _river_bonus(x, z) + noise.get_noise_2d(x, z) * 0.15, 0.0, 1.0)
 			nutrients[i] = clampf(0.45 + noise.get_noise_2d(x + 500.0, z) * 0.25, 0.05, 1.0)
 
+## Solo para o save: umidade e nutriente de cada célula, compactados
+func get_state() -> Dictionary:
+	return {
+		"cells": cells,
+		"moisture": Marshalls.raw_to_base64(moisture.to_byte_array()),
+		"nutrients": Marshalls.raw_to_base64(nutrients.to_byte_array()),
+	}
+
+func apply_state(d: Dictionary) -> void:
+	if int(d.get("cells", 0)) != cells:
+		return  # grade de outro tamanho de mapa: fica a do mundo novo
+	var m := Marshalls.base64_to_raw(str(d.get("moisture", ""))).to_float32_array()
+	var n := Marshalls.base64_to_raw(str(d.get("nutrients", ""))).to_float32_array()
+	if m.size() == moisture.size():
+		moisture = m
+	if n.size() == nutrients.size():
+		nutrients = n
+
 ## Índice da célula de solo em (x, z); -1 fora do mapa
 func cell_index(x: float, z: float) -> int:
 	var ix := int(floor((x + WorldBounds.HALF) / CELL))
