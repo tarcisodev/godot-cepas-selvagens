@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"carne_mal_passada"
+display_name = "Carne Mal Passada"
+description = "Ainda sangrando por dentro. Sustenta pouco, mas sai rápido do fogo."
+category = 5
+icon = "🥩"
+color = Color(0.8, 0.25, 0.25, 1)
+unit_weight = 0.5
+max_gather_quality = 2
+restore_vigor = 25.0

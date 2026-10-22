@@ -36,7 +36,14 @@ func _ready() -> void:
 		$PanelContainer/MarginContainer/VBoxContainer.add_child(build_btn)
 		$PanelContainer/MarginContainer/VBoxContainer.move_child(build_btn, close_button.get_index())
 	build_btn.pressed.connect(_on_build_pressed)
-	
+
+	var inv_btn := Button.new()
+	inv_btn.name = "InventoryButton"
+	inv_btn.text = "🎒 Inventário ([I])"
+	$PanelContainer/MarginContainer/VBoxContainer.add_child(inv_btn)
+	$PanelContainer/MarginContainer/VBoxContainer.move_child(inv_btn, build_btn.get_index())
+	inv_btn.pressed.connect(_on_inventory_pressed)
+
 	close_button.pressed.connect(close_menu)
 
 func _input(event: InputEvent) -> void:
@@ -74,43 +81,27 @@ func _update_button_texts() -> void:
 		
 		if forge_status_label and player.inventory != null:
 			var inv: InventoryComponent = player.inventory
-			var integros := inv.get_material_count(&"chifre_integro")
-			var lascados := inv.get_material_count(&"chifre_lascado")
-			var placas := inv.get_material_count(&"placa_carapaca")
 			var capacete: StringName = inv.equipped.get(&"head", &"")
 			var eq_text: String = "Equipado: %s\n" % capacete if not capacete.is_empty() else ""
-			var hunt_text: String = "Caça: %d Íntegros · %d Lascados · %d Placas\n" % [integros, lascados, placas]
-			
-			var mats: Array[String] = []
-			var icon_map: Dictionary = {
-				&"madeira": "🪵", &"galho": "🌿", &"folha": "🍃", &"fibra": "🌾",
-				&"pedra": "🪨", &"frutinha": "🫐", &"besouro": "🪲", &"ossos": "🦴",
-				&"erva": "🌱", &"mel": "🍯"
-			}
-			for mat_id in icon_map:
-				var count: int = inv.get_material_count(mat_id)
-				if count > 0:
-					mats.append("%s %d %s" % [icon_map[mat_id], count, mat_id.capitalize()])
-			
-			var col_text: String = "Coleta: " + (" · ".join(mats) if not mats.is_empty() else "Nenhum recurso coletado ainda")
-			forge_status_label.text = eq_text + hunt_text + col_text
+			var horn := inv.best_stack(&"chifre_rinolito")
+			var horn_text: String = "Melhor chifre: %s %s" % ["★".repeat(horn.quality), "(Íntegro)" if horn.traits.has(&"integro") else ""] if not horn.is_empty() else "Sem chifre"
+			forge_status_label.text = "%s%s · %d Placas\nMateriais e coleta: [I] Inventário" % [eq_text, horn_text, inv.get_material_count(&"placa_carapaca")]
 
 func _on_forge_pressed() -> void:
 	if player == null or player.inventory == null:
 		return
-	
+
 	var inv: InventoryComponent = player.inventory
-	if inv.get_material_count(&"chifre_integro") > 0 and inv.get_material_count(&"placa_carapaca") >= 1:
-		var ok := inv.craft_and_equip_horn_helmet(&"chifre_integro")
-		if ok and forge_status_label:
-			forge_status_label.text = "✨ Forjado Elmo Íntegro!\nTrait 'Casca Rígida' (+25% Poise, +20% Defesa) ativo."
-	elif inv.get_material_count(&"chifre_lascado") > 0 and inv.get_material_count(&"placa_carapaca") >= 1:
-		var ok := inv.craft_and_equip_horn_helmet(&"chifre_lascado")
-		if ok and forge_status_label:
-			forge_status_label.text = "🔨 Forjado Elmo Fragmentado!\nTrait 'Reforçado' (+12% Poise, +10% Defesa) ativo."
-	else:
+	var horn := inv.best_stack(&"chifre_rinolito")
+	var integro: bool = not horn.is_empty() and horn.traits.has(&"integro")
+	if inv.craft_and_equip_horn_helmet(horn):
 		if forge_status_label:
-			forge_status_label.text = "❌ Faltam materiais!\nDerrote a besta (Íntegro) ou quebre o chifre (Lascado)."
+			if integro:
+				forge_status_label.text = "✨ Forjado Elmo Íntegro!\nTrait 'Casca Rígida' (+25% Poise, +20% Defesa) ativo."
+			else:
+				forge_status_label.text = "🔨 Forjado Elmo Fragmentado!\nTrait 'Reforçado' (+12% Poise, +10% Defesa) ativo."
+	elif forge_status_label:
+		forge_status_label.text = "❌ Faltam materiais!\nDerrote a besta (Íntegro) ou quebre o chifre (Lascado)."
 
 func _on_sit_pressed() -> void:
 	if player:
@@ -141,6 +132,12 @@ func _on_cards_pressed() -> void:
 		album = get_node_or_null("../../CardAlbum")
 	if album != null and album.has_method("open_album"):
 		album.open_album()
+
+func _on_inventory_pressed() -> void:
+	close_menu()
+	var screen := get_node_or_null("../InventoryScreen")
+	if screen and screen.has_method("open"):
+		screen.open()
 
 func _on_build_pressed() -> void:
 	close_menu()

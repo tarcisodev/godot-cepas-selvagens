@@ -25,8 +25,9 @@ func test_save_roundtrip() -> void:
 	var p1: Player = PlayerScene.instantiate() as Player
 	root.add_child(p1)
 	p1._setup_components()
-	p1.inventory.add_material(&"chifre_integro", 1)
-	assert(p1.inventory.craft_and_equip_horn_helmet(&"chifre_integro"), "Forja do elmo para o teste")
+	p1.inventory.add_material(&"chifre_rinolito", 1, 3, [&"integro"])
+	assert(p1.inventory.craft_and_equip_horn_helmet(), "Forja do elmo para o teste")
+	p1.inventory.add_material(&"madeira", 4, 2)
 	p1.inventory.add_material(&"tendao_elastico", 3)
 	p1.mastery.add_xp(&"esfola", 500.0)
 	p1.card_collection.unlock_card(&"beast_horn")
@@ -48,7 +49,8 @@ func test_save_roundtrip() -> void:
 	save_game.apply_save(p2, from_disk)
 
 	assert(p2.inventory.get_material_count(&"tendao_elastico") == 3, "Materiais restaurados")
-	assert(p2.inventory.get_material_count(&"chifre_integro") == 0, "Restaurar o elmo não deixa chifre sobrando")
+	assert(p2.inventory.get_material_count(&"chifre_rinolito") == 0, "Restaurar o elmo não deixa chifre sobrando")
+	assert(p2.inventory.get_stacks(&"madeira").size() == 1 and p2.inventory.get_stacks(&"madeira")[0].quality == 2, "Qualidade das pilhas sobrevive ao save")
 	assert(p2.inventory.equipped[&"head"] == &"Elmo Chifre-de-Pedra (Íntegro)", "Elmo equipado restaurado")
 	assert(is_equal_approx(p2.stats.get_stat(&"poise_resist"), poise_with_helmet), "Modificadores do elmo reaplicados")
 	assert(p2.mastery.get_level(&"esfola") == esfola_level, "Nível de maestria restaurado (sem XP extra da forja)")

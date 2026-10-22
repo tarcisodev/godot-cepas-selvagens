@@ -14,7 +14,7 @@ signal stat_changed(stat_name: StringName, new_value: float, old_value: float)
 	&"max_poise": 50.0,
 	&"health_regen": 0.0,
 	&"ether_regen": 2.0,
-	&"vigor_regen": 15.0,
+	&"vigor_regen": 25.0,
 	&"poise_regen": 10.0,
 	&"move_speed": 4.5,
 	&"dodge_cost": 25.0,

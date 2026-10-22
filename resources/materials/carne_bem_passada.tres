@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"carne_bem_passada"
+display_name = "Carne Bem Passada"
+description = "No ponto certo. A melhor refeição para aguentar uma luta longa."
+category = 5
+icon = "🍖"
+color = Color(0.65, 0.38, 0.2, 1)
+unit_weight = 0.5
+max_gather_quality = 2
+restore_vigor = 60.0

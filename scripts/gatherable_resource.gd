@@ -380,17 +380,21 @@ func harvest_next(harvester: Node = null) -> String:
 		return ""
 	
 	var amount: int = randi_range(min_amount, max_amount)
-	
+	var quality: int = 1
+
 	if harvester != null:
+		var mst: MasteryComponent = harvester.get_node_or_null("MasteryComponent") as MasteryComponent
+		if mst == null and "mastery" in harvester:
+			mst = harvester.mastery
+		var level: int = mst.get_level(mastery_tag) if mst != null else 1
+		quality = roll_quality(level, MaterialData.of(material_id).max_gather_quality)
+
 		var inv: InventoryComponent = harvester.get_node_or_null("InventoryComponent") as InventoryComponent
 		if inv == null and "inventory" in harvester:
 			inv = harvester.inventory
 		if inv != null:
-			inv.add_material(material_id, amount)
-		
-		var mst: MasteryComponent = harvester.get_node_or_null("MasteryComponent") as MasteryComponent
-		if mst == null and "mastery" in harvester:
-			mst = harvester.mastery
+			inv.add_material(material_id, amount, quality)
+
 		if mst != null:
 			mst.add_xp(mastery_tag, mastery_xp)
 		
@@ -404,7 +408,16 @@ func harvest_next(harvester: Node = null) -> String:
 	if respawn_enabled and respawn_time > 0.0:
 		_respawn_timer = respawn_time
 	
-	return "%dx %s" % [amount, display_name]
+	return "%dx %s%s" % [amount, display_name, " ★★" if quality >= 2 else ""]
+
+## Qualidade da coleta comum (GDD-08 §8): 1★; a partir do nível 25 da maestria,
+## chance de 2★ = 10% + 0,4% por nível acima de 25. Nunca passa de `max_quality`.
+static func roll_quality(mastery_level: int, max_quality: int = 2, rng: RandomNumberGenerator = null) -> int:
+	if mastery_level < 25 or max_quality < 2:
+		return 1
+	var chance := 0.10 + 0.004 * float(mastery_level - 25)
+	var roll := rng.randf() if rng else randf()
+	return 2 if roll < chance else 1
 
 func _handle_bee_hazard(harvester: Node) -> void:
 	if harvester and "pools" in harvester and harvester.pools != null:

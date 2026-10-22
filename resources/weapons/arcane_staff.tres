@@ -20,7 +20,7 @@ poise_damage = 14.0
 break_mult = 1.0
 reach = 2.2
 cost_pool = &"vigor"
-cost = 10.0
+cost = 7.0
 move_mult = 0.4
 
 [sub_resource type="Resource" id="Attack_aim"]

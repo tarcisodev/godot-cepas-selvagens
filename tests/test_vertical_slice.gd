@@ -73,7 +73,7 @@ func test_creature_parts_and_conditional_loot() -> void:
 	
 	var inv: InventoryComponent = player.inventory
 	assert(inv != null, "Player deve possuir InventoryComponent")
-	assert(inv.get_material_count(&"chifre_lascado") == 0, "Sem chifres lascados no início")
+	assert(inv.get_material_count(&"chifre_rinolito") == 0, "Sem chifres no início")
 	
 	# 1. Dano direto no Chifre até quebrar (50 de HP)
 	var broke_horn := dummy.anatomy.damage_part(&"horn", 55.0)
@@ -81,7 +81,9 @@ func test_creature_parts_and_conditional_loot() -> void:
 	assert(dummy.anatomy.is_part_broken(&"horn"), "Status do chifre deve ser quebrado")
 	
 	# Verifica se o drop foi premiado ao player
-	assert(inv.get_material_count(&"chifre_lascado") == 1, "Player deve ter recebido 1 Chifre Lascado")
+	assert(inv.get_material_count(&"chifre_rinolito") == 1, "Player deve ter recebido 1 chifre")
+	var shard: Dictionary = inv.best_stack(&"chifre_rinolito")
+	assert(shard.quality == 2 and not shard.traits.has(&"integro"), "Chifre quebrado em luta = 2★ sem Íntegro")
 	
 	# 2. Testando criatura derrotada com chifre intacto em nova criatura
 	var dummy2: DummyCreature = DummyScene.instantiate() as DummyCreature
@@ -91,7 +93,7 @@ func test_creature_parts_and_conditional_loot() -> void:
 	
 	# Abate com chifre intacto: o loot fica no corpo até ser esfolado (GDD-03 §8)
 	dummy2._on_health_depleted()
-	assert(inv.get_material_count(&"chifre_integro") == 0, "Loot do corpo não cai sozinho; precisa esfolar")
+	assert(inv.get_material_count(&"chifre_rinolito") == 1, "Loot do corpo não cai sozinho; precisa esfolar")
 	assert(dummy2.is_harvestable(), "Corpo deve ficar esfolável")
 	assert(dummy2.next_harvest_label() == "Chifre Íntegro", "Primeira parte a esfolar é o chifre intacto")
 	var esfola_xp_before: float = player.mastery.get_xp(&"esfola")
@@ -100,7 +102,9 @@ func test_creature_parts_and_conditional_loot() -> void:
 		dummy2.harvest_next(player)
 		steps += 1
 	assert(steps == 2, "Corpo com chifre intacto tem 2 partes para esfolar")
-	assert(inv.get_material_count(&"chifre_integro") == 1, "Player deve ter recebido 1 Chifre Íntegro pelo abate cuidadoso")
+	var whole: Dictionary = inv.best_stack(&"chifre_rinolito")
+	assert(whole.quality == 3 and whole.traits.has(&"integro") and whole.amount == 1, "Esfola cuidadosa entrega 1 chifre 3★ Íntegro")
+	assert(inv.get_stacks(&"chifre_rinolito").size() == 2, "Chifre 2★ e 3★ Íntegro ficam em pilhas separadas")
 	assert(inv.get_material_count(&"placa_carapaca") >= 2, "Player deve ter recebido placas de carapaça")
 	assert(player.mastery.get_xp(&"esfola") > esfola_xp_before or player.mastery.get_level(&"esfola") > 1, "Esfolar dá XP de esfola")
 	assert(player.get_harvest_time() == 3.0, "Esfola leva 3 s por parte no nível inicial")
@@ -138,10 +142,10 @@ func test_crafting_and_trait_modifiers() -> void:
 	var initial_slash_resist: float = stats.get_stat(&"resist_slash")
 	
 	# Forjar com Chifre Íntegro (Qualidade 4, Trait Casca Rígida)
-	inv.add_material(&"chifre_integro", 1)
+	inv.add_material(&"chifre_rinolito", 1, 3, [&"integro"])
 	inv.add_material(&"placa_carapaca", 1)
 	
-	var crafted := inv.craft_and_equip_horn_helmet(&"chifre_integro")
+	var crafted := inv.craft_and_equip_horn_helmet()
 	assert(crafted, "Forja com Chifre Íntegro deve ter sucesso")
 	assert(inv.equipped[&"head"] == &"Elmo Chifre-de-Pedra (Íntegro)", "Elmo Íntegro deve estar equipado")
 	

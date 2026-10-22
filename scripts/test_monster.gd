@@ -43,7 +43,9 @@ enum State { WANDER, CHASE, WINDUP, ATTACK, RECOVER, STAGGER, DEAD, RETURN }
 
 @export_group("Ciclo")
 @export var wander_radius: float = 5.0
-@export var respawn_delay: float = 12.0
+@export var respawn_delay: float = 45.0
+## Não renasce com o jogador a menos disso de casa: evita o bicho brotar no meio da luta
+@export var respawn_clear_range: float = 14.0
 
 const CORPSE_HIDE_TIME: float = 3.0
 
@@ -247,7 +249,7 @@ func _physics_process(delta: float) -> void:
 		State.DEAD:
 			if _state_time >= CORPSE_HIDE_TIME and model and model.visible:
 				model.visible = false
-			if _state_time >= respawn_delay:
+			if _state_time >= respawn_delay and not _player_near_home():
 				respawn()
 
 	if move_dir != Vector3.ZERO:
@@ -270,6 +272,10 @@ func _target() -> Player:
 	if p == null or p.is_downed:
 		return null
 	return p
+
+func _player_near_home() -> bool:
+	var p := get_tree().get_first_node_in_group("player") as Node3D
+	return p != null and Vector2(p.global_position.x - home.x, p.global_position.z - home.z).length() < respawn_clear_range
 
 func _dist_home() -> float:
 	return Vector2(global_position.x - home.x, global_position.z - home.z).length()

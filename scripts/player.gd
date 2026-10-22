@@ -79,6 +79,8 @@ var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
 # Armeiro e outros NPCs com [E]
 const TALK_RANGE: float = 2.6
+const QUICK_USE_KEYS: Dictionary = {KEY_1: &"health", KEY_2: &"vigor", KEY_3: &"ether"}
+const QUICK_USE_NAMES: Dictionary = {&"health": "Vida", &"vigor": "Vigor", &"ether": "Éter"}
 
 # Esfola manual (GDD-03 §8): segurar [E] perto do corpo; mover, soltar ou levar dano interrompe
 const HARVEST_RANGE: float = 2.6
@@ -142,6 +144,8 @@ func _setup_components() -> void:
 			add_child(inventory)
 	if inventory and stats:
 		inventory.stats = stats
+	if inventory and not inventory.item_used.is_connected(_on_item_used):
+		inventory.item_used.connect(_on_item_used)
 	if card_collection == null:
 		card_collection = get_node_or_null("CardCollectionComponent") as CardCollectionComponent
 		if card_collection == null:
@@ -355,6 +359,24 @@ func _physics_process(delta: float) -> void:
 	_update_animation(Vector3(velocity.x, 0, velocity.z).length())
 	_handle_footsteps(delta, input_dir)
 	_handle_rotation(delta, move_direction)
+
+## Atalhos de consumível: [1] cura, [2] comida (Vigor), [3] erva de Éter.
+## Usa o item mais fraco que cobre o que falta (InventoryComponent.use_best_for).
+func _unhandled_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var pool: StringName = QUICK_USE_KEYS.get(event.keycode, &"")
+	if pool.is_empty() or inventory == null or pools == null or is_downed:
+		return
+	if get_tree() and not get_tree().get_nodes_in_group("open_menus").is_empty():
+		return
+	get_viewport().set_input_as_handled()
+	if not inventory.use_best_for(pool, pools):
+		posture_changed.emit("Nada para repor %s" % QUICK_USE_NAMES[pool])
+
+func _on_item_used(material_id: StringName, effect: String) -> void:
+	var data := MaterialData.of(material_id)
+	posture_changed.emit("%s %s: %s" % [data.icon, data.display_name, effect])
 
 func _update_collision_for_crouch() -> void:
 	var shape = collision_shape.shape as CapsuleShape3D

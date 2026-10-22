@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"galho"
+display_name = "Galho Seco"
+description = "Galho caído, leve e fácil de quebrar. Serve para cercas e para alimentar a forja."
+category = 0
+icon = "🌿"
+color = Color(0.62, 0.45, 0.28, 1)
+unit_weight = 0.4
+max_gather_quality = 2

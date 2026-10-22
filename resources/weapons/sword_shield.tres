@@ -20,7 +20,7 @@ damage_type = 0
 poise_damage = 12.0
 break_mult = 1.0
 cost_pool = &"vigor"
-cost = 12.0
+cost = 8.0
 move_mult = 0.4
 
 [sub_resource type="Resource" id="Attack_block"]
@@ -46,7 +46,7 @@ poise_damage = 28.0
 break_mult = 1.6
 reach = 2.2
 cost_pool = &"vigor"
-cost = 14.0
+cost = 10.0
 move_mult = 0.3
 
 [sub_resource type="Resource" id="Piece_sword"]

@@ -95,7 +95,7 @@ func collect(player: Node) -> Dictionary:
 		data["appearance"] = visual.dna.to_dict()
 	var inv = player.get("inventory")
 	if inv:
-		data["materials"] = _keys_to_str(inv.materials)
+		data["materials"] = inv.stacks_to_save()
 		data["equipped"] = _keys_to_str(inv.equipped)
 	var mastery = player.get("mastery")
 	if mastery:
@@ -142,14 +142,18 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 
 	var inv = player.get("inventory")
 	if inv:
-		inv.materials = _keys_to_sn(data.get("materials", {}), true)
+		inv.load_from_save(data.get("materials", []))
 		# O elmo volta refazendo a forja com o mesmo chifre (reaplica os modificadores)
 		var head: String = data.get("equipped", {}).get("head", "")
 		if head != "":
-			var horn: StringName = &"chifre_integro" if "Íntegro" in head else &"chifre_lascado"
-			inv.add_material(horn, 1)
+			var integro := "Íntegro" in head
+			var traits: Array = [&"integro"] if integro else []
+			inv.add_material(&"chifre_rinolito", 1, 3 if integro else 2, traits)
 			inv.add_material(&"placa_carapaca", 1)
-			inv.craft_and_equip_horn_helmet(horn)
+			for s in inv.get_stacks(&"chifre_rinolito"):
+				if s.traits.has(&"integro") == integro and s.quality == (3 if integro else 2):
+					inv.craft_and_equip_horn_helmet(s)
+					break
 
 	# Maestrias depois do elmo: a forja de restauração não pode contar XP
 	var mastery = player.get("mastery")
@@ -158,7 +162,6 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		for tag in data["mastery"]:
 			var entry: Dictionary = data["mastery"][tag]
 			restored[StringName(tag)] = {"level": int(entry.get("level", 1)), "xp": float(entry.get("xp", 0.0))}
-		restored.erase(&"lenharia") # tag removida pelo GDD-08; saves antigos ainda a trazem
 		mastery._masteries = restored
 
 	var cards = player.get("card_collection")

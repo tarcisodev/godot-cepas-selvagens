@@ -26,6 +26,8 @@
 [ext_resource type="Script" path="res://scripts/core/zone_manager.gd" id="24_zone"]
 [ext_resource type="Script" path="res://scripts/city_hub.gd" id="25_city"]
 [ext_resource type="Script" path="res://scripts/building_system.gd" id="26_build"]
+[ext_resource type="Script" path="res://scripts/ui/inventory_screen.gd" id="27_inventory"]
+[ext_resource type="Script" path="res://scripts/supply_chest.gd" id="28_chest"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -112,6 +114,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6.2)
 
 [node name="CharacterStylist" parent="." instance=ExtResource("22_stylist")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, 0, 6.6)
+
+[node name="SupplyChest" type="Node3D" parent="."]
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, 3.2, 0, 3.4)
+script = ExtResource("28_chest")
 
 [node name="MonsterArena" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 6)
@@ -305,6 +311,7 @@ theme_override_font_sizes/font_size = 13
 text = "• Cajado: Botão Dir. mira (ombro) + Botão Esq. atira dardo arcano  |  Botão Esq. sem mirar: golpe corpo a corpo
 • Espada: Esq. combo / Dir. bloqueio (Esq. bloqueando: escudo na cara)  |  Martelo: Esq. balanço / Dir. investida
 • WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)  |  E perto do Mestre de Armas: trocar estilo
+• 1: Curar (erva/poção)  |  2: Comer (Vigor)  |  3: Cannabis (Éter)  |  E no Baú de Suprimentos: repor o kit
 • Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas  |  Scroll / V: Zoom da câmera
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
@@ -388,6 +395,17 @@ theme_override_font_sizes/font_size = 13
 text = "Fechar (Tab / Esc)"
 
 [node name="CardAlbum" parent="HUD" groups=["card_album"] instance=ExtResource("15_album")]
+
+[node name="InventoryScreen" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("27_inventory")
+player = NodePath("../../Player")
 
 [node name="PauseMenu" type="Control" parent="HUD"]
 process_mode = 3

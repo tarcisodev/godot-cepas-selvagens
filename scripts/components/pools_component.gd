@@ -24,7 +24,7 @@ var is_poise_broken: bool = false
 var _poise_break_timer: float = 0.0
 var _vigor_regen_delay_timer: float = 0.0
 
-const VIGOR_REGEN_DELAY: float = 0.8       ## Tempo após gastar vigor antes de começar a regenerar
+const VIGOR_REGEN_DELAY: float = 0.5       ## Tempo após gastar vigor antes de começar a regenerar
 const POISE_BREAK_DURATION: float = 3.0   ## Tempo atordoado após quebra de postura
 
 func _ready() -> void:
@@ -141,6 +141,26 @@ func heal(amount: float) -> float:
 	current_health += healed
 	health_changed.emit(current_health, max_h)
 	return healed
+
+## Repõe vigor (comida); retorna quanto entrou de fato
+func restore_vigor(amount: float) -> float:
+	if amount <= 0.0 or stats == null:
+		return 0.0
+	var max_v: float = stats.get_stat(&"max_vigor")
+	var gained: float = minf(amount, max_v - current_vigor)
+	current_vigor += gained
+	vigor_changed.emit(current_vigor, max_v)
+	return gained
+
+## Repõe éter; retorna quanto entrou de fato
+func restore_ether(amount: float) -> float:
+	if amount <= 0.0 or stats == null:
+		return 0.0
+	var max_e: float = stats.get_stat(&"max_ether")
+	var gained: float = minf(amount, max_e - current_ether)
+	current_ether += gained
+	ether_changed.emit(current_ether, max_e)
+	return gained
 
 func _on_stat_changed(stat_name: StringName, new_val: float, _old_val: float) -> void:
 	match stat_name:

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"tendao_elastico"
+display_name = "Tendão Elástico"
+description = "Tendão da cauda da besta. Amarra firme para fixar partes de armas e armaduras."
+category = 3
+icon = "🧵"
+color = Color(0.78, 0.4, 0.42, 1)
+unit_weight = 0.6
+max_gather_quality = 5

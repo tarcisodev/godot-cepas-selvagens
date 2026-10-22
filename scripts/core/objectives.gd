@@ -67,7 +67,7 @@ func _process(delta: float) -> void:
 func _check(player: Node) -> void:
 	var inv = player.get("inventory")
 	var beast := get_tree().current_scene.get_node_or_null("DummyCreature") as Node3D
-	var has_horn: bool = inv != null and (inv.get_material_count(&"chifre_integro") > 0 or inv.get_material_count(&"chifre_lascado") > 0)
+	var has_horn: bool = inv != null and inv.get_material_count(&"chifre_rinolito") > 0
 	var helmet: bool = inv != null and inv.equipped.get(&"head", &"") != &""
 
 	if beast and (player as Node3D).global_position.distance_to(beast.global_position) < FIND_DISTANCE:

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"cannabis_sativa"
+display_name = "Cannabis Sativa"
+description = "Folha fina e alta. Um trago acende a mente e devolve o Éter."
+category = 5
+icon = "🌿"
+color = Color(0.45, 0.8, 0.3, 1)
+unit_weight = 0.05
+max_gather_quality = 2
+restore_ether = 50.0

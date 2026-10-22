@@ -19,7 +19,7 @@ damage_type = 1
 poise_damage = 22.0
 break_mult = 1.4
 cost_pool = &"vigor"
-cost = 12.0
+cost = 9.0
 move_mult = 0.35
 
 [sub_resource type="Resource" id="Attack_smash_lunge"]
@@ -35,7 +35,7 @@ damage_type = 1
 poise_damage = 42.0
 break_mult = 2.2
 cost_pool = &"vigor"
-cost = 26.0
+cost = 20.0
 move_mult = 0.0
 lunge_speed = 8.5
 

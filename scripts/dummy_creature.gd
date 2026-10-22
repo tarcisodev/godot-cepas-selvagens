@@ -27,7 +27,7 @@ var harvest_queue: Array[Dictionary] = []
 var corpse_time_left: float = 0.0
 
 # Besta de treino: renasce depois que o corpo é esfolado ou se decompõe
-const RESPAWN_DELAY: float = 20.0
+const RESPAWN_DELAY: float = 40.0
 var respawn_timer: float = -1.0
 
 func _ready() -> void:
@@ -228,7 +228,7 @@ func _on_poise_recovered() -> void:
 	_is_stunned = false
 	_update_label()
 
-func _award_loot_to_player(mat_id: StringName, amount: int = 1) -> void:
+func _award_loot_to_player(mat_id: StringName, amount: int = 1, quality: int = 2, traits: Array = []) -> void:
 	var player_node: Node = null
 	if is_inside_tree() and get_tree() != null:
 		player_node = get_tree().get_first_node_in_group("player")
@@ -244,7 +244,7 @@ func _award_loot_to_player(mat_id: StringName, amount: int = 1) -> void:
 		if inv == null and "inventory" in player_node:
 			inv = player_node.inventory
 		if inv != null:
-			inv.add_material(mat_id, amount)
+			inv.add_material(mat_id, amount, quality, traits)
 
 func _unlock_card_for_player(card_id: StringName) -> void:
 	var player_node: Node = null
@@ -276,7 +276,7 @@ func _on_part_broken(part_id: StringName) -> void:
 		# Mudança de comportamento: ao perder o chifre, perde postura e defesa
 		if stats:
 			stats.add_modifier(ModifierData.new(&"poise_resist", ModifierData.Op.FLAT, -0.25, self))
-		_award_loot_to_player(&"chifre_lascado", 1)
+		_award_loot_to_player(&"chifre_rinolito", 1) # fragmento de luta = qualidade base (2★)
 		_unlock_card_for_player(&"beast_horn")
 		_update_label("💥 CHIFRE QUEBRADO!\nDrop: Chifre Lascado • Carta 3D Desbloqueada!")
 	elif part_id == &"tail":
@@ -293,10 +293,11 @@ func _on_health_depleted() -> void:
 		(visual_body as CharacterVisual).play(&"Death01")
 	# Loot condicional (GDD-03 §4 e B07): o que der para esfolar depende de como foi a caça.
 	# Esfola manual (GDD-03 §8): cada parte vira um passo de ~3 s no corpo, que dura 5 min.
+	# Cada material: [id, quantidade, qualidade, traits]. Íntegro = +1★ e trait (GDD-06 §1).
 	harvest_queue.clear()
 	if anatomy and anatomy.is_part_intact(&"horn"):
-		harvest_queue.append({"label": "Chifre Íntegro", "materials": {&"chifre_integro": 1}, "cards": [&"polinization"]})
-	harvest_queue.append({"label": "2x Placas de Carapaça", "materials": {&"placa_carapaca": 2}, "cards": [&"element_earth"]})
+		harvest_queue.append({"label": "Chifre Íntegro", "materials": [[&"chifre_rinolito", 1, 3, [&"integro"]]], "cards": [&"polinization"]})
+	harvest_queue.append({"label": "2x Placas de Carapaça", "materials": [[&"placa_carapaca", 2, 2, []]], "cards": [&"element_earth"]})
 	corpse_time_left = CORPSE_LIFETIME
 	add_to_group("harvestable")
 	_update_label("💀 DERROTADO!\nSegure [E] perto do corpo para esfolar (%d partes)" % harvest_queue.size())
@@ -314,8 +315,8 @@ func harvest_next(harvester: Node = null) -> String:
 	if not is_harvestable():
 		return ""
 	var entry: Dictionary = harvest_queue.pop_front()
-	for mat_id in entry.materials:
-		_award_loot_to_player(mat_id, entry.materials[mat_id])
+	for m in entry.materials:
+		_award_loot_to_player(m[0], m[1], m[2], m[3])
 	for card_id in entry.cards:
 		_unlock_card_for_player(card_id)
 	if harvester and "mastery" in harvester and harvester.mastery:

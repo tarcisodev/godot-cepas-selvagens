@@ -165,7 +165,10 @@ func test_monster_ai_cycle() -> void:
 	slime.pools.take_damage(9999.0)
 	assert(slime.state == TestMonster.State.DEAD, "Morre com Vida zerada")
 	slime._physics_process(slime.respawn_delay + 0.1)
-	assert(slime.state == TestMonster.State.WANDER, "Renasce")
+	assert(slime.state == TestMonster.State.DEAD, "Não renasce com o jogador por perto")
+	player.global_position = slime.home + Vector3(0, 0, -(slime.respawn_clear_range + 2.0))
+	slime._physics_process(0.016)
+	assert(slime.state == TestMonster.State.WANDER, "Renasce quando o jogador se afasta")
 	assert(is_equal_approx(slime.pools.current_health, slime.max_health), "Renasce com Vida cheia")
 
 	player.global_position = slime.global_position + Vector3(0, 0, -1.0)

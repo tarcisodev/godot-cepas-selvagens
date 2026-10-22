@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"carne_torrada"
+display_name = "Carne Torrada"
+description = "Passou do ponto. Dura de mastigar, mas ainda dá algum fôlego."
+category = 5
+icon = "🥓"
+color = Color(0.3, 0.2, 0.15, 1)
+unit_weight = 0.4
+max_gather_quality = 2
+restore_vigor = 15.0
