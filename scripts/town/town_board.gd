@@ -4,6 +4,10 @@ extends Control
 ## Quadro de Obras da Vila (GDD-08 §6.1): lista as obras, mostra a etapa atual e deixa doar
 ## materiais do inventário — por material ou "tudo o que falta e eu tenho".
 ## Doar dá Reputação da Vila (1 por unidade), guardada no CityHub.
+## Aba Contratos (GDD-05 §5): entregar material comum por Dólares de Sucata.
+## Modo Loja: a mesma tela vira a loja da Alquimista (o ralo de moeda do slice).
+
+enum Mode { OBRAS, CONTRATOS, LOJA }
 
 const PANEL_BG := Color(0.08, 0.075, 0.07, 0.96)
 const TEXT := Color(0.92, 0.9, 0.86)
@@ -13,9 +17,15 @@ const GOLD := Color(0.95, 0.78, 0.35)
 var city: Node  # CityHub
 var player: Player
 
+var mode: Mode = Mode.OBRAS
+
 var _list: VBoxContainer
 var _detail: VBoxContainer
 var _rep_label: Label
+var _money_label: Label
+var _title: Label
+var _hint: Label
+var _tabs: HBoxContainer
 var _selected: TownProject
 
 func _ready() -> void:
@@ -30,6 +40,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 func open(p: Player) -> void:
+	if mode == Mode.LOJA:
+		mode = Mode.OBRAS
+	_show(p)
+
+func open_shop(p: Player) -> void:
+	mode = Mode.LOJA
+	_show(p)
+
+func _show(p: Player) -> void:
 	player = p
 	visible = true
 	add_to_group("open_menus")
@@ -52,10 +71,28 @@ func refresh() -> void:
 		return
 	for c in _list.get_children():
 		c.queue_free()
-	for pr in _projects():
-		_list.add_child(_project_row(pr))
-	_rep_label.text = "⭐ Sua reputação na vila: %d" % (city.reputation if city else 0)
-	_show_detail()
+	_rep_label.text = "⭐ Reputação: %d" % (city.reputation if city else 0)
+	_money_label.text = "💰 %s" % WalletComponent.format(player.wallet.money if player and player.wallet else 0)
+	_tabs.visible = mode != Mode.LOJA
+	for i in _tabs.get_child_count():
+		_style_button(_tabs.get_child(i), GOLD, i == mode)
+	_list.visible = mode == Mode.OBRAS
+	match mode:
+		Mode.OBRAS:
+			_title.text = "📜  Obras da Vila da Esperança"
+			_hint.text = "A vila cresce com o que os andarilhos trazem. Cada obra tem 3 etapas; complete a etapa e a vila muda na hora."
+			for pr in _projects():
+				_list.add_child(_project_row(pr))
+			_show_detail()
+		Mode.CONTRATOS:
+			_title.text = "📜  Contratos da Vila"
+			_hint.text = "Entregue o material pedido e receba Dólares de Sucata. Cada contrato cumprido abre outro."
+			_show_contracts()
+		Mode.LOJA:
+			_title.text = "⚗️  Loja da Alquimista"
+			var off := roundi(city.shop_discount() * 100.0) if city else 0
+			_hint.text = "Poções e mantimentos para a estrada. A loja não compra nada de volta." + ("  Desconto de reputação: −%d%%." % off if off > 0 else "  Reputação na vila dá desconto.")
+			_show_shop()
 
 # ---------------------------------------------------------------- doação
 
@@ -102,18 +139,33 @@ func _build_ui() -> void:
 	margin.add_child(root_box)
 
 	var header := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "📜  Obras da Vila da Esperança"
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", TEXT)
-	header.add_child(title)
+	_title = Label.new()
+	_title.add_theme_font_size_override("font_size", 24)
+	_title.add_theme_color_override("font_color", TEXT)
+	header.add_child(_title)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
-	_rep_label = Label.new()
-	_rep_label.add_theme_color_override("font_color", GOLD)
-	_rep_label.add_theme_font_size_override("font_size", 15)
-	header.add_child(_rep_label)
+	_tabs = HBoxContainer.new()
+	_tabs.add_theme_constant_override("separation", 6)
+	for tab_mode in [Mode.OBRAS, Mode.CONTRATOS]:
+		var tab := Button.new()
+		tab.text = "Obras" if tab_mode == Mode.OBRAS else "Contratos"
+		tab.pressed.connect(func(): mode = tab_mode; refresh())
+		_tabs.add_child(tab)
+	header.add_child(_tabs)
+	for text_color in [GOLD, Color(0.75, 0.95, 0.6)]:
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(14, 0)
+		header.add_child(gap)
+		var l := Label.new()
+		l.add_theme_color_override("font_color", text_color)
+		l.add_theme_font_size_override("font_size", 15)
+		header.add_child(l)
+		if text_color == GOLD:
+			_rep_label = l
+		else:
+			_money_label = l
 	var close_btn := Button.new()
 	close_btn.text = "  ✕  "
 	_style_button(close_btn, Color(0.9, 0.4, 0.4), false)
@@ -121,11 +173,10 @@ func _build_ui() -> void:
 	header.add_child(close_btn)
 	root_box.add_child(header)
 
-	var hint := Label.new()
-	hint.text = "A vila cresce com o que os andarilhos trazem. Cada obra tem 3 etapas; complete a etapa e a vila muda na hora."
-	hint.add_theme_color_override("font_color", TEXT_DIM)
-	hint.add_theme_font_size_override("font_size", 13)
-	root_box.add_child(hint)
+	_hint = Label.new()
+	_hint.add_theme_color_override("font_color", TEXT_DIM)
+	_hint.add_theme_font_size_override("font_size", 13)
+	root_box.add_child(_hint)
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -302,6 +353,92 @@ func _material_row(pr: TownProject, id: StringName, need: int, inv: InventoryCom
 	max_btn.pressed.connect(func(): _donate(id, left))
 	row.add_child(max_btn)
 	return row
+
+# ---------------------------------------------------------------- contratos e loja
+
+func _show_contracts() -> void:
+	for c in _detail.get_children():
+		c.queue_free()
+	var inv: InventoryComponent = player.inventory if player else null
+	for i in city.contracts.size():
+		var c: Dictionary = city.contracts[i]
+		var data := MaterialData.of(c.id)
+		var have := inv.get_material_count(c.id) if inv else 0
+		var row := _item_row(data, "Entregar %d × %s" % [c.amount, data.display_name], "Você tem %d" % have, have >= c.amount)
+		row.add_child(_value_label("+%s" % WalletComponent.format(c.reward), Color(0.75, 0.95, 0.6)))
+		var btn := Button.new()
+		btn.text = "Entregar"
+		btn.disabled = have < c.amount
+		_style_button(btn, GOLD, true)
+		var index: int = i
+		var reward: int = c.reward
+		btn.pressed.connect(func(): _deliver(index, reward))
+		row.add_child(btn)
+		_detail.add_child(row)
+		_detail.add_child(HSeparator.new())
+
+func _deliver(index: int, reward: int) -> void:
+	if city.deliver_contract(index, player) and player.has_signal("posture_changed"):
+		player.posture_changed.emit("💰 Contrato cumprido: +%s" % WalletComponent.format(reward))
+	refresh()
+
+func _show_shop() -> void:
+	for c in _detail.get_children():
+		c.queue_free()
+	var money: int = player.wallet.money if player and player.wallet else 0
+	for id in CityHub.SHOP_PRICES:
+		var data := MaterialData.of(id)
+		var price: int = city.shop_price(id)
+		var have := player.inventory.get_material_count(id) if player and player.inventory else 0
+		var row := _item_row(data, data.display_name, "%s · você tem %d" % [data.effect_text(), have], true)
+		row.add_child(_value_label(WalletComponent.format(price), TEXT if money >= price else Color(0.85, 0.45, 0.4)))
+		var btn := Button.new()
+		btn.text = "Comprar"
+		btn.disabled = money < price
+		_style_button(btn, GOLD, true)
+		var item_id: StringName = id
+		btn.pressed.connect(func(): _buy(item_id, price))
+		row.add_child(btn)
+		_detail.add_child(row)
+		_detail.add_child(HSeparator.new())
+
+func _buy(item_id: StringName, price: int) -> void:
+	var data := MaterialData.of(item_id)
+	if city.buy(item_id, player) and player.has_signal("posture_changed"):
+		player.posture_changed.emit("%s Comprou %s por %s" % [data.icon, data.display_name, WalletComponent.format(price)])
+	refresh()
+
+func _item_row(data: MaterialData, title: String, sub: String, ok: bool) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	var icon := Label.new()
+	icon.text = data.icon
+	icon.add_theme_font_size_override("font_size", 28)
+	icon.custom_minimum_size = Vector2(40, 0)
+	row.add_child(icon)
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var t := Label.new()
+	t.text = title
+	t.add_theme_color_override("font_color", TEXT)
+	t.add_theme_font_size_override("font_size", 16)
+	col.add_child(t)
+	var st := Label.new()
+	st.text = sub
+	st.add_theme_color_override("font_color", TEXT_DIM if ok else Color(0.85, 0.45, 0.4))
+	st.add_theme_font_size_override("font_size", 12)
+	col.add_child(st)
+	row.add_child(col)
+	return row
+
+func _value_label(text: String, color: Color) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_font_size_override("font_size", 16)
+	l.custom_minimum_size = Vector2(80, 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
 
 func _style_button(btn: Button, accent: Color, filled: bool) -> void:
 	btn.focus_mode = Control.FOCUS_NONE

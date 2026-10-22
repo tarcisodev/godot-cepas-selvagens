@@ -227,6 +227,7 @@ func toggle_album() -> void:
 func open_album() -> void:
 	_setup_nodes()
 	visible = true
+	add_to_group("open_menus")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_connect_collection()
 	refresh_collection()
@@ -240,6 +241,7 @@ func close_album() -> void:
 	if visible:
 		_play(&"close")
 	visible = false
+	remove_from_group("open_menus")
 	album_closed.emit()
 
 ## Atualiza a grade de cartas e métricas de progresso

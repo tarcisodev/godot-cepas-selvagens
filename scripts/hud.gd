@@ -50,7 +50,10 @@ func _process(_delta: float) -> void:
 	if day_night and time_label:
 		var time_str: String = day_night.get_formatted_time()
 		var period_desc: String = _get_period_description(day_night.current_time_hours)
-		time_label.text = "⏰ %s · %s" % [time_str, period_desc]
+		var money_str := ""
+		if player and player.wallet:
+			money_str = "   💰 %s" % WalletComponent.format(player.wallet.money)
+		time_label.text = "⏰ %s · %s%s" % [time_str, period_desc, money_str]
 	
 	if player and is_inside_tree():
 		var zm := get_tree().get_first_node_in_group("zone_manager")

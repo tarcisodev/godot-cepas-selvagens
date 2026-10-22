@@ -22,6 +22,8 @@ enum Category { MADEIRA, PLANTA, MINERAL, ANIMAL, INSETO, CONSUMIVEL }
 @export var unit_weight: float = 1.0
 ## Teto de qualidade de coleta comum (GDD-08 §8: 2★)
 @export var max_gather_quality: int = 2
+## Valor-base em Dólares de Sucata (GDD-05 §5): referência de contratos e do Mercado Negro
+@export var base_value: int = 1
 
 @export_group("Consumo")
 ## Quanto repõe de cada recurso ao usar uma unidade; qualquer valor > 0 torna o item usável

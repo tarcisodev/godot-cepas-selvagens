@@ -36,6 +36,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if in_title_screen and not is_open:
 		return
+	# Outro menu aberto (inventário, álbum, obras...): o Esc é dele, para fechá-lo
+	if not is_open and not get_tree().get_nodes_in_group("open_menus").is_empty():
+		return
 	if not is_open:
 		open_menu()
 	elif settings_panel.visible:

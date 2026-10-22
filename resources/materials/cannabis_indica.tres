@@ -14,3 +14,4 @@ unit_weight = 0.05
 max_gather_quality = 2
 restore_health = 10.0
 restore_ether = 35.0
+base_value = 9

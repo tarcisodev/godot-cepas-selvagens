@@ -27,6 +27,8 @@
 [ext_resource type="Script" path="res://scripts/city_hub.gd" id="25_city"]
 [ext_resource type="Script" path="res://scripts/building_system.gd" id="26_build"]
 [ext_resource type="Script" path="res://scripts/ui/inventory_screen.gd" id="27_inventory"]
+[ext_resource type="Script" path="res://scripts/ui/quick_item_wheel.gd" id="28_wheel"]
+[ext_resource type="Script" path="res://scripts/creatures/ecosystem_spawner.gd" id="29_eco"]
 [ext_resource type="Script" path="res://scripts/supply_chest.gd" id="28_chest"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
@@ -127,6 +129,10 @@ spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton")
 
 [node name="GatherableSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("23_gather")
+landscape = NodePath("../Landscape")
+
+[node name="EcosystemSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("29_eco")
 landscape = NodePath("../Landscape")
 
 [node name="ZoneManager" type="Node" parent="."]
@@ -312,7 +318,8 @@ text = "• Cajado: Botão Dir. mira (ombro) + Botão Esq. atira dardo arcano  |
 • Espada: Esq. combo / Dir. bloqueio (Esq. bloqueando: escudo na cara)  |  Martelo: Esq. balanço / Dir. investida
 • WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)  |  E perto do Mestre de Armas: trocar estilo
 • 1: Curar (erva/poção)  |  2: Comer (Vigor)  |  3: Cannabis (Éter)  |  E no Baú de Suprimentos: repor o kit
-• Tab: Ações & Forja  |  E (segurar): Esfolar corpo  |  K: Álbum de cartas  |  Scroll / V: Zoom da câmera
+• F (segurar): Roda de itens  |  G: Usar item escolhido  |  Z / X: Item anterior / próximo
+• Tab: Ações & Forja  |  I: Inventário  |  B: Construir  |  E (segurar): Esfolar/Coletar  |  K: Álbum  |  Scroll / V: Zoom
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
@@ -395,6 +402,17 @@ theme_override_font_sizes/font_size = 13
 text = "Fechar (Tab / Esc)"
 
 [node name="CardAlbum" parent="HUD" groups=["card_album"] instance=ExtResource("15_album")]
+
+[node name="QuickItemWheel" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("28_wheel")
+player = NodePath("../../Player")
 
 [node name="InventoryScreen" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
 visible = false

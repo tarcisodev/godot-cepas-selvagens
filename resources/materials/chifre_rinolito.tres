@@ -12,3 +12,4 @@ icon = "🦏"
 color = Color(0.62, 0.55, 0.45, 1)
 unit_weight = 3.0
 max_gather_quality = 5
+base_value = 40

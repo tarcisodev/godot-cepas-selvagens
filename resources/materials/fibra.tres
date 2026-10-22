@@ -12,3 +12,4 @@ icon = "🌾"
 color = Color(0.82, 0.75, 0.45, 1)
 unit_weight = 0.2
 max_gather_quality = 2
+base_value = 1

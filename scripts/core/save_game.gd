@@ -97,6 +97,9 @@ func collect(player: Node) -> Dictionary:
 	if inv:
 		data["materials"] = inv.stacks_to_save()
 		data["equipped"] = _keys_to_str(inv.equipped)
+	var wallet = player.get("wallet")
+	if wallet:
+		data["money"] = wallet.money
 	var mastery = player.get("mastery")
 	if mastery:
 		data["mastery"] = _keys_to_str(mastery._masteries)
@@ -142,6 +145,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var visual = player.get("character_visual")
 	if visual and data.has("appearance"):
 		visual.rebuild(CharacterDNA.from_dict(data["appearance"]))
+
+	var wallet = player.get("wallet")
+	if wallet and data.has("money"):
+		wallet.set_money(int(data["money"]))
 
 	var inv = player.get("inventory")
 	if inv:

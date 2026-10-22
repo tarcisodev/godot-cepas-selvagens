@@ -57,6 +57,8 @@ func _process(delta: float) -> void:
 		return
 	if _panel == null or not is_instance_valid(_panel):
 		_build_panel()
+	# Some enquanto um menu estiver aberto (fica em camada acima do HUD)
+	_panel.visible = get_tree().get_nodes_in_group("open_menus").is_empty()
 	_check_timer -= delta
 	if _check_timer > 0.0:
 		return

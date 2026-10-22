@@ -28,6 +28,24 @@ static func in_village(x: float, z: float, margin: float = 1.0) -> bool:
 ## Reputação da Vila do jogador: 1 por unidade doada
 var reputation: int = 0
 
+## Contratos da Vila (GDD-05 §5): sempre 3 pedidos "entregue N de um material comum"
+const CONTRACT_SLOTS: int = 3
+const CONTRACT_BONUS: float = 1.5
+const CONTRACT_POOL: Dictionary = {
+	&"madeira": Vector2i(6, 12), &"galho": Vector2i(8, 16), &"folha": Vector2i(6, 12),
+	&"fibra": Vector2i(6, 10), &"pedra": Vector2i(6, 12), &"frutinha": Vector2i(4, 8),
+	&"besouro": Vector2i(2, 5), &"ossos": Vector2i(2, 5), &"erva": Vector2i(4, 8), &"mel": Vector2i(1, 3),
+}
+## Loja da Alquimista: o ralo de moeda do slice; não compra nada de volta
+const SHOP_PRICES: Dictionary = {
+	&"pocao": 15, &"mega_pocao": 40, &"carne_bem_passada": 8, &"cannabis_sativa": 12, &"cannabis_indica": 14,
+}
+signal contracts_changed()
+
+## [{"id": material, "amount": n, "reward": $S}]
+var contracts: Array[Dictionary] = []
+var _rng := RandomNumberGenerator.new()
+
 var _projects: Array[TownProject] = []
 var _workers: Dictionary = {}  # project_id -> TownNPC
 var _board: TownBoard
@@ -37,6 +55,8 @@ func _ready() -> void:
 	add_to_group("city_hub")
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
+	_rng.randomize()
+	_fill_contracts()
 	_build_town_sign()
 	_build_plaza()
 	_build_projects()
@@ -67,18 +87,76 @@ func donate(project: TownProject, player: Node, material_id: StringName, amount:
 		reputation_changed.emit(reputation)
 	return n
 
+## Entrega o contrato `index`: gasta o material (pior ★ primeiro), paga em $S e abre outro pedido.
+func deliver_contract(index: int, player: Node) -> bool:
+	if index < 0 or index >= contracts.size() or player == null:
+		return false
+	var c: Dictionary = contracts[index]
+	var inv: InventoryComponent = player.get("inventory")
+	var wallet: WalletComponent = player.get("wallet")
+	if inv == null or wallet == null or not inv.consume_materials({c.id: c.amount}):
+		return false
+	wallet.add(c.reward)
+	contracts.remove_at(index)
+	_fill_contracts()
+	contracts_changed.emit()
+	return true
+
+## Preço na loja com o desconto da Reputação: −1% a cada 25, até −10%
+func shop_price(item_id: StringName) -> int:
+	var base: int = SHOP_PRICES.get(item_id, 0)
+	return maxi(1, roundi(base * (1.0 - shop_discount())))
+
+func shop_discount() -> float:
+	return minf(0.10, floorf(reputation / 25.0) * 0.01)
+
+## Compra 1 item na loja da Alquimista
+func buy(item_id: StringName, player: Node) -> bool:
+	var wallet: WalletComponent = player.get("wallet") if player else null
+	var inv: InventoryComponent = player.get("inventory") if player else null
+	if not SHOP_PRICES.has(item_id) or wallet == null or inv == null:
+		return false
+	if not wallet.spend(shop_price(item_id)):
+		return false
+	inv.add_material(item_id, 1)
+	return true
+
+static func contract_reward(material_id: StringName, amount: int) -> int:
+	return maxi(1, roundi(MaterialData.of(material_id).base_value * amount * CONTRACT_BONUS))
+
+func _fill_contracts() -> void:
+	while contracts.size() < CONTRACT_SLOTS:
+		var options: Array = CONTRACT_POOL.keys().filter(func(id): return not contracts.any(func(c): return c.id == id))
+		var id: StringName = options[_rng.randi() % options.size()]
+		var range_: Vector2i = CONTRACT_POOL[id]
+		var amount := _rng.randi_range(range_.x, range_.y)
+		contracts.append({"id": id, "amount": amount, "reward": contract_reward(id, amount)})
+
 func open_board(player: Node) -> void:
 	if _board:
 		_board.open(player as Player)
+
+func open_shop(player: Node) -> void:
+	if _board:
+		_board.open_shop(player as Player)
 
 func get_state() -> Dictionary:
 	var projects := {}
 	for p in _projects:
 		projects[String(p.project_id)] = p.get_state()
-	return {"reputation": reputation, "projects": projects}
+	var saved_contracts: Array = []
+	for c in contracts:
+		saved_contracts.append({"id": String(c.id), "amount": c.amount, "reward": c.reward})
+	return {"reputation": reputation, "projects": projects, "contracts": saved_contracts}
 
 func apply_state(state: Dictionary) -> void:
 	reputation = int(state.get("reputation", 0))
+	if state.has("contracts"):
+		contracts.clear()
+		for c in state["contracts"]:
+			contracts.append({"id": StringName(c.get("id", "madeira")), "amount": int(c.get("amount", 1)), "reward": int(c.get("reward", 1))})
+		_fill_contracts()
+		contracts_changed.emit()
 	var projects: Dictionary = state.get("projects", {})
 	for p in _projects:
 		if projects.has(String(p.project_id)):
@@ -260,8 +338,8 @@ func _spawn_city_npcs() -> void:
 	alchemist.name = "Alquimista"
 	alchemist.dna = ALCHEMIST_DNA
 	alchemist.display_name = "Alquimista Botânica"
-	alchemist.prompt = "[E] Conversar"
 	alchemist.idle_anim = &"Idle_Talking"
-	alchemist.line = "Traga ervas e flores para cruzarmos cepas raras. E ajude o Construtor: sem poço, sem jardim!"
+	alchemist.prompt = "[E] Loja de poções"
+	alchemist.talked.connect(open_shop)
 	alchemist.position = Vector3(-1.2, _get_ground_y(-1.2, -2.8), -2.8)
 	add_child(alchemist)

@@ -44,6 +44,9 @@ var ghost_mat_valid: StandardMaterial3D
 var ghost_mat_invalid: StandardMaterial3D
 var hud_panel: CanvasLayer
 var status_label: Label
+var ghost_label: Label3D
+## Giro final da prévia: direção da câmera alinhada a 90° + giro escolhido com [R]
+var _ghost_yaw: float = 0.0
 
 func _ready() -> void:
 	add_to_group("building_system")
@@ -68,6 +71,13 @@ func _build_ghost() -> void:
 	ghost_root.name = "BuildGhost"
 	ghost_mesh = MeshInstance3D.new()
 	ghost_root.add_child(ghost_mesh)
+	# Motivo do bloqueio (ou "pode construir") em cima da prévia
+	ghost_label = Label3D.new()
+	ghost_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	ghost_label.font_size = 20
+	ghost_label.outline_size = 6
+	ghost_label.no_depth_test = true
+	ghost_root.add_child(ghost_label)
 	ghost_root.visible = false
 	add_child(ghost_root)
 
@@ -153,10 +163,10 @@ func _process(_delta: float) -> void:
 	if not is_building or player == null:
 		return
 	
-	var cam := get_viewport().get_camera_3d()
-	var forward := -player.global_transform.basis.z
-	forward.y = 0.0
-	forward = forward.normalized()
+	# O corpo do player não gira (só o modelo e a câmera): a prévia segue a câmera
+	var cam_yaw := _camera_yaw()
+	var forward := Vector3(-sin(cam_yaw), 0.0, -cos(cam_yaw))
+	_ghost_yaw = snappedf(cam_yaw, PI * 0.5) + current_rotation_y
 	
 	# Posiciona na frente do jogador com snap
 	var target_pos := player.global_position + (forward * 3.0)
@@ -170,7 +180,7 @@ func _process(_delta: float) -> void:
 		target_pos.y = landscape.get_height_at(target_pos.x, target_pos.z)
 	
 	ghost_root.global_position = target_pos
-	ghost_root.rotation.y = current_rotation_y
+	ghost_root.rotation.y = _ghost_yaw
 	
 	_validate_and_update_hud(target_pos)
 
@@ -205,6 +215,10 @@ func _validate_and_update_hud(pos: Vector3) -> Dictionary:
 	
 	var can_place: bool = validation["allowed"] and has_mats
 	ghost_mesh.material_override = ghost_mat_valid if can_place else ghost_mat_invalid
+	if ghost_label:
+		ghost_label.position.y = entry["size"].y + 0.6
+		ghost_label.modulate = Color(0.6, 1.0, 0.7) if can_place else Color(1.0, 0.55, 0.5)
+		ghost_label.text = "✅ %s" % entry["name"] if can_place else ("❌ " + (validation["reason"].get_slice(":", 0) if not validation["allowed"] else "Faltam materiais"))
 	
 	if status_label:
 		var cost_str := ""
@@ -247,7 +261,7 @@ func _try_place_piece() -> bool:
 	node.set("owner_name", _owner_name())
 	node.set("placed_at_msec", Time.get_ticks_msec())
 	node.position = pos
-	node.rotation.y = current_rotation_y
+	node.rotation.y = _ghost_yaw
 	get_parent().add_child(node)
 
 	_notify("✨ Construído: %s" % entry["name"])
@@ -347,3 +361,10 @@ static func restore_structures(parent: Node, list: Array) -> void:
 		node.position = Vector3(float(p[0]), float(p[1]), float(p[2]))
 		node.rotation.y = float(entry.get("rotation_y", 0.0))
 		parent.add_child(node)
+
+func _camera_yaw() -> float:
+	var rig = player.get("camera_rig") if player else null
+	if rig is Node3D:
+		return (rig as Node3D).global_rotation.y
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	return cam.global_rotation.y if cam else 0.0

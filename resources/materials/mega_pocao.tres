@@ -13,3 +13,4 @@ color = Color(0.95, 0.3, 0.55, 1)
 unit_weight = 0.4
 max_gather_quality = 2
 restore_health = 100.0
+base_value = 28

@@ -30,6 +30,8 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var attack_hitbox: HitboxComponent = $VisualMesh/AttackHitbox
 @onready var mastery: MasteryComponent = get_node_or_null("MasteryComponent")
 @onready var inventory: InventoryComponent = get_node_or_null("InventoryComponent")
+## Dólares de Sucata (GDD-05 §5)
+var wallet: WalletComponent
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
@@ -74,6 +76,8 @@ var is_downed: bool = false
 var downed_timer: float = 0.0
 ## Em duelo consensual aceito (GDD-05): libera o ataque dentro da cidade. Ainda sem convite no jogo.
 var in_duel: bool = false
+## Montaria em que está sentado (GDD-09 §5); null a pé. A montaria move o player.
+var mounted_on: Node3D = null
 var spawn_point: Vector3 = Vector3.ZERO
 var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
@@ -146,6 +150,12 @@ func _setup_components() -> void:
 		inventory.stats = stats
 	if inventory and not inventory.item_used.is_connected(_on_item_used):
 		inventory.item_used.connect(_on_item_used)
+	if wallet == null:
+		wallet = get_node_or_null("WalletComponent") as WalletComponent
+		if wallet == null:
+			wallet = WalletComponent.new()
+			wallet.name = "WalletComponent"
+			add_child(wallet)
 	if card_collection == null:
 		card_collection = get_node_or_null("CardCollectionComponent") as CardCollectionComponent
 		if card_collection == null:
@@ -196,6 +206,10 @@ func _setup_combat_audio() -> void:
 		add_child(dodge_player)
 
 func _physics_process(delta: float) -> void:
+	if mounted_on:
+		_process_mounted()
+		return
+
 	# Aplicar gravidade
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -373,6 +387,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 	if not inventory.use_best_for(pool, pools):
 		posture_changed.emit("Nada para repor %s" % QUICK_USE_NAMES[pool])
+
+## Montado: quem anda é a montaria; aqui só a pose sentada e o [E] para descer
+func _process_mounted() -> void:
+	velocity = Vector3.ZERO
+	if is_harvesting:
+		_cancel_harvest("Em Pé")
+	if character_visual and character_visual.current() != &"Driving":
+		character_visual.play(&"Driving")
+	var tree := get_tree()
+	if Input.is_action_just_pressed("interact") and (tree == null or tree.get_nodes_in_group("open_menus").is_empty()):
+		mounted_on.call("dismount")
 
 func _on_item_used(material_id: StringName, effect: String) -> void:
 	var data := MaterialData.of(material_id)

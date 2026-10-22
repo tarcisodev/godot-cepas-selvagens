@@ -12,3 +12,4 @@ icon = "🐞"
 color = Color(0.25, 0.45, 0.35, 1)
 unit_weight = 0.05
 max_gather_quality = 2
+base_value = 3

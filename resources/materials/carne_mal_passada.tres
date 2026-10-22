@@ -13,3 +13,4 @@ color = Color(0.8, 0.25, 0.25, 1)
 unit_weight = 0.5
 max_gather_quality = 2
 restore_vigor = 25.0
+base_value = 3
