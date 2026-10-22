@@ -44,11 +44,20 @@ func _ready() -> void:
 	else:
 		_set_tips_visible(true)
 
+var _last_zone: String = ""
+
 func _process(_delta: float) -> void:
 	if day_night and time_label:
 		var time_str: String = day_night.get_formatted_time()
 		var period_desc: String = _get_period_description(day_night.current_time_hours)
 		time_label.text = "⏰ %s · %s" % [time_str, period_desc]
+	
+	if player and is_inside_tree():
+		var zm := get_tree().get_first_node_in_group("zone_manager")
+		var cur_zone: String = zm.get_zone_name_at(player.global_position) if zm and zm.has_method("get_zone_name_at") else ""
+		if cur_zone != _last_zone:
+			_last_zone = cur_zone
+			_update_hud_status()
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
@@ -81,7 +90,8 @@ func _on_aim_changed(is_aiming: bool) -> void:
 
 func _update_hud_status() -> void:
 	if mode_label:
-		mode_label.text = "%s  |  %s" % [current_view, current_posture]
+		var zone_str := ("  |  " + _last_zone) if not _last_zone.is_empty() else ""
+		mode_label.text = "%s  |  %s%s" % [current_view, current_posture, zone_str]
 
 func _get_period_description(hour: float) -> String:
 	if hour >= 5.0 and hour < 7.0:

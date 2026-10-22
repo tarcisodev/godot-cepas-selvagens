@@ -53,7 +53,7 @@ move_mult = 0.3
 script = ExtResource("3_piece")
 scene = ExtResource("4_sword")
 bone = &"hand_r"
-transform = Transform3D(0.55, 0, 0, 0, 0, 0.55, 0, -0.55, 0, -0.08, -0.03, 0)
+transform = Transform3D(0, 0, 0.55, 0.55, 0, 0, 0, 0.55, 0, -0.08, -0.03, 0.05)
 
 [sub_resource type="Resource" id="Piece_shield"]
 script = ExtResource("3_piece")

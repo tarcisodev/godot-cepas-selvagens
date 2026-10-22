@@ -22,6 +22,10 @@
 [ext_resource type="PackedScene" path="res://scenes/monsters/slime.tscn" id="19_slime"]
 [ext_resource type="PackedScene" path="res://scenes/monsters/skeleton.tscn" id="20_skeleton"]
 [ext_resource type="PackedScene" path="res://scenes/monsters/bat.tscn" id="21_bat"]
+[ext_resource type="Script" path="res://scripts/gatherable_spawner.gd" id="23_gather"]
+[ext_resource type="Script" path="res://scripts/core/zone_manager.gd" id="24_zone"]
+[ext_resource type="Script" path="res://scripts/city_hub.gd" id="25_city"]
+[ext_resource type="Script" path="res://scripts/building_system.gd" id="26_build"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -114,6 +118,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 6)
 script = ExtResource("18_arena")
 landscape = NodePath("../Landscape")
 spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton"), ExtResource("21_bat"), ExtResource("19_slime"), ExtResource("20_skeleton")])
+
+[node name="GatherableSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("23_gather")
+landscape = NodePath("../Landscape")
+
+[node name="ZoneManager" type="Node" parent="."]
+script = ExtResource("24_zone")
+
+[node name="CityHub" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("25_city")
+landscape = NodePath("../Landscape")
+
+[node name="BuildingSystem" type="Node3D" parent="." node_paths=PackedStringArray("player", "zone_manager")]
+script = ExtResource("26_build")
+player = NodePath("../Player")
+zone_manager = NodePath("../ZoneManager")
 
 [node name="HUD" type="CanvasLayer" parent="." node_paths=PackedStringArray("day_night", "player")]
 script = ExtResource("10_hud")
@@ -289,6 +309,7 @@ text = "• Cajado: Botão Dir. mira (ombro) + Botão Esq. atira dardo arcano  |
 • H: Ocultar dicas  |  ESC: Menu / Configurações"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
+visible = false
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

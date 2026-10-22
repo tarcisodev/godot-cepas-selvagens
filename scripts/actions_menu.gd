@@ -27,6 +27,16 @@ func _ready() -> void:
 		forge_button.pressed.connect(_on_forge_pressed)
 	if cards_button:
 		cards_button.pressed.connect(_on_cards_pressed)
+	
+	var build_btn: Button = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/BuildButton")
+	if build_btn == null:
+		build_btn = Button.new()
+		build_btn.name = "BuildButton"
+		build_btn.text = "🏗️ Modo Construção ([B])"
+		$PanelContainer/MarginContainer/VBoxContainer.add_child(build_btn)
+		$PanelContainer/MarginContainer/VBoxContainer.move_child(build_btn, close_button.get_index())
+	build_btn.pressed.connect(_on_build_pressed)
+	
 	close_button.pressed.connect(close_menu)
 
 func _input(event: InputEvent) -> void:
@@ -68,10 +78,22 @@ func _update_button_texts() -> void:
 			var lascados := inv.get_material_count(&"chifre_lascado")
 			var placas := inv.get_material_count(&"placa_carapaca")
 			var capacete: StringName = inv.equipped.get(&"head", &"")
-			if not capacete.is_empty():
-				forge_status_label.text = "Equipado: %s\nInsumos: %d Íntegros · %d Lascados · %d Placas" % [capacete, integros, lascados, placas]
-			else:
-				forge_status_label.text = "Insumos: %d Íntegros · %d Lascados · %d Placas" % [integros, lascados, placas]
+			var eq_text: String = "Equipado: %s\n" % capacete if not capacete.is_empty() else ""
+			var hunt_text: String = "Caça: %d Íntegros · %d Lascados · %d Placas\n" % [integros, lascados, placas]
+			
+			var mats: Array[String] = []
+			var icon_map: Dictionary = {
+				&"madeira": "🪵", &"galho": "🌿", &"folha": "🍃", &"fibra": "🌾",
+				&"pedra": "🪨", &"frutinha": "🫐", &"besouro": "🪲", &"ossos": "🦴",
+				&"erva": "🌱", &"mel": "🍯"
+			}
+			for mat_id in icon_map:
+				var count: int = inv.get_material_count(mat_id)
+				if count > 0:
+					mats.append("%s %d %s" % [icon_map[mat_id], count, mat_id.capitalize()])
+			
+			var col_text: String = "Coleta: " + (" · ".join(mats) if not mats.is_empty() else "Nenhum recurso coletado ainda")
+			forge_status_label.text = eq_text + hunt_text + col_text
 
 func _on_forge_pressed() -> void:
 	if player == null or player.inventory == null:
@@ -119,3 +141,9 @@ func _on_cards_pressed() -> void:
 		album = get_node_or_null("../../CardAlbum")
 	if album != null and album.has_method("open_album"):
 		album.open_album()
+
+func _on_build_pressed() -> void:
+	close_menu()
+	var bs = get_tree().get_first_node_in_group("building_system") if is_inside_tree() else null
+	if bs and bs.has_method("set_building_mode"):
+		bs.set_building_mode(true)

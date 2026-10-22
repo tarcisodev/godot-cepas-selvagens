@@ -27,7 +27,7 @@ move_mult = 0.4
 script = ExtResource("2_attack")
 kind = 5
 display_name = "Mira arcana"
-anims = Array[StringName]([&"Spell_Simple_Idle"])
+anims = Array[StringName]([&"Pistol_Aim_Neutral"])
 cost_pool = &"ether"
 cost = 0.0
 move_mult = 0.6
@@ -36,7 +36,7 @@ move_mult = 0.6
 script = ExtResource("2_attack")
 kind = 2
 display_name = "Dardo arcano"
-anims = Array[StringName]([&"Spell_Simple_Shoot"])
+anims = Array[StringName]([&"Pistol_Shoot"])
 duration = 0.45
 hit_delay = 0.18
 active_time = 1.4
@@ -53,7 +53,7 @@ move_mult = 0.5
 script = ExtResource("3_piece")
 scene = ExtResource("4_staff")
 bone = &"hand_r"
-transform = Transform3D(0, 0.7, 0, -0.658, 0, 0.238, 0.238, 0, 0.658, -0.08, -0.03, 0)
+transform = Transform3D(0.65, 0, 0, 0, 0, -0.65, 0, 0.65, 0, -0.08, -0.03, 0)
 
 [sub_resource type="Resource" id="Piece_satchel"]
 script = ExtResource("3_piece")

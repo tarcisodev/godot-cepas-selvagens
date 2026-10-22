@@ -227,6 +227,10 @@ func _physics_process(delta: float) -> void:
 	_process_attack(delta)
 	var tree := get_tree()
 	var can_fight: bool = (tree == null or tree.get_nodes_in_group("open_menus").is_empty()) and not is_stunned() and not is_downed
+	if can_fight and tree != null:
+		var zm := tree.get_first_node_in_group("zone_manager")
+		if zm and zm.has_method("can_combat_at") and not zm.can_combat_at(global_position):
+			can_fight = false
 	var secondary: StyleAttack = weapon_style.secondary if weapon_style else null
 
 	# Modo de Bloqueio (armas com secondary.kind == BLOCK)
@@ -410,8 +414,10 @@ func _update_animation(speed: float) -> void:
 	else:
 		character_visual.play(&"Walk", maxf(speed / slow_walk_speed, 0.4))
 
-## Tempo de esfola por parte, encurtado pelos marcos de maestria (GDD-02 §5).
+## Tempo de esfola/coleta por recurso, encurtado pela maestria correspondente.
 func get_harvest_time() -> float:
+	if harvest_target and harvest_target.has_method("get_gather_time"):
+		return harvest_target.get_gather_time(mastery)
 	var level: int = mastery.get_level(&"esfola") if mastery else 1
 	if level >= 100:
 		return 0.5
@@ -454,7 +460,8 @@ func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 				is_harvesting = true
 				harvest_timer = 0.0
 				harvest_start_health = pools.current_health if pools else 0.0
-				posture_changed.emit("Esfolando: %s" % harvest_target.next_harvest_label())
+				var verb: String = harvest_target.get_harvest_verb() if harvest_target.has_method("get_harvest_verb") else "Esfolando"
+				posture_changed.emit("%s: %s" % [verb, harvest_target.next_harvest_label()])
 		return
 
 	# Interrupções: soltar a tecla, andar, levar dano ou o corpo esvaziar/sumir
@@ -478,7 +485,8 @@ func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 		var got: String = harvest_target.harvest_next(self)
 		harvest_timer = 0.0
 		if harvest_target.is_harvestable():
-			posture_changed.emit("Coletado: %s • Esfolando: %s" % [got, harvest_target.next_harvest_label()])
+			var verb: String = harvest_target.get_harvest_verb() if harvest_target.has_method("get_harvest_verb") else "Esfolando"
+			posture_changed.emit("Coletado: %s • %s: %s" % [got, verb, harvest_target.next_harvest_label()])
 			if character_visual:
 				character_visual.play_timed(&"Farm_Harvest", get_harvest_time(), true)
 		else:
@@ -625,6 +633,8 @@ func _release_attack(attack: StyleAttack) -> void:
 		StyleAttack.Kind.PROJECTILE:
 			var aim: Vector3 = _attack_dir
 			var spawn_pos: Vector3 = global_position + Vector3.UP * 1.3 + _attack_dir * 0.6
+			if character_visual and character_visual.weapon and is_instance_valid(character_visual.weapon):
+				spawn_pos = character_visual.weapon.global_position + character_visual.weapon.global_basis.y.normalized() * 0.9
 			if is_aiming and camera_rig and camera_rig.has_method("get_aim_target"):
 				var target_pt: Vector3 = camera_rig.get_aim_target(attack.reach)
 				aim = (target_pt - spawn_pos).normalized()
