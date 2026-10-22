@@ -78,6 +78,25 @@ static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int) -> CreatureDNA:
 	child.belly_color = a.belly_color.lerp(b.belly_color, 0.5)
 	return child
 
+func to_dict() -> Dictionary:
+	return {"species": int(species), "seed": dna_seed, "alleles": alleles.duplicate(true),
+		"base": base_color.to_html(), "belly": belly_color.to_html()}
+
+static func from_dict(d: Dictionary) -> CreatureDNA:
+	var out := CreatureDNA.new()
+	out.species = int(d.get("species", 0)) as Species
+	out.dna_seed = int(d.get("seed", 0))
+	var al: Dictionary = d.get("alleles", {})
+	for gene in al:
+		out.alleles[gene] = Array(al[gene]).map(func(x): return str(x))
+	out.base_color = Color.html(str(d.get("base", "8c613d")))
+	out.belly_color = Color.html(str(d.get("belly", "dbc7a3")))
+	return out
+
+## Montaria: velocidade pelo gene porte (GDD-03 §9.3): TT 100% · Tt 92% · tt 85%
+func mount_speed_factor() -> float:
+	return {1.0: 1.0, 0.75: 0.92, 0.5: 0.85}.get(size_factor(), 1.0)
+
 func info() -> Dictionary:
 	return SPECIES[species]
 

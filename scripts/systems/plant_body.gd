@@ -34,6 +34,10 @@ func build() -> void:
 	var mi := MeshInstance3D.new()
 	mi.mesh = _st.commit()
 	mi.material_override = _shared_material()
+	mi.visibility_range_end = 110.0
+	# Plantas baixas: a sombra quase não aparece e dobra o custo de desenho
+	if dna.kind == PlantDNA.Kind.CEPA or dna.kind == PlantDNA.Kind.COGUMELO:
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
 static func _shared_material() -> StandardMaterial3D:

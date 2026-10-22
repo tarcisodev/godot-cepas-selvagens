@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"sedativo_erva"
+display_name = "Sedativo de Erva"
+description = "Seda um bicho preso pelo laço: fique 3 s ao lado sem levar dano e ele é seu. Use pela roda rápida."
+category = 5
+icon = "💉"
+color = Color(0.45, 0.75, 0.5, 1)
+unit_weight = 0.1
+max_gather_quality = 5
+base_value = 10
+tool_action = &"sedativo"

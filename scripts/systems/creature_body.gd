@@ -20,7 +20,7 @@ var _head: Node3D
 var _torso: Node3D
 var _phase: float = 0.0
 var _flap: float = 0.0
-var _mats: Dictionary = {}
+var _batches: Dictionary = {}  # pivô -> SurfaceTool
 
 func _ready() -> void:
 	if dna == null:
@@ -33,7 +33,7 @@ func build() -> void:
 	_legs.clear()
 	_wings.clear()
 	_fins.clear()
-	_mats.clear()
+	_batches.clear()
 	_torso = Node3D.new()
 	_torso.name = "Torso"
 	add_child(_torso)
@@ -44,6 +44,7 @@ func build() -> void:
 			_build_bird()
 		CreatureDNA.Plan.FISH:
 			_build_fish()
+	_flush()
 	saddle = Marker3D.new()
 	saddle.name = "Saddle"
 	saddle.position = Vector3(0, back_height, 0.05)
@@ -235,58 +236,73 @@ func _pattern(body: Vector3, center: Vector3) -> void:
 			_ellipsoid(_torso, Vector3.ONE * body.x * 0.12, p, Color(0.95, 0.95, 1.0).lerp(dark, 0.2))
 
 # ---------------------------------------------------------------- primitivas
+# Cada parte é somada à malha do pivô a que pertence (tronco, cada perna, cabeça, cauda, asa):
+# o bicho inteiro vira ~8 chamadas de desenho em vez de ~30.
 
-func _mat(c: Color) -> StandardMaterial3D:
-	var key := c.to_html()
-	if not _mats.has(key):
+static var _shared_mats: Dictionary = {}
+
+func _batch(parent: Node3D) -> SurfaceTool:
+	if not _batches.has(parent):
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		_batches[parent] = st
+	return _batches[parent]
+
+## Fecha as malhas acumuladas: uma MeshInstance por pivô
+func _flush() -> void:
+	for parent in _batches:
+		var mi := MeshInstance3D.new()
+		mi.mesh = (_batches[parent] as SurfaceTool).commit()
+		mi.material_override = _material(dna.is_mutant())
+		mi.visibility_range_end = 90.0
+		# Peixe nada debaixo d'água: sombra não aparece e custa uma passada a mais
+		if dna.plan() == CreatureDNA.Plan.FISH:
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		(parent as Node3D).add_child(mi)
+	_batches.clear()
+
+static func _material(mutant: bool) -> StandardMaterial3D:
+	if not _shared_mats.has(mutant):
 		var m := StandardMaterial3D.new()
-		m.albedo_color = c
-		m.roughness = 0.85
-		if dna.is_mutant():
-			m.metallic = 0.35
-			m.roughness = 0.45
-		_mats[key] = m
-	return _mats[key]
+		m.vertex_color_use_as_albedo = true
+		m.vertex_color_is_srgb = true
+		m.roughness = 0.45 if mutant else 0.85
+		m.metallic = 0.35 if mutant else 0.0
+		_shared_mats[mutant] = m
+	return _shared_mats[mutant]
 
-func _ellipsoid(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
+func _ellipsoid(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:
 	var sm := SphereMesh.new()
 	sm.radius = 0.5
 	sm.height = 1.0
 	sm.radial_segments = 12
 	sm.rings = 6
-	mi.mesh = sm
-	mi.visibility_range_end = 90.0
-	mi.scale = size
-	mi.position = pos
-	mi.material_override = _mat(color)
-	parent.add_child(mi)
-	return mi
+	_append(parent, sm, Transform3D(Basis.IDENTITY.scaled(size), pos), color)
 
-func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis = Basis.IDENTITY) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
+func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis = Basis.IDENTITY) -> void:
 	var cm := CapsuleMesh.new()
 	cm.radius = radius
 	cm.height = maxf(height, radius * 2.0)
 	cm.radial_segments = 10
 	cm.rings = 4
-	mi.mesh = cm
-	mi.visibility_range_end = 90.0
-	mi.transform = Transform3D(rot, pos)
-	mi.material_override = _mat(color)
-	parent.add_child(mi)
-	return mi
+	_append(parent, cm, Transform3D(rot, pos), color)
 
-func _cone(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
+func _cone(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis) -> void:
 	var cm := CylinderMesh.new()
 	cm.top_radius = 0.0
 	cm.bottom_radius = radius
 	cm.height = height
 	cm.radial_segments = 8
-	mi.mesh = cm
-	mi.visibility_range_end = 90.0
-	mi.transform = Transform3D(rot, pos)
-	mi.material_override = _mat(color)
-	parent.add_child(mi)
-	return mi
+	_append(parent, cm, Transform3D(rot, pos), color)
+
+func _append(parent: Node3D, mesh: PrimitiveMesh, xform: Transform3D, color: Color) -> void:
+	var st := _batch(parent)
+	var arrays := mesh.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var nb := xform.basis.inverse().transposed()
+	for idx in indices:
+		st.set_color(color)
+		st.set_normal((nb * normals[idx]).normalized())
+		st.add_vertex(xform * verts[idx])

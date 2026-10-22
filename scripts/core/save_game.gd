@@ -114,6 +114,9 @@ func collect(player: Node) -> Dictionary:
 		var city := player.get_tree().get_first_node_in_group("city_hub")
 		if city:
 			data["town"] = city.get_state()
+		var eco := player.get_tree().get_first_node_in_group("ecosystem")
+		if eco:
+			data["mounts"] = eco.owned_state()
 	return data
 
 func save_game() -> bool:
@@ -206,6 +209,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var city := player.get_tree().get_first_node_in_group("city_hub") if player.is_inside_tree() else null
 	if city and data.has("town"):
 		city.apply_state(data["town"])
+	# Montarias capturadas (GDD-03 §9.3)
+	var eco := player.get_tree().get_first_node_in_group("ecosystem") if player.is_inside_tree() else null
+	if eco and data.has("mounts"):
+		eco.restore_owned(data["mounts"])
 	loaded.emit()
 
 # O player é filho direto do mundo; fora da árvore só a posição local existe

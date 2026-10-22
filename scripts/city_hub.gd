@@ -39,6 +39,7 @@ const CONTRACT_POOL: Dictionary = {
 ## Loja da Alquimista: o ralo de moeda do slice; não compra nada de volta
 const SHOP_PRICES: Dictionary = {
 	&"pocao": 15, &"mega_pocao": 40, &"carne_bem_passada": 8, &"cannabis_sativa": 12, &"cannabis_indica": 14,
+	&"sedativo_erva": 12,
 }
 signal contracts_changed()
 

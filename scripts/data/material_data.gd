@@ -24,6 +24,11 @@ enum Category { MADEIRA, PLANTA, MINERAL, ANIMAL, INSETO, CONSUMIVEL }
 @export var max_gather_quality: int = 2
 ## Valor-base em Dólares de Sucata (GDD-05 §5): referência de contratos e do Mercado Negro
 @export var base_value: int = 1
+## Ferramenta usada pela roda rápida (GDD-03 §9): &"laco" prende, &"sedativo" captura; vazio = não é ferramenta
+@export var tool_action: StringName = &""
+
+func is_tool() -> bool:
+	return not tool_action.is_empty()
 
 @export_group("Consumo")
 ## Quanto repõe de cada recurso ao usar uma unidade; qualquer valor > 0 torna o item usável

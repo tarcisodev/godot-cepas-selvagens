@@ -315,7 +315,12 @@ func _zone_manager() -> Node:
 		return get_tree().get_first_node_in_group("zone_manager")
 	return zone_manager
 
+## Dono = nome do personagem (criação de personagem/save); sem nome, o do nó do player
 func _owner_name() -> String:
+	var save := get_tree().root.get_node_or_null("SaveGame") if is_inside_tree() else null
+	var character: String = save.get("character_name") if save else ""
+	if not character.is_empty():
+		return character
 	return String(player.name) if player else "Andarilho"
 
 func _notify(msg: String) -> void:

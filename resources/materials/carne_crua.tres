@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"carne_crua"
+display_name = "Carne Crua"
+description = "Carne fresca de caça. Vai para a cozinha ou para a composteira."
+category = 3
+icon = "🍗"
+color = Color(0.8, 0.35, 0.35, 1)
+unit_weight = 0.6
+max_gather_quality = 5
+base_value = 3

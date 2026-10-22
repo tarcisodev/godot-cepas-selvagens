@@ -21,6 +21,8 @@ const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.
 @export var dna: CreatureDNA
 @export var kind: Kind = Kind.LAND
 @export var display_name: String = "Montaria"
+## Montaria própria (capturada) — velocidade pelo gene porte; as de teste ficam em 1.0
+@export var owned: bool = false
 
 var body: CreatureBody
 var rider: Player
@@ -139,7 +141,7 @@ func _physics_process(delta: float) -> void:
 		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
 	else:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
-	var speeds: Vector2 = SPEEDS[kind]
+	var speeds: Vector2 = SPEEDS[kind] * (body.dna.mount_speed_factor() if owned else 1.0)
 	var target_speed := (speeds.y if wants_run else speeds.x) if moving else 0.0
 	_speed = move_toward(_speed, target_speed, delta * 14.0)
 	var step := (dir.normalized() if moving else -global_transform.basis.z) * _speed * delta

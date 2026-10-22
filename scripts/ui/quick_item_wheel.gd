@@ -72,7 +72,8 @@ func consumable_ids() -> Array[StringName]:
 	if player == null or player.inventory == null:
 		return out
 	for s in player.inventory.get_stacks():
-		if MaterialData.of(s.id).is_consumable() and not out.has(s.id):
+		var d := MaterialData.of(s.id)
+		if (d.is_consumable() or d.is_tool()) and not out.has(s.id):
 			out.append(s.id)
 	out.sort_custom(func(a, b):
 		var da := MaterialData.of(a)
@@ -98,6 +99,9 @@ func use_selected() -> bool:
 	if selected_id.is_empty() or player == null or player.pools == null or player.is_downed:
 		_notify("Nenhum consumível na mochila")
 		return false
+	# Ferramenta de captura (laço, sedativo): age no bicho mais próximo
+	if MaterialData.of(selected_id).is_tool():
+		return WildCreature.use_tool(player, selected_id)
 	var stacks: Array[Dictionary] = player.inventory.get_stacks(selected_id)
 	if stacks.is_empty() or not player.inventory.use_item(stacks[0], player.pools):
 		_notify("%s: nada para repor agora" % MaterialData.of(selected_id).display_name)
@@ -141,8 +145,10 @@ func _notify(msg: String) -> void:
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.emit(msg)
 
-## Ordem na roda: cura, vigor, éter
+## Ordem na roda: cura, vigor, éter, ferramentas
 static func _effect_rank(d: MaterialData) -> int:
+	if d.is_tool():
+		return 3
 	if d.restore_health > 0.0 and d.restore_ether <= 0.0:
 		return 0
 	if d.restore_vigor > 0.0:
@@ -216,7 +222,7 @@ func _update_hover() -> void:
 	if _hover >= 0 and _hover < _options.size():
 		var d := MaterialData.of(_options[_hover])
 		_center_name.text = d.display_name
-		_center_effect.text = d.effect_text()
+		_center_effect.text = d.effect_text() if d.is_consumable() else ("Prende bicho exausto" if d.tool_action == &"laco" else "Captura bicho preso")
 
 func _style_slots() -> void:
 	for i in _slots.size():

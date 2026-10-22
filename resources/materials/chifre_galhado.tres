@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"chifre_galhado"
+display_name = "Chifre-Galhado"
+description = "Galhada de Trotador com o gene do chifre. Cabo e núcleo de armas leves."
+category = 3
+icon = "🔱"
+color = Color(0.86, 0.8, 0.66, 1)
+unit_weight = 0.9
+max_gather_quality = 5
+base_value = 20

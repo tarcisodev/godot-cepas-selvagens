@@ -17,6 +17,7 @@ class_name ActionsMenu
 @onready var close_button: Button = $PanelContainer/MarginContainer/VBoxContainer/CloseButton
 
 var is_open: bool = false
+var _craft_buttons: Dictionary = {}
 
 func _ready() -> void:
 	visible = false
@@ -37,6 +38,15 @@ func _ready() -> void:
 		$PanelContainer/MarginContainer/VBoxContainer.move_child(build_btn, close_button.get_index())
 	build_btn.pressed.connect(_on_build_pressed)
 
+	# Ofícios de captura (GDD-03 §9): laço e sedativo
+	for recipe_id in InventoryComponent.RECIPES:
+		var craft_btn := Button.new()
+		craft_btn.name = "Craft_" + String(recipe_id)
+		$PanelContainer/MarginContainer/VBoxContainer.add_child(craft_btn)
+		$PanelContainer/MarginContainer/VBoxContainer.move_child(craft_btn, build_btn.get_index())
+		craft_btn.pressed.connect(_on_craft_pressed.bind(recipe_id))
+		_craft_buttons[recipe_id] = craft_btn
+	
 	var inv_btn := Button.new()
 	inv_btn.name = "InventoryButton"
 	inv_btn.text = "🎒 Inventário ([I])"
@@ -73,6 +83,14 @@ func close_menu() -> void:
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _update_button_texts() -> void:
+	for recipe_id in _craft_buttons:
+		var data := MaterialData.of(recipe_id)
+		var parts: Array[String] = []
+		for mat in InventoryComponent.RECIPES[recipe_id]:
+			parts.append("%d %s" % [InventoryComponent.RECIPES[recipe_id][mat], MaterialData.of(mat).display_name.get_slice(" ", 0)])
+		var have: int = player.inventory.get_material_count(recipe_id) if player and player.inventory else 0
+		_craft_buttons[recipe_id].text = "%s Fazer %s (%s) · tem %d" % [data.icon, data.display_name, " + ".join(parts), have]
+		_craft_buttons[recipe_id].disabled = player == null or player.inventory == null or not player.inventory.has_materials(InventoryComponent.RECIPES[recipe_id])
 	if player:
 		if player.is_sitting:
 			sit_button.text = "🚶 Levantar e Caminhar"
@@ -132,6 +150,16 @@ func _on_cards_pressed() -> void:
 		album = get_node_or_null("../../CardAlbum")
 	if album != null and album.has_method("open_album"):
 		album.open_album()
+
+func _on_craft_pressed(recipe_id: StringName) -> void:
+	if player == null or player.inventory == null:
+		return
+	var data := MaterialData.of(recipe_id)
+	if player.inventory.craft(recipe_id):
+		player.posture_changed.emit("%s Fez %s" % [data.icon, data.display_name])
+	else:
+		player.posture_changed.emit("Faltam materiais para %s" % data.display_name)
+	_update_button_texts()
 
 func _on_inventory_pressed() -> void:
 	close_menu()

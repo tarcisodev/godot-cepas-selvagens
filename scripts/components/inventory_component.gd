@@ -193,6 +193,20 @@ func _add_to_stack(material_id: StringName, amount: int, quality: int, traits: A
 			return
 	stacks.append({"id": material_id, "quality": quality, "traits": key_traits, "amount": amount})
 
+## Receitas de ofício simples (GDD-03 §9): resultado -> {materiais}
+const RECIPES: Dictionary = {
+	&"laco_fibra": {&"fibra": 4, &"galho": 2},
+	&"sedativo_erva": {&"erva": 3, &"mel": 1},
+}
+
+## Faz 1 unidade da receita (gasta a pior qualidade primeiro). false se faltar material.
+func craft(result_id: StringName) -> bool:
+	var recipe: Dictionary = RECIPES.get(result_id, {})
+	if recipe.is_empty() or not consume_materials(recipe):
+		return false
+	add_material(result_id, 1)
+	return true
+
 ## Pilhas de um material, da pior qualidade para a melhor
 func _stacks_matching(material_id: StringName) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []

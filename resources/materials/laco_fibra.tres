@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"laco_fibra"
+display_name = "Laço de Fibra"
+description = "Prende um bicho Exausto (abaixo de 20% da Vida) por 20 s. Em bicho descansado, arrebenta. Use pela roda rápida."
+category = 5
+icon = "➰"
+color = Color(0.82, 0.75, 0.45, 1)
+unit_weight = 0.4
+max_gather_quality = 5
+base_value = 6
+tool_action = &"laco"

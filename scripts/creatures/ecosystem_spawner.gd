@@ -7,6 +7,11 @@ extends Node3D
 ## montarias de teste (Trotador e Planador) e põe a Raia montável no rio perto da vila.
 
 const ARENA_CENTER: Vector2 = Vector2(-27.0, 3.0)
+## Montarias próprias por personagem (decisão do Tarciso, GDD-03 §9.4)
+const MAX_OWNED: int = 3
+## Bicho morto, capturado ou solto volta a nascer no mesmo lugar depois disso (s)
+const RESPAWN_DELAY: float = 90.0
+const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, CreatureDNA.Species.PLANADOR: Mount.Kind.AIR}
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 
 @export var landscape: Node3D
@@ -24,11 +29,25 @@ const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 @export var mushrooms: int = 20
 
 var _rng := RandomNumberGenerator.new()
+## DNAs das montarias capturadas (save) e os nós delas no estábulo
+var owned: Array[CreatureDNA] = []
+var _owned_nodes: Array[Mount] = []
+var _stable_base: Vector3
+var _dialog: CaptureDialog
+var _pending_capture: WildCreature
+var _pending_player: Node
 
 func _ready() -> void:
+	add_to_group("ecosystem")
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
 	_rng.seed = world_seed
+	var layer := CanvasLayer.new()
+	layer.layer = 12
+	add_child(layer)
+	_dialog = CaptureDialog.new()
+	layer.add_child(_dialog)
+	_dialog.chosen.connect(_on_capture_choice)
 	_spawn_plants()
 	_spawn_fauna()
 	_build_stable()
@@ -72,12 +91,80 @@ func _spawn_fauna() -> void:
 		for i in 4:
 			_add_wild(CreatureDNA.Species.LAMBARI, _river_spot(z + i * 0.6), 10.0)
 
-func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float) -> void:
+func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float) -> WildCreature:
 	var c := WildCreature.new()
 	c.dna = CreatureDNA.randomized(species, _rng.randi())
 	c.roam_radius = roam
 	c.position = pos
+	c.captured.connect(_on_captured)
+	c.removed.connect(_on_removed.bind(species, pos, roam))
 	add_child(c)
+	return c
+
+# ---------------------------------------------------------------- captura (GDD-03 §9.3)
+
+func _on_captured(c: WildCreature, player: Node) -> void:
+	_pending_capture = c
+	_pending_player = player
+	var can := MOUNTABLE.has(c.dna.species) and owned.size() < MAX_OWNED
+	var reason := "só Trotador e Planador viram montaria" if not MOUNTABLE.has(c.dna.species) else "estábulo cheio: %d/%d" % [owned.size(), MAX_OWNED]
+	_dialog.ask(c.dna, can, reason)
+
+func _on_capture_choice(choice: StringName) -> void:
+	var c := _pending_capture
+	_pending_capture = null
+	if c == null or not is_instance_valid(c):
+		return
+	match choice:
+		&"abate":
+			c.careful_slaughter()
+			_say("🔪 Abate cuidadoso: segure [E] no corpo para esfolar as partes Íntegras")
+		&"estabulo":
+			if add_owned_mount(c.dna):
+				_say("🐎 %s levado ao estábulo! (%d/%d)" % [c.dna.species_name(), owned.size(), MAX_OWNED])
+			c.take_away()
+		_:
+			_say("🌿 Você soltou o %s" % c.dna.species_name())
+			c.take_away()
+
+func _on_removed(_c: WildCreature, species: CreatureDNA.Species, pos: Vector3, roam: float) -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().create_timer(RESPAWN_DELAY).timeout
+	if is_inside_tree():
+		_add_wild(species, pos, roam)
+
+func _say(msg: String) -> void:
+	if _pending_player and is_instance_valid(_pending_player) and _pending_player.has_signal("posture_changed"):
+		_pending_player.posture_changed.emit(msg)
+
+## Põe um bicho capturado no estábulo como montaria própria; false se cheio ou não montável
+func add_owned_mount(d: CreatureDNA) -> bool:
+	if owned.size() >= MAX_OWNED or not MOUNTABLE.has(d.species):
+		return false
+	owned.append(d)
+	_spawn_owned(d, owned.size() - 1)
+	return true
+
+func _spawn_owned(d: CreatureDNA, slot: int) -> void:
+	var m := _add_mount(d, MOUNTABLE[d.species], "Seu " + d.species_name().get_slice("-", 0), _stable_base + Vector3(-3.0 + slot * 3.0, 0, 4.0))
+	m.owned = true
+	_owned_nodes.append(m)
+
+func owned_state() -> Array:
+	return owned.map(func(d): return d.to_dict())
+
+func restore_owned(list: Array) -> void:
+	for m in _owned_nodes:
+		if is_instance_valid(m):
+			if m.rider:
+				m.dismount()
+			m.queue_free()
+	_owned_nodes.clear()
+	owned.clear()
+	for e in list:
+		if e is Dictionary and owned.size() < MAX_OWNED:
+			add_owned_mount(CreatureDNA.from_dict(e))
 
 # ---------------------------------------------------------------- estábulo e montarias
 
@@ -85,6 +172,7 @@ func _build_stable() -> void:
 	var stable := Node3D.new()
 	stable.name = "Estabulo"
 	var base := Vector3(STABLE_POS.x, _ground(STABLE_POS.x, STABLE_POS.y), STABLE_POS.y)
+	_stable_base = base
 	stable.position = base
 	add_child(stable)
 	var wood := StandardMaterial3D.new()

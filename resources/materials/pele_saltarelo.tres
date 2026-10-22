@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"pele_saltarelo"
+display_name = "Pele de Saltarelo"
+description = "Pele macia de Saltarelo. Forro de luvas e capuzes."
+category = 3
+icon = "🐇"
+color = Color(0.75, 0.7, 0.62, 1)
+unit_weight = 0.2
+max_gather_quality = 5
+base_value = 5
