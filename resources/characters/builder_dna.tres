@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="CharacterDNA" format=3]
+
+[ext_resource type="Script" path="res://scripts/data/character_dna.gd" id="1_dna"]
+
+[resource]
+script = ExtResource("1_dna")
+dna_seed = 7101
+stature = 0.97
+mass = 0.75
+muscle = 0.7
+leg_length = 0.95
+torso_length = 1.05
+head_size = 1.04
+jaw_width = 0.8
+nose_size = 0.75
+skin_color = Color(0.72, 0.52, 0.38, 1)
+eye_color = Color(0.25, 0.32, 0.4, 1)
+hair_style = 1
+hair_color = Color(0.48, 0.42, 0.36, 1)
+beard = 3
+beard_length = 0.55
+shirt_color = Color(0.62, 0.5, 0.34, 1)
+pants_color = Color(0.3, 0.26, 0.22, 1)
+boots_color = Color(0.32, 0.22, 0.14, 1)
+belt_color = Color(0.5, 0.34, 0.18, 1)
+sleeve_length = 0.35
+boot_height = 0.6
+gloves = true

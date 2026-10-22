@@ -1,215 +1,267 @@
 class_name CityHub
 extends Node3D
 
-## Estrutura da Cidade Principal: Vila da Esperança (Fase 2)
-## Cria estradas de pedra, portões de paliçada, praça de mercado,
-## banners, placas informativas e os NPCs de profissões.
+## Vila da Esperança (GDD-08 §6.1): começa em obras e cresce com o material doado pelos jogadores.
+## Monta a praça (placa, estrada, carroça), as obras (TownProject), o Quadro de Obras e os
+## NPCs com corpo procedural (TownNPC). Guarda a Reputação da Vila e o estado das obras no save.
 
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
-const STALL_SCENE = preload("res://assets/models/props/fantasy/Stall_Empty.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
 const BANNER1_SCENE = preload("res://assets/models/props/fantasy/Banner_1.gltf")
 const BANNER2_SCENE = preload("res://assets/models/props/fantasy/Banner_2.gltf")
-const PEASANT_SCENE = preload("res://assets/models/character/Female_Peasant.gltf")
-const MALE_PEASANT_SCENE = preload("res://assets/models/character/Male_Peasant.gltf")
+const AXE_SCENE = preload("res://assets/models/tools/axe.gltf")
+const ALCHEMIST_DNA = preload("res://resources/characters/alchemist_dna.tres")
+const BUILDER_DNA = preload("res://resources/characters/builder_dna.tres")
+
+## Centro e raio da vila (o ZoneManager usa os mesmos valores)
+const CENTER: Vector2 = Vector2(1.5, 4.5)
+const PALISADE_RADIUS: float = 13.5
+
+signal reputation_changed(value: int)
+
+## true dentro da paliçada (+ margem): vegetação, rochas e recursos não nascem aqui
+static func in_village(x: float, z: float, margin: float = 1.0) -> bool:
+	return Vector2(x, z).distance_to(CENTER) < PALISADE_RADIUS + margin
 
 @export var landscape: MeshInstance3D
 
+## Reputação da Vila do jogador: 1 por unidade doada
+var reputation: int = 0
+
+var _projects: Array[TownProject] = []
+var _workers: Dictionary = {}  # project_id -> TownNPC
+var _board: TownBoard
+var _board_layer: CanvasLayer
+
 func _ready() -> void:
+	add_to_group("city_hub")
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
-	
 	_build_town_sign()
-	_build_market_square()
-	_build_stone_roads()
-	_build_palisade_gates()
+	_build_plaza()
+	_build_projects()
+	_build_board()
 	_spawn_city_npcs()
+	_refresh_workers()
 
 func _get_ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
 		return landscape.get_height_at(x, z)
 	return 0.0
 
+func get_projects() -> Array[TownProject]:
+	return _projects
+
+func get_project(id: StringName) -> TownProject:
+	for p in _projects:
+		if p.project_id == id:
+			return p
+	return null
+
+## Doa material do jogador para uma obra; soma Reputação. Devolve as unidades doadas.
+func donate(project: TownProject, player: Node, material_id: StringName, amount: int) -> int:
+	var inv: InventoryComponent = player.get("inventory") if player else null
+	var n := project.donate(inv, material_id, amount)
+	if n > 0:
+		reputation += n
+		reputation_changed.emit(reputation)
+	return n
+
+func open_board(player: Node) -> void:
+	if _board:
+		_board.open(player as Player)
+
+func get_state() -> Dictionary:
+	var projects := {}
+	for p in _projects:
+		projects[String(p.project_id)] = p.get_state()
+	return {"reputation": reputation, "projects": projects}
+
+func apply_state(state: Dictionary) -> void:
+	reputation = int(state.get("reputation", 0))
+	var projects: Dictionary = state.get("projects", {})
+	for p in _projects:
+		if projects.has(String(p.project_id)):
+			p.apply_state(projects[String(p.project_id)])
+	_refresh_workers()
+	reputation_changed.emit(reputation)
+
+# ---------------------------------------------------------------- obras
+
+func _build_projects() -> void:
+	_add_project({
+		"id": &"poco", "start": 0, "name": "Poço da Praça", "icon": "⛲", "kind": TownProject.Kind.WELL,
+		"pos": Vector2(-0.8, 2.6),
+		"purpose": "Água limpa no centro da vila. Quando houver cultivo e cura, é daqui que vem a água.",
+		"costs": [{&"pedra": 8}, {&"pedra": 10, &"madeira": 2}, {&"madeira": 4, &"fibra": 4}],
+	})
+	_add_project({
+		"id": &"palicada", "start": 1, "name": "Paliçada", "icon": "🛡️", "kind": TownProject.Kind.PALISADE,
+		"pos": CENTER,
+		"purpose": "Cerca de toras em volta da vila, com portões ao norte e a oeste. Defesa contra o que vem dos ermos.",
+		"costs": [{&"galho": 10, &"fibra": 6}, {&"madeira": 8, &"galho": 10}, {&"madeira": 6, &"pedra": 6, &"fibra": 6}],
+	})
+	_add_project({
+		"id": &"mercado", "start": 1, "name": "Mercado", "icon": "🏪", "kind": TownProject.Kind.PAVILION,
+		"pos": Vector2(5.5, 11.0), "modules": Vector2i(2, 3), "yaw": 0.0,
+		"purpose": "Pavilhão coberto com bancas. Vai abrigar as ordens de compra e venda entre jogadores (GDD-05).",
+		"costs": [{&"pedra": 6, &"madeira": 4}, {&"madeira": 10, &"fibra": 4}, {&"folha": 10, &"fibra": 6, &"madeira": 4}],
+	})
+	_add_project({
+		"id": &"forja", "start": 2, "name": "Forja Pública", "icon": "⚒️", "kind": TownProject.Kind.HOUSE,
+		"pos": Vector2(-4.5, -1.5), "modules": Vector2i(2, 2), "brick": true, "chimney": true, "yaw": PI * 0.5,
+		"purpose": "Forja de tijolo com chaminé. Vai permitir forjar e reparar equipamento na cidade (GDD-06).",
+		"costs": [{&"pedra": 10}, {&"pedra": 8, &"madeira": 6}, {&"ossos": 4, &"madeira": 6}],
+	})
+	_add_project({
+		"id": &"taverna", "start": 1, "name": "Taverna", "icon": "🍺", "kind": TownProject.Kind.HOUSE,
+		"pos": Vector2(-7.5, 5.0), "modules": Vector2i(3, 3), "chimney": true, "yaw": PI * 0.5,
+		"purpose": "Casa grande de reboco e madeira. Vai ter a mesa do jogo de cartas (GDD-07) e descanso.",
+		"costs": [{&"pedra": 10, &"madeira": 6}, {&"madeira": 14, &"fibra": 6}, {&"folha": 12, &"mel": 2, &"frutinha": 6}],
+	})
+
+func _add_project(d: Dictionary) -> void:
+	var p := TownProject.new()
+	p.name = "Obra_" + String(d["id"])
+	p.project_id = d["id"]
+	p.display_name = d["name"]
+	p.icon = d["icon"]
+	p.kind = d["kind"]
+	p.purpose = d["purpose"]
+	var costs: Array[Dictionary] = []
+	costs.assign(d["costs"])
+	p.stage_costs = costs
+	p.modules = d.get("modules", Vector2i(2, 2))
+	p.brick_walls = d.get("brick", false)
+	p.chimney = d.get("chimney", false)
+	# Jogo novo: a vila já começou (lotes, pisos, paredes); o resto depende das doações
+	p.stage = d.get("start", 0)
+	var pos: Vector2 = d["pos"]
+	if p.kind == TownProject.Kind.PALISADE:
+		p.ring_center = CENTER
+		p.ring_radius = PALISADE_RADIUS
+		p.gate_angles.assign([0.0, 270.0])  # norte (morro da besta) e oeste (arena)
+		p.position = Vector3.ZERO
+	else:
+		p.position = Vector3(pos.x, _get_ground_y(pos.x, pos.y), pos.y)
+		p.rotation.y = d.get("yaw", 0.0)
+	p.stage_completed.connect(_on_stage_completed)
+	add_child(p)
+	_projects.append(p)
+
+func _on_stage_completed(project: TownProject, stage: int) -> void:
+	_refresh_workers()
+	var player := get_tree().get_first_node_in_group("player") if is_inside_tree() else null
+	if player and player.has_signal("posture_changed"):
+		var msg := "✅ %s concluída!" % project.display_name if project.is_complete() else "🏗️ %s: %s pronta!" % [project.display_name, TownProject.STAGE_NAMES[stage - 1]]
+		player.posture_changed.emit(msg)
+
+## Um trabalhador em cada obra em andamento, com o gesto da etapa
+func _refresh_workers() -> void:
+	var anims: Array[StringName] = [&"Interact", &"Fixing_Kneeling", &"TreeChopping"]
+	for p in _projects:
+		var w: TownNPC = _workers.get(p.project_id)
+		if p.is_complete():
+			if w:
+				w.queue_free()
+				_workers.erase(p.project_id)
+			continue
+		if w == null:
+			w = TownNPC.new()
+			w.name = "Trabalhador_" + String(p.project_id)
+			w.dna = CharacterDNA.randomized(hash(p.project_id) % 100000)
+			w.tool_scene = AXE_SCENE
+			w.look_at_player = false
+			var spot := _worker_spot(p)
+			w.position = Vector3(spot.x, _get_ground_y(spot.x, spot.y), spot.y)
+			w.rotation.y = atan2(-(p.global_position.x - spot.x), -(p.global_position.z - spot.y)) if p.kind != TownProject.Kind.PALISADE else 0.0
+			add_child(w)
+			_workers[p.project_id] = w
+		w.idle_anim = anims[clampi(p.stage, 0, 2)]
+		if w.visual:
+			w.visual.play(w.idle_anim)
+
+func _worker_spot(p: TownProject) -> Vector2:
+	match p.kind:
+		TownProject.Kind.PALISADE:
+			return CENTER + Vector2(-PALISADE_RADIUS + 1.6, 3.0)
+		TownProject.Kind.WELL:
+			return Vector2(p.position.x + 1.8, p.position.z - 0.8)
+		_:
+			var h := Vector2(p.modules) * TownProject.MODULE * 0.5
+			var local := Vector3(h.x + 1.0, 0, h.y * 0.4).rotated(Vector3.UP, p.rotation.y)
+			return Vector2(p.position.x + local.x, p.position.z + local.z)
+
+# ---------------------------------------------------------------- praça e NPCs
+
 func _build_town_sign() -> void:
-	var sign_pos := Vector3(1.5, _get_ground_y(1.5, -4.0), -4.0)
 	var sign_label := Label3D.new()
 	sign_label.name = "TownSign"
-	sign_label.text = "🏛️ VILA DA ESPERANÇA\nZona Segura • Capital & Comércio"
+	sign_label.text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
 	sign_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sign_label.font_size = 28
 	sign_label.outline_size = 6
 	sign_label.outline_modulate = Color(0, 0, 0, 0.9)
 	sign_label.modulate = Color(1.0, 0.9, 0.6)
-	sign_label.visibility_range_end = 25.0
-	sign_label.position = sign_pos + Vector3(0, 3.2, 0)
+	sign_label.visibility_range_end = 30.0
+	sign_label.position = Vector3(1.5, _get_ground_y(1.5, -7.5) + 3.6, -7.5)
 	add_child(sign_label)
 
-func _build_market_square() -> void:
-	# Banca de trocas e mercadorias
-	if STALL_SCENE:
-		var stall := STALL_SCENE.instantiate() as Node3D
-		stall.position = Vector3(-4.2, _get_ground_y(-4.2, 3.2), 3.2)
-		stall.rotation.y = deg_to_rad(45.0)
-		stall.scale = Vector3.ONE * 0.8
-		add_child(stall)
-	
-	# Carroça de suprimentos da guilda
-	if CART_SCENE:
-		var cart := CART_SCENE.instantiate() as Node3D
-		cart.position = Vector3(6.5, _get_ground_y(6.5, 6.2), 6.2)
-		cart.rotation.y = deg_to_rad(-60.0)
-		cart.scale = Vector3.ONE * 0.75
-		add_child(cart)
-	
-	# Banners da Vila
-	if BANNER1_SCENE:
-		var b1 := BANNER1_SCENE.instantiate() as Node3D
-		b1.position = Vector3(-1.8, _get_ground_y(-1.8, -3.2), -3.2)
-		b1.scale = Vector3.ONE * 0.8
-		add_child(b1)
-	
-	if BANNER2_SCENE:
-		var b2 := BANNER2_SCENE.instantiate() as Node3D
-		b2.position = Vector3(4.8, _get_ground_y(4.8, -3.2), -3.2)
-		b2.scale = Vector3.ONE * 0.8
-		add_child(b2)
-
-func _build_stone_roads() -> void:
-	if PATH_SCENE == null:
-		return
-	
-	# Estrada principal ligando a saída Norte, o centro da praça e o Acampamento
-	var points: Array[Vector2] = [
-		Vector2(1.5, -4.5),
-		Vector2(1.5, -2.5),
-		Vector2(1.5, -0.5),
-		Vector2(1.5, 1.5),
-		Vector2(1.5, 3.5),
-		Vector2(2.5, 5.0),
-		Vector2(4.5, 5.5),
-		Vector2(6.5, 5.8)
-	]
-	
+func _build_plaza() -> void:
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.position = Vector3(6.5, _get_ground_y(6.5, 6.2), 6.2)
+	cart.rotation.y = deg_to_rad(-60.0)
+	cart.scale = Vector3.ONE * 0.75
+	add_child(cart)
+	for b in [[BANNER1_SCENE, Vector2(-1.8, -3.2)], [BANNER2_SCENE, Vector2(4.8, -3.2)]]:
+		var banner := (b[0] as PackedScene).instantiate() as Node3D
+		var p: Vector2 = b[1]
+		banner.position = Vector3(p.x, _get_ground_y(p.x, p.y), p.y)
+		banner.scale = Vector3.ONE * 0.8
+		add_child(banner)
+	# Estrada do portão norte até a praça e o mercado
+	var points: Array[Vector2] = [Vector2(1.5, -8.5), Vector2(1.5, -6.5), Vector2(1.5, -4.5), Vector2(1.5, -2.5), Vector2(1.5, -0.5), Vector2(1.5, 1.5), Vector2(1.5, 3.5), Vector2(2.5, 5.0), Vector2(3.8, 6.8), Vector2(4.8, 8.4)]
 	for i in points.size():
 		var p: Vector2 = points[i]
-		var y := _get_ground_y(p.x, p.y) + 0.03
 		var road := PATH_SCENE.instantiate() as Node3D
-		road.position = Vector3(p.x, y, p.y)
+		road.position = Vector3(p.x, _get_ground_y(p.x, p.y) + 0.03, p.y)
 		road.scale = Vector3.ONE * 0.85
 		road.rotation.y = deg_to_rad(float(i * 15))
 		add_child(road)
 
-func _build_palisade_gates() -> void:
-	# Portão Norte (em direção à Besta e Cume)
-	_build_post_pair(Vector3(-1.2, _get_ground_y(-1.2, -4.8), -4.8), Vector3(4.2, _get_ground_y(4.2, -4.8), -4.8), "Portão Norte")
-	# Portão Leste (em direção ao Rio e Pontes)
-	_build_post_pair(Vector3(10.5, _get_ground_y(10.5, 1.5), 1.5), Vector3(10.5, _get_ground_y(10.5, 6.5), 6.5), "Portão Leste")
+func _build_board() -> void:
+	# Quadro de Obras: placa de madeira ao lado do Mestre Construtor
+	var board: StaticBody3D = preload("res://scripts/town/town_board_sign.gd").new()
+	board.name = "QuadroDeObras"
+	board.position = Vector3(5.2, _get_ground_y(5.2, 1.4), 1.4)
+	board.rotation.y = deg_to_rad(-70.0)
+	board.set("city", self)
+	add_child(board)
 
-func _build_post_pair(pos_a: Vector3, pos_b: Vector3, gate_name: String) -> void:
-	for p in [pos_a, pos_b]:
-		var post := MeshInstance3D.new()
-		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.28
-		cyl.bottom_radius = 0.32
-		cyl.height = 3.6
-		post.mesh = cyl
-		post.position = p + Vector3(0, 1.8, 0)
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = Color(0.35, 0.22, 0.12)
-		post.material_override = mat
-		add_child(post)
-		
-		# Lanterna no topo do mourão
-		var light := OmniLight3D.new()
-		light.light_color = Color(1.0, 0.78, 0.45)
-		light.light_energy = 1.0
-		light.omni_range = 6.0
-		light.position = p + Vector3(0, 3.6, 0)
-		add_child(light)
+	_board_layer = CanvasLayer.new()
+	_board_layer.layer = 12
+	add_child(_board_layer)
+	_board = TownBoard.new()
+	_board.city = self
+	_board_layer.add_child(_board)
 
 func _spawn_city_npcs() -> void:
-	# 1. Alquimista & Botânica (perto da banca de mercado)
-	var alchemist := AlchemistNPC.new()
-	alchemist.position = Vector3(-4.5, _get_ground_y(-4.5, 1.8), 1.8)
-	alchemist.rotation.y = deg_to_rad(30.0)
+	var builder := TownNPC.new()
+	builder.name = "MestreConstrutor"
+	builder.dna = BUILDER_DNA
+	builder.display_name = "Mestre Construtor"
+	builder.prompt = "[E] Quadro de Obras"
+	builder.idle_anim = &"Idle_FoldArms"
+	builder.position = Vector3(4.4, _get_ground_y(4.4, 0.4), 0.4)
+	builder.talked.connect(open_board)
+	add_child(builder)
+
+	var alchemist := TownNPC.new()
+	alchemist.name = "Alquimista"
+	alchemist.dna = ALCHEMIST_DNA
+	alchemist.display_name = "Alquimista Botânica"
+	alchemist.prompt = "[E] Conversar"
+	alchemist.idle_anim = &"Idle_Talking"
+	alchemist.line = "Traga ervas e flores para cruzarmos cepas raras. E ajude o Construtor: sem poço, sem jardim!"
+	alchemist.position = Vector3(-1.2, _get_ground_y(-1.2, -2.8), -2.8)
 	add_child(alchemist)
-	
-	# 2. Mestre Construtor / Arquiteto (perto do acampamento e forja)
-	var architect := ArchitectNPC.new()
-	architect.position = Vector3(4.2, _get_ground_y(4.2, 1.8), 1.8)
-	architect.rotation.y = deg_to_rad(-45.0)
-	add_child(architect)
-
-
-## NPC Alquimista e Botânica da Cidade
-class AlchemistNPC extends Node3D:
-	var label: Label3D
-	
-	func _ready() -> void:
-		add_to_group("talkable")
-		_build_visual()
-	
-	func _build_visual() -> void:
-		if CityHub.PEASANT_SCENE:
-			var model := CityHub.PEASANT_SCENE.instantiate() as Node3D
-			model.scale = Vector3.ONE * 0.95
-			add_child(model)
-		else:
-			var mesh_inst := MeshInstance3D.new()
-			var cap := CapsuleMesh.new()
-			cap.radius = 0.3
-			cap.height = 1.6
-			mesh_inst.mesh = cap
-			mesh_inst.position.y = 0.8
-			add_child(mesh_inst)
-		
-		label = Label3D.new()
-		label.text = "🌿 Alquimista Botânica\n[E] Conversar"
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.font_size = 18
-		label.outline_size = 4
-		label.modulate = Color(0.7, 1.0, 0.8)
-		label.position.y = 1.95
-		label.visibility_range_end = 5.0
-		add_child(label)
-	
-	func talk_to(player: Node) -> void:
-		if player and player.has_signal("posture_changed"):
-			player.posture_changed.emit("🌿 Alquimista: 'Traga ervas e flores para cruzarmos cepas raras!'")
-
-
-## NPC Arquiteto e Mestre Construtor da Cidade
-class ArchitectNPC extends Node3D:
-	var label: Label3D
-	
-	func _ready() -> void:
-		add_to_group("talkable")
-		_build_visual()
-	
-	func _build_visual() -> void:
-		if CityHub.MALE_PEASANT_SCENE:
-			var model := CityHub.MALE_PEASANT_SCENE.instantiate() as Node3D
-			model.scale = Vector3.ONE * 0.95
-			add_child(model)
-		else:
-			var mesh_inst := MeshInstance3D.new()
-			var cap := CapsuleMesh.new()
-			cap.radius = 0.32
-			cap.height = 1.65
-			mesh_inst.mesh = cap
-			mesh_inst.position.y = 0.82
-			add_child(mesh_inst)
-		
-		label = Label3D.new()
-		label.text = "📐 Mestre Construtor\n[E] Conversar"
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.font_size = 18
-		label.outline_size = 4
-		label.modulate = Color(1.0, 0.85, 0.6)
-		label.position.y = 2.0
-		label.visibility_range_end = 5.0
-		add_child(label)
-	
-	func talk_to(player: Node) -> void:
-		if player and player.has_signal("posture_changed"):
-			player.posture_changed.emit("📐 Construtor: 'Aperte [B] para abrir o modo construção e fincar seu Totem na natureza!'")

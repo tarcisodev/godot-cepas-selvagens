@@ -26,14 +26,14 @@ const CLAIM_GAP: float = 6.0
 ## Áreas de Zona Selvagem (vazio até o mapa ter uma): { "center": Vector2, "radius": float, "name": String }
 const WILD_PVP_ZONES: Array[Dictionary] = []
 
-## Centro e raio da Cidade Principal (Vila da Esperança)
+## Centro e raio da Cidade Principal (Vila da Esperança); a paliçada fica em 13,5 m
 const CITY_CENTER: Vector2 = Vector2(1.5, 4.5)
-const CITY_RADIUS: float = 16.5
+const CITY_RADIUS: float = 14.0
 
 ## Centros de perigo (Arena de monstros e Morro da Besta)
 const DANGER_ZONES: Array[Dictionary] = [
-	{ "center": Vector2(-17.0, 6.0), "radius": 14.0, "name": "Arena de Teste" },
-	{ "center": Vector2(-3.5, -6.5), "radius": 9.5, "name": "Covil da Besta de Sucata" }
+	{ "center": Vector2(-27.0, 3.0), "radius": 10.0, "name": "Arena de Teste" },
+	{ "center": Vector2(-5.0, -11.0), "radius": 6.0, "name": "Covil da Besta de Sucata" }
 ]
 
 ## Totens de território ativos no mundo
@@ -55,14 +55,14 @@ func unregister_totem(totem: Node3D) -> void:
 func get_zone_at(pos: Vector3) -> ZoneType:
 	var p2 := Vector2(pos.x, pos.z)
 	
-	# 1. Cidade Principal
-	if p2.distance_to(CITY_CENTER) <= CITY_RADIUS:
-		return ZoneType.CITY
-	
-	# 2. Zonas de Perigo dos Monstros
+	# 1. Zonas de Perigo dos Monstros (antes da cidade: um covil na borda continua sendo covil)
 	for dz in DANGER_ZONES:
 		if p2.distance_to(dz["center"]) <= dz["radius"]:
 			return ZoneType.DANGER
+	
+	# 2. Cidade Principal
+	if p2.distance_to(CITY_CENTER) <= CITY_RADIUS:
+		return ZoneType.CITY
 	
 	# 3. Rio e Água Profunda
 	if RiverClass.is_in_water(pos):

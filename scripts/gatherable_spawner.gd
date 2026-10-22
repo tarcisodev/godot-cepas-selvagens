@@ -80,8 +80,8 @@ func _spawn_scattered(type: GatherableResourceClass.Type, count: int, min_dist: 
 		if dist_river < (river_hw + 1.2):
 			continue
 		
-		_create_node(type, x, z)
-		spawned += 1
+		if _create_node(type, x, z):
+			spawned += 1
 
 ## Concentra recursos ao longo da margem fértil do rio
 func _spawn_riparian(type: GatherableResourceClass.Type, count: int, min_river_dist: float, max_river_dist: float) -> void:
@@ -103,8 +103,8 @@ func _spawn_riparian(type: GatherableResourceClass.Type, count: int, min_river_d
 		if Vector2(x, z).length() < 7.0:
 			continue
 		
-		_create_node(type, x, z)
-		spawned += 1
+		if _create_node(type, x, z):
+			spawned += 1
 
 ## Gera pedras em encostas mais altas e penhascos
 func _spawn_slopes(type: GatherableResourceClass.Type, count: int) -> void:
@@ -124,26 +124,33 @@ func _spawn_slopes(type: GatherableResourceClass.Type, count: int) -> void:
 		if dist_river < (river_hw + 1.0):
 			continue
 		
-		_create_node(type, x, z)
-		spawned += 1
+		if _create_node(type, x, z):
+			spawned += 1
 
-## Gera ossos perto das zonas de perigo (Arena em -17, 6 e Morro da Besta em -3.5, -6.5)
+## Gera ossos perto das zonas de perigo (Arena em -27, 3 e Morro da Besta em -5, -11)
 func _spawn_hazardous(type: GatherableResourceClass.Type, count: int) -> void:
 	var centers: Array[Vector2] = [
-		Vector2(-17.0, 6.0),  # Arena
+		Vector2(-27.0, 3.0),  # Arena
 		Vector2(-6.0, -10.0), # Proximidades do morro da Besta
 		Vector2(-25.0, -35.0) # Penhasco
 	]
 	
-	for i in count:
+	var spawned: int = 0
+	var attempts: int = 0
+	while spawned < count and attempts < count * 8:
+		attempts += 1
 		var center: Vector2 = centers[_rng.randi() % centers.size()]
 		var offset_r := _rng.randf_range(3.0, 14.0)
 		var offset_a := _rng.randf_range(0.0, TAU)
 		var x: float = center.x + cos(offset_a) * offset_r
 		var z: float = center.y + sin(offset_a) * offset_r
-		_create_node(type, x, z)
+		if _create_node(type, x, z):
+			spawned += 1
 
 func _create_node(type: GatherableResourceClass.Type, x: float, z: float) -> GatherableResource:
+	# Nada nasce dentro da paliçada, no meio das obras da vila
+	if CityHub.in_village(x, z):
+		return null
 	var y: float = _get_ground_y(x, z)
 	var res := GatherableResourceClass.new()
 	res.type = type

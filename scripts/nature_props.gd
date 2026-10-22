@@ -165,7 +165,7 @@ func _spawn_trees() -> void:
 		var dist: float = rng.randf_range(hw + 1.5, hw + 15.0)
 		var x: float = rx + (side * dist)
 
-		if Vector2(x, z).length() < 7.0:
+		if CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)
@@ -179,7 +179,7 @@ func _spawn_trees() -> void:
 		var z: float = rng.randf_range(-70.0, 70.0)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
-		if dist_river < 15.0 or Vector2(x, z).length() < 9.0:
+		if dist_river < 15.0 or CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)
@@ -220,7 +220,7 @@ func _spawn_bushes() -> void:
 	for i in range(bush_count):
 		var x: float = rng.randf_range(-65.0, 65.0)
 		var z: float = rng.randf_range(-65.0, 65.0)
-		if Vector2(x, z).length() < 7.0 or RiverClass.get_distance_to_river(x, z) < 4.0:
+		if CityHub.in_village(x, z) or RiverClass.get_distance_to_river(x, z) < 4.0:
 			continue
 		var ground_y: float = _get_ground_y(x, z)
 		if ground_y > 14.0:
@@ -261,7 +261,7 @@ func _spawn_rocks() -> void:
 		var z: float = rng.randf_range(-70.0, 70.0)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
-		if dist_river < 3.5 or Vector2(x, z).length() < 6.0:
+		if dist_river < 3.5 or CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)

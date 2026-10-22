@@ -107,7 +107,7 @@ day_night = NodePath("../Sun")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 
 [node name="DummyCreature" parent="." instance=ExtResource("14_dummy")]
-transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -3.5, 1.2, -6.5)
+transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -5, 0, -11)
 
 [node name="WeaponTrainer" parent="." instance=ExtResource("17_trainer")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6.2)
@@ -120,7 +120,7 @@ transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, 3.2, 0, 3.
 script = ExtResource("28_chest")
 
 [node name="MonsterArena" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -17, 0, 6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -27, 0, 3)
 script = ExtResource("18_arena")
 landscape = NodePath("../Landscape")
 spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton"), ExtResource("21_bat"), ExtResource("19_slime"), ExtResource("20_skeleton")])

@@ -2,7 +2,7 @@ extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
 # Guarda: nome, posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas, objetivos
-# e construções (totens e peças).
+# construções (totens e peças) e obras da vila com a Reputação.
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
 
@@ -108,6 +108,9 @@ func collect(player: Node) -> Dictionary:
 		data["objectives"] = objectives.get_state()
 	if player.is_inside_tree():
 		data["structures"] = BuildingSystemClass.collect_structures(player.get_tree())
+		var city := player.get_tree().get_first_node_in_group("city_hub")
+		if city:
+			data["town"] = city.get_state()
 	return data
 
 func save_game() -> bool:
@@ -192,6 +195,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var world := player.get_parent()
 	if world and data.has("structures"):
 		BuildingSystemClass.restore_structures(world, data["structures"])
+	# Obras da vila e Reputação (GDD-08 §6.1)
+	var city := player.get_tree().get_first_node_in_group("city_hub") if player.is_inside_tree() else null
+	if city and data.has("town"):
+		city.apply_state(data["town"])
 	loaded.emit()
 
 # O player é filho direto do mundo; fora da árvore só a posição local existe

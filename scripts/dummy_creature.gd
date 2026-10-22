@@ -60,6 +60,14 @@ func _ready() -> void:
 			cv.attach_to_bone(visual_horn, &"Head")
 
 	_update_label()
+	_snap_to_ground.call_deferred()
+
+## A besta não tem gravidade: assenta no relevo onde foi posta (o morro não é plano).
+func _snap_to_ground() -> void:
+	var scene := get_tree().current_scene if is_inside_tree() else null
+	var landscape := scene.get_node_or_null("Landscape") if scene else null
+	if landscape and landscape.has_method("get_height_at"):
+		global_position.y = landscape.get_height_at(global_position.x, global_position.z)
 
 func _setup_components() -> void:
 	if stats == null:

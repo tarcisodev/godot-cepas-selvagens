@@ -49,8 +49,8 @@ func test_zone_manager_rules() -> void:
 	assert(zm.get_zone_at(wild_pos) == ZoneManagerClass.ZoneType.WILDERNESS, "Deve ser Zona Selvagem")
 	assert(zm.can_combat_at(wild_pos), "Combate deve ser liberado na Natureza")
 	
-	# Posição de Perigo (Arena em -17, 6)
-	var arena_pos := Vector3(-17.0, 0.0, 6.0)
+	# Posição de Perigo (Arena em -27, 3)
+	var arena_pos := Vector3(-27.0, 0.0, 3.0)
 	assert(zm.get_zone_at(arena_pos) == ZoneManagerClass.ZoneType.DANGER, "Arena deve ser Zona de Perigo")
 	
 	# Tentativa de construir na Cidade sem permissão
