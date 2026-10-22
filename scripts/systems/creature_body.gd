@@ -18,6 +18,8 @@ var _fins: Array[Node3D] = []
 var _tail: Node3D
 var _head: Node3D
 var _torso: Node3D
+## Cabeça baixa (bebendo ou pastando)
+var head_down: bool = false
 var _phase: float = 0.0
 var _flap: float = 0.0
 var _batches: Dictionary = {}  # pivô -> SurfaceTool
@@ -63,7 +65,8 @@ func animate(delta: float, speed: float, climb: float = 0.0, airborne: bool = fa
 				_legs[i].rotation.x = sin(_phase + offset) * swing
 			_torso.position.y = absf(sin(_phase)) * swing * 0.06 * f + sin(t * 1.6) * 0.008
 			if _head:
-				_head.rotation.x = sin(_phase * 2.0) * swing * 0.12 + (0.25 if speed < 0.3 and fmod(t, 9.0) < 3.0 else 0.0)
+				var target_x := 0.95 if head_down else sin(_phase * 2.0) * swing * 0.12 + (0.25 if speed < 0.3 and fmod(t, 9.0) < 3.0 else 0.0)
+				_head.rotation.x = lerpf(_head.rotation.x, target_x, minf(1.0, delta * 6.0))
 			if _tail:
 				_tail.rotation.y = sin(t * 2.3) * 0.35
 		CreatureDNA.Plan.BIRD:

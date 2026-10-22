@@ -11,16 +11,16 @@ const RiverClass = preload("res://scripts/river_system.gd")
 @export var landscape: MeshInstance3D
 
 @export_group("Quantidades de Recursos")
-@export var count_madeira: int = 14
-@export var count_galho: int = 24
-@export var count_folha: int = 20
-@export var count_fibra: int = 22
-@export var count_pedra: int = 25
-@export var count_frutinha: int = 18
-@export var count_besouro: int = 12
-@export var count_ossos: int = 10
-@export var count_erva: int = 20
-@export var count_mel: int = 8
+@export var count_madeira: int = 28
+@export var count_galho: int = 48
+@export var count_folha: int = 40
+@export var count_fibra: int = 44
+@export var count_pedra: int = 50
+@export var count_frutinha: int = 30
+@export var count_besouro: int = 24
+@export var count_ossos: int = 20
+@export var count_erva: int = 40
+@export var count_mel: int = 16
 
 var _rng := RandomNumberGenerator.new()
 
@@ -33,18 +33,18 @@ func _ready() -> void:
 
 func spawn_all_resources() -> void:
 	# 1. Galhos e Folhas (espalhados pela vegetação e clareiras)
-	_spawn_scattered(GatherableResourceClass.Type.GALHO, count_galho, 10.0, 75.0)
-	_spawn_scattered(GatherableResourceClass.Type.FOLHA, count_folha, 8.0, 70.0)
+	_spawn_scattered(GatherableResourceClass.Type.GALHO, count_galho, 10.0, WorldBounds.HALF * 0.85)
+	_spawn_scattered(GatherableResourceClass.Type.FOLHA, count_folha, 8.0, WorldBounds.HALF * 0.8)
 	
 	# 2. Madeira (troncos caídos em clareiras e bordas de mata)
-	_spawn_scattered(GatherableResourceClass.Type.MADEIRA, count_madeira, 12.0, 65.0)
+	_spawn_scattered(GatherableResourceClass.Type.MADEIRA, count_madeira, 12.0, WorldBounds.HALF * 0.8)
 	
 	# 3. Fibras e Ervas (concentradas perto da margem do rio e mata ciliar)
 	_spawn_riparian(GatherableResourceClass.Type.FIBRA, count_fibra, 2.5, 9.0)
 	_spawn_riparian(GatherableResourceClass.Type.ERVA, count_erva, 3.0, 14.0)
 	
 	# 4. Frutinhas (arbustos nas transições do vale)
-	_spawn_scattered(GatherableResourceClass.Type.FRUTINHA, count_frutinha, 14.0, 60.0)
+	_spawn_scattered(GatherableResourceClass.Type.FRUTINHA, count_frutinha, 14.0, WorldBounds.HALF * 0.75)
 	
 	# 5. Pedras (colinas, encostas rochosas e cascalho)
 	_spawn_slopes(GatherableResourceClass.Type.PEDRA, count_pedra)
@@ -56,7 +56,7 @@ func spawn_all_resources() -> void:
 	_spawn_hazardous(GatherableResourceClass.Type.OSSOS, count_ossos)
 	
 	# 8. Mel (em árvores e clareiras ensolaradas)
-	_spawn_scattered(GatherableResourceClass.Type.MEL, count_mel, 15.0, 65.0)
+	_spawn_scattered(GatherableResourceClass.Type.MEL, count_mel, 15.0, WorldBounds.HALF * 0.8)
 
 func _get_ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
@@ -89,7 +89,7 @@ func _spawn_riparian(type: GatherableResourceClass.Type, count: int, min_river_d
 	var attempts: int = 0
 	while spawned < count and attempts < count * 8:
 		attempts += 1
-		var z := _rng.randf_range(-70.0, 70.0)
+		var z := _rng.randf_range(-WorldBounds.HALF * 0.85, WorldBounds.HALF * 0.85)
 		# Pula o penhasco vertical da cachoeira
 		if z >= (RiverClass.WATERFALL_Z - 3.0) and z <= (RiverClass.WATERFALL_Z + 4.0):
 			continue
@@ -112,8 +112,8 @@ func _spawn_slopes(type: GatherableResourceClass.Type, count: int) -> void:
 	var attempts: int = 0
 	while spawned < count and attempts < count * 8:
 		attempts += 1
-		var x := _rng.randf_range(-70.0, 70.0)
-		var z := _rng.randf_range(-75.0, 65.0)
+		var x := _rng.randf_range(-WorldBounds.HALF * 0.85, WorldBounds.HALF * 0.85)
+		var z := _rng.randf_range(-WorldBounds.HALF * 0.85, WorldBounds.HALF * 0.85)
 		var y := _get_ground_y(x, z)
 		
 		if landscape != null and y < 1.0 and _rng.randf() > 0.35:

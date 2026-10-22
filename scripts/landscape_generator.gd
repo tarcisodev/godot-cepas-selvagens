@@ -10,8 +10,8 @@ const RiverClass = preload("res://scripts/river_system.gd")
 const RIVER_SHADER: Shader = preload("res://materials/river_water.gdshader")
 const WATERFALL_SHADER: Shader = preload("res://materials/waterfall.gdshader")
 
-@export var terrain_size: Vector2 = Vector2(180.0, 180.0)
-@export var subdivisions: Vector2i = Vector2i(120, 120)
+@export var terrain_size: Vector2 = Vector2(WorldBounds.HALF * 2.0, WorldBounds.HALF * 2.0)
+@export var subdivisions: Vector2i = Vector2i(300, 300)
 @export var max_height: float = 7.5
 @export var noise_frequency: float = 0.016
 
@@ -47,7 +47,15 @@ func get_height_at(x: float, z: float) -> float:
 	# 1. Base procedural suave
 	var dist_from_center: float = Vector2(x, z).length()
 	var center_clearing_factor: float = clamp((dist_from_center - 6.0) / 22.0, 0.0, 1.0)
-	var h: float = noise.get_noise_2d(x, z) * max_height * center_clearing_factor
+	# Longe do vale central o relevo fica mais bravo (o mapa dobrou de lado)
+	var wild_factor: float = 1.0 + clamp((dist_from_center - 90.0) / 90.0, 0.0, 1.0) * 1.3
+	var h: float = noise.get_noise_2d(x, z) * max_height * center_clearing_factor * wild_factor
+
+	# Picos e serras novos nas terras de fora: [x, z, raio, altura]
+	for peak in [[95.0, 115.0, 45.0, 15.0], [135.0, -55.0, 55.0, 12.0], [-115.0, 95.0, 42.0, 10.0], [-130.0, -120.0, 50.0, 13.0]]:
+		var dp: float = Vector2(x - peak[0], z - peak[1]).length()
+		if dp < peak[2]:
+			h += pow(1.0 - dp / peak[2], 1.6) * peak[3]
 
 	# 2. O Grande Pico (Noroeste: X ~ -28, Z ~ -52)
 	var dist_to_peak: float = Vector2(x - (-28.0), z - (-52.0)).length()
@@ -62,22 +70,33 @@ func get_height_at(x: float, z: float) -> float:
 		var plateau_factor: float = clamp((waterfall_z - z) / 8.0, 0.0, 1.0)
 		h += plateau_factor * 8.2
 
-	# 4. Leito do Rio e Cachoeira
+	# 4. Leito do Rio e Cachoeira: corte em "U" com margem nítida.
+	# t = distância ao centro / meia-largura da água. t < 1: fundo em curva até `depth` abaixo
+	# da superfície; 1 ≤ t < BANK_END: barranco que sobe acima da água e encontra o relevo.
 	var river_center_x: float = RiverClass.get_river_center_x(z)
 	var dist_river: float = abs(x - river_center_x)
 	var water_half_w: float = RiverClass.get_water_half_width(z)
-	var in_river_t: float = dist_river / (water_half_w * 1.35)
-
-	if in_river_t < 1.0:
-		var carve_factor: float = 0.5 * (1.0 + cos(in_river_t * PI))
-		var bed_target_y: float = RiverClass.LOWER_BED_Y
+	var t: float = dist_river / water_half_w
+	const BANK_END: float = 1.6
+	if t < BANK_END:
+		var surface: float = RiverClass.get_water_height(z) - RiverClass.flood # relevo não muda com a cheia
+		var depth: float = 2.8
 		if z < (waterfall_z - 3.0):
-			bed_target_y = RiverClass.UPPER_BED_Y
+			depth = 1.8
 		elif z <= (waterfall_z + 8.0):
-			# Bacia profunda da cachoeira onde a água cai
-			bed_target_y = -3.2
-
-		h = lerp(h, bed_target_y, carve_factor)
+			depth = 3.6 # bacia funda onde a água cai
+		if t < 1.0:
+			# Fundo: borda já submersa (0,25 m) descendo em curva até o meio
+			var bed: float = surface - 0.25 - (depth - 0.25) * pow(1.0 - t * t, 0.7)
+			h = minf(bed, surface - 0.25)
+		else:
+			# Barranco: sai de baixo d'água e sobe pelo menos 0,45 m acima dela
+			var bank_top: float = maxf(h, surface + 0.45)
+			var k: float = smoothstep(1.0, BANK_END, t)
+			h = lerpf(surface - 0.25, bank_top, sqrt(k))
+	elif t < 2.4:
+		# Várzea: chão baixo ao lado do rio, que só alaga na cheia
+		h = maxf(h, RiverClass.get_water_height(z) - RiverClass.flood + 0.3)
 
 	return h
 
@@ -91,6 +110,14 @@ func generate_landscape() -> void:
 	var step_x: float = terrain_size.x / float(subdivisions.x)
 	var step_z: float = terrain_size.y / float(subdivisions.y)
 
+	# Altura de cada vértice calculada uma vez só (cada um é compartilhado por 4 quadrados)
+	var heights := PackedFloat32Array()
+	heights.resize((subdivisions.x + 1) * (subdivisions.y + 1))
+	for zi in range(subdivisions.y + 1):
+		for xi in range(subdivisions.x + 1):
+			heights[zi * (subdivisions.x + 1) + xi] = get_height_at(-half_size.x + xi * step_x, -half_size.y + zi * step_z)
+	var row: int = subdivisions.x + 1
+
 	for z_idx in range(subdivisions.y):
 		for x_idx in range(subdivisions.x):
 			var x0: float = -half_size.x + x_idx * step_x
@@ -98,10 +125,10 @@ func generate_landscape() -> void:
 			var z0: float = -half_size.y + z_idx * step_z
 			var z1: float = z0 + step_z
 
-			var y00: float = get_height_at(x0, z0)
-			var y10: float = get_height_at(x1, z0)
-			var y01: float = get_height_at(x0, z1)
-			var y11: float = get_height_at(x1, z1)
+			var y00: float = heights[z_idx * row + x_idx]
+			var y10: float = heights[z_idx * row + x_idx + 1]
+			var y01: float = heights[(z_idx + 1) * row + x_idx]
+			var y11: float = heights[(z_idx + 1) * row + x_idx + 1]
 
 			var v00: Vector3 = Vector3(x0, y00, z0)
 			var v10: Vector3 = Vector3(x1, y10, z0)
@@ -202,7 +229,7 @@ func _add_wall_shape(parent: StaticBody3D, center: Vector3, size: Vector3) -> vo
 func _build_river_and_waterfall() -> void:
 	# Remover água antiga se houver
 	for child in get_children():
-		if child.name == "RiverWater" or child.name == "Waterfall":
+		if child.name in ["RiverWater", "Waterfall", "WaterfallSplash", "RiverRocks"]:
 			child.queue_free()
 
 	# 1. Rio Horizontal (Superior, Lagoa e Inferior)
@@ -221,15 +248,17 @@ func _build_river_and_waterfall() -> void:
 		var z1: float = z0 + step_z
 
 		# Pula a abertura exata da queda vertical (ela será a malha da cachoeira)
-		if z0 >= (RiverClass.WATERFALL_Z - 1.0) and z1 <= (RiverClass.WATERFALL_Z + 1.0):
+		if z1 >= (RiverClass.WATERFALL_Z - 1.8) and z0 <= (RiverClass.WATERFALL_Z + 1.8):
 			continue
 
 		var cx0: float = RiverClass.get_river_center_x(z0)
 		var cx1: float = RiverClass.get_river_center_x(z1)
-		var hw0: float = RiverClass.get_water_half_width(z0)
-		var hw1: float = RiverClass.get_water_half_width(z1)
-		var y0: float = RiverClass.get_water_height(z0)
-		var y1: float = RiverClass.get_water_height(z1)
+		# Um pouco mais larga que a água "oficial": a borda some debaixo do barranco
+		# Larga até a várzea: na vazante a borda some debaixo do barranco; na cheia cobre a várzea
+		var hw0: float = RiverClass.get_water_half_width(z0) * 2.2
+		var hw1: float = RiverClass.get_water_half_width(z1) * 2.2
+		var y0: float = RiverClass.get_water_height(z0) - RiverClass.flood
+		var y1: float = RiverClass.get_water_height(z1) - RiverClass.flood
 
 		var l0: Vector3 = Vector3(cx0 - hw0, y0, z0)
 		var r0: Vector3 = Vector3(cx0 + hw0, y0, z0)
@@ -268,7 +297,7 @@ func _build_river_and_waterfall() -> void:
 
 	var wf_z: float = RiverClass.WATERFALL_Z
 	var wf_x: float = RiverClass.get_river_center_x(wf_z)
-	var wf_w: float = 4.8 # Largura da queda
+	var wf_w: float = RiverClass.get_water_half_width(wf_z - 2.0) * 2.2 # Largura da queda
 	var top_y: float = RiverClass.UPPER_WATER_Y
 	var bot_y: float = RiverClass.LOWER_WATER_Y
 
@@ -310,3 +339,83 @@ func _build_river_and_waterfall() -> void:
 	waterfall_instance.add_child(mist_light)
 
 	add_child(waterfall_instance)
+	_build_splash(Vector3(wf_x, bot_y + 0.2, wf_z + 1.8), wf_w)
+	_scatter_river_rocks()
+
+## Respingo e névoa no pé da cachoeira
+func _build_splash(pos: Vector3, width: float) -> void:
+	var splash := CPUParticles3D.new()
+	splash.name = "WaterfallSplash"
+	splash.position = pos
+	splash.amount = 90
+	splash.lifetime = 1.4
+	splash.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	splash.emission_box_extents = Vector3(width * 0.45, 0.1, 0.8)
+	splash.direction = Vector3(0, 1, 0.4)
+	splash.spread = 35.0
+	splash.initial_velocity_min = 1.5
+	splash.initial_velocity_max = 3.5
+	splash.gravity = Vector3(0, -3.0, 0)
+	splash.scale_amount_min = 0.4
+	splash.scale_amount_max = 1.1
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.6, 0.6)
+	var m := StandardMaterial3D.new()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_color = Color(0.92, 0.97, 1.0, 0.35)
+	quad.material = m
+	splash.mesh = quad
+	splash.color_ramp = Gradient.new()
+	splash.color_ramp.set_color(0, Color(1, 1, 1, 0.9))
+	splash.color_ramp.set_color(1, Color(1, 1, 1, 0.0))
+	add_child(splash)
+
+## Pedras nas margens e no paredão da cachoeira (posições determinísticas pela seed do ruído)
+func _scatter_river_rocks() -> void:
+	var rocks: Array[PackedScene] = []
+	for i in [1, 2, 3]:
+		var path := "res://assets/models/nature/Rock_Medium_%d.gltf" % i
+		if ResourceLoader.exists(path):
+			rocks.append(load(path))
+	var pebbles: Array[PackedScene] = []
+	for i in [1, 2, 3, 4, 5]:
+		var path := "res://assets/models/nature/Pebble_Round_%d.gltf" % i
+		if ResourceLoader.exists(path):
+			pebbles.append(load(path))
+	if rocks.is_empty():
+		return
+	var holder := Node3D.new()
+	holder.name = "RiverRocks"
+	add_child(holder)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7331
+	var half_z: float = terrain_size.y * 0.5
+	var z := -half_z + 4.0
+	while z < half_z - 4.0:
+		z += rng.randf_range(2.5, 5.5)
+		var near_fall: bool = absf(z - RiverClass.WATERFALL_Z) < 4.0
+		var side: float = -1.0 if rng.randf() < 0.5 else 1.0
+		var hw: float = RiverClass.get_water_half_width(z)
+		var t: float = rng.randf_range(0.85, 1.35)
+		var x: float = RiverClass.get_river_center_x(z) + side * hw * t
+		if CityHub.in_village(x, z, 0.0) and not near_fall:
+			continue
+		var big: bool = near_fall or rng.randf() < 0.45
+		var scene: PackedScene = rocks[rng.randi() % rocks.size()] if big or pebbles.is_empty() else pebbles[rng.randi() % pebbles.size()]
+		var rock := scene.instantiate() as Node3D
+		rock.position = Vector3(x, get_height_at(x, z) - 0.15, z)
+		rock.rotation = Vector3(rng.randf_range(-0.2, 0.2), rng.randf() * TAU, rng.randf_range(-0.2, 0.2))
+		rock.scale = Vector3.ONE * (rng.randf_range(0.8, 1.6) if big else rng.randf_range(1.5, 3.0))
+		holder.add_child(rock)
+		if near_fall:
+			# Paredão: mais pedras subindo pela queda
+			for k in 3:
+				var rz := RiverClass.WATERFALL_Z + rng.randf_range(-1.5, 1.5)
+				var rx := RiverClass.get_river_center_x(rz) + side * rng.randf_range(hw * 0.8, hw * 1.4)
+				var r2 := rocks[rng.randi() % rocks.size()].instantiate() as Node3D
+				r2.position = Vector3(rx, get_height_at(rx, rz) - 0.2, rz)
+				r2.rotation.y = rng.randf() * TAU
+				r2.scale = Vector3.ONE * rng.randf_range(1.2, 2.2)
+				holder.add_child(r2)

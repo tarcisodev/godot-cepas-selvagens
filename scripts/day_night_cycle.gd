@@ -19,6 +19,15 @@ class_name DayNightCycle
 @export var night_energy: float = 0.22
 
 var current_time_hours: float = 8.0 # 0.0 a 24.0
+## Dias corridos desde o começo do jogo (vira a cada meia-noite)
+var day_count: int = 0
+## Ciclo da lua (GDD-10 §2.1): 28 dias de jogo; 0 = nova, 0,5 = cheia
+const MOON_CYCLE_DAYS: float = 28.0
+const MOON_PHASE_NAMES: Array[String] = ["Lua nova", "Lua crescente", "Quarto crescente", "Crescente gibosa", "Lua cheia", "Minguante gibosa", "Quarto minguante", "Lua minguante"]
+const MOON_PHASE_ICONS: Array[String] = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘"]
+
+## Céu fechado (0–1), escrito pelo WeatherSystem: nuvens tiram luz e sombra do sol (GDD-10 §2)
+var overcast: float = 0.0
 
 func _ready() -> void:
 	current_time_hours = start_time_hour
@@ -28,7 +37,10 @@ func _process(delta: float) -> void:
 	if not is_paused:
 		# Avança o tempo
 		var hours_per_second: float = 24.0 / max(1.0, day_length_seconds)
-		current_time_hours = fposmod(current_time_hours + hours_per_second * delta, 24.0)
+		var next_hours: float = current_time_hours + hours_per_second * delta
+		if next_hours >= 24.0:
+			day_count += 1
+		current_time_hours = fposmod(next_hours, 24.0)
 		_update_sun_position_and_lighting()
 
 func _update_sun_position_and_lighting() -> void:
@@ -56,9 +68,34 @@ func _update_sun_position_and_lighting() -> void:
 		light_color = noon_color.lerp(dusk_color, t)
 		light_energy = lerp(day_energy, 0.4, t)
 	else:
-		# Noite / Luar
-		light_color = night_color
-		light_energy = night_energy
+		# Noite / Luar: a fase da lua decide a claridade (cheia ilumina, nova quase escuro)
+		var illum := moon_illumination()
+		light_color = night_color.lerp(Color(0.62, 0.68, 0.85), illum * 0.5)
+		light_energy = night_energy * (0.2 + 0.8 * illum)
+
+	# Nuvens: luz mais fraca e acinzentada, sombras mais suaves
+	if overcast > 0.0:
+		light_energy *= 1.0 - overcast * 0.6
+		light_color = light_color.lerp(Color(0.72, 0.76, 0.82), overcast * 0.6)
+		shadow_opacity = 1.0 - overcast * 0.7
+
+## Fase da lua de 0 a 1 (0 = nova, 0,5 = cheia)
+func moon_phase() -> float:
+	return fposmod((day_count + current_time_hours / 24.0) / MOON_CYCLE_DAYS, 1.0)
+
+## Fração iluminada do disco (0 na nova, 1 na cheia)
+func moon_illumination() -> float:
+	return (1.0 - cos(moon_phase() * TAU)) * 0.5
+
+func moon_phase_index() -> int:
+	return int(round(moon_phase() * 8.0)) % 8
+
+func moon_phase_name() -> String:
+	return MOON_PHASE_ICONS[moon_phase_index()] + " " + MOON_PHASE_NAMES[moon_phase_index()]
+
+## Ângulo do sol no céu (graus): 0 = nascente, 90 = zênite
+func sun_angle_deg() -> float:
+	return ((current_time_hours - 6.0) / 24.0) * 360.0
 
 func get_formatted_time() -> String:
 	var hours: int = int(current_time_hours)

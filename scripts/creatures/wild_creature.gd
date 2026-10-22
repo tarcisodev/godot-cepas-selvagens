@@ -6,6 +6,9 @@ extends Node3D
 ## Planador, Saltarelo) têm Vida e hurtbox: apanham, fogem, ficam Exaustos abaixo de 20% e podem
 ## ser presos (Laço de Fibra) e sedados (Sedativo de Erva). Morto, vira corpo para esfolar.
 ## Só fogem — nunca atacam (decisão do Tarciso).
+## Ciclo de vida (GDD-10 §5): fome e sede sobem; com sede vai beber na margem do rio, com fome
+## come fruta caída, arbusto/árvore com fruto ou pasta; adultos alimentados se reproduzem
+## (filhote por CreatureDNA.cross); morre de velhice ou de penúria e vira nutriente.
 
 signal removed(creature: WildCreature)
 signal captured(creature: WildCreature, player: Node)
@@ -20,6 +23,12 @@ const SEDATE_TIME: float = 3.0
 const LASSO_RANGE: float = 6.0
 const SEDATE_RANGE: float = 2.6
 const CORPSE_LIFETIME: float = 300.0
+## Necessidades por dia de jogo e idades (dias)
+const HUNGER_RATE: float = 1.2
+const THIRST_RATE: float = 1.6
+const ADULT_AGE: float = 1.5
+const BREED_COOLDOWN: float = 2.0
+const DAY_SECONDS: float = 300.0
 ## Vida por espécie de caça (GDD-03 §9.1); quem não está aqui não apanha
 const HEALTH: Dictionary = {
 	CreatureDNA.Species.TROTADOR: 120.0, CreatureDNA.Species.PLANADOR: 90.0, CreatureDNA.Species.SALTARELO: 25.0,
@@ -37,6 +46,18 @@ var pools: PoolsComponent
 var harvest_queue: Array[Dictionary] = []
 ## Prioridade online (GDD-03 §9.2): quem prendeu tem 60 s sobre o bicho
 var trapped_by: Node = null
+## Vida e necessidades (0–1)
+var hunger: float = 0.2
+var thirst: float = 0.2
+var age_days: float = 4.0
+var lifespan_days: float = 15.0
+var breed_cooldown: float = 0.0
+var _starving: float = 0.0
+## Ação de necessidade em curso: "", "drink", "eat", "graze"
+var _need: String = ""
+var _need_target: Node3D
+var _need_timer: float = 0.0
+var _breed_check: float = 0.0
 
 var _target: Vector3
 var _speed: float = 0.0
@@ -62,6 +83,8 @@ func _ready() -> void:
 	home = global_position
 	_target = home
 	_angle = _rng.randf() * TAU
+	lifespan_days = _rng.randf_range(12.0, 18.0)
+	breed_cooldown = _rng.randf_range(0.0, BREED_COOLDOWN)
 	_altitude = _rng.randf_range(10.0, 20.0)
 	var scene := get_tree().current_scene if is_inside_tree() else null
 	_landscape = scene.get_node_or_null("Landscape") if scene else null
@@ -248,6 +271,11 @@ func harvest_next(harvester: Node = null) -> String:
 	return e.label
 
 func _remove() -> void:
+	# Corpo que apodrece devolve nutriente ao solo (GDD-10 §5)
+	if state == State.DEAD:
+		var eco := get_tree().get_first_node_in_group("ecology") if is_inside_tree() else null
+		if eco:
+			eco.deposit(global_position, 0.25)
 	remove_from_group("harvestable")
 	removed.emit(self)
 	queue_free()
@@ -291,6 +319,9 @@ func _process(delta: float) -> void:
 				return
 			_exhausted_walk(delta)
 			return
+	if dna.plan() == CreatureDNA.Plan.QUADRUPED:
+		if _live(delta):
+			return
 	match dna.plan():
 		CreatureDNA.Plan.QUADRUPED:
 			_walk(delta)
@@ -323,6 +354,141 @@ func _walk(delta: float) -> void:
 	var hop := absf(sin(Time.get_ticks_msec() / 120.0)) * 0.25 if small and _speed > 1.0 else 0.0
 	_ground_snap(hop)
 	body.animate(delta, _speed)
+
+# ---------------------------------------------------------------- necessidades (GDD-10 §5)
+
+## Envelhece, sente fome e sede e age sobre elas. Devolve true se tratou o frame (beber/comer).
+func _live(delta: float) -> bool:
+	var days := delta / DAY_SECONDS
+	age_days += days
+	hunger = minf(1.0, hunger + days * HUNGER_RATE)
+	thirst = minf(1.0, thirst + days * THIRST_RATE)
+	breed_cooldown = maxf(0.0, breed_cooldown - days)
+	body.scale = Vector3.ONE * clampf(0.55 + 0.45 * age_days / ADULT_AGE, 0.55, 1.0)
+	_starving = _starving + days if hunger >= 1.0 or thirst >= 1.0 else 0.0
+	if age_days > lifespan_days or _starving > 1.0:
+		_die(false)
+		return true
+	if state != State.WANDER:
+		_need = ""
+		body.head_down = false
+		return false
+	_breed_check -= delta
+	if _need.is_empty() and _breed_check <= 0.0:
+		_breed_check = 2.0
+		_try_breed()
+	if _need.is_empty():
+		if thirst > 0.6:
+			_start_drink()
+		elif hunger > 0.6:
+			_start_eat()
+	if _need.is_empty():
+		return false
+	return _do_need(delta)
+
+func _start_drink() -> void:
+	var z := global_position.z
+	var cx := RiverSystem.get_river_center_x(z)
+	var side := 1.0 if global_position.x >= cx else -1.0
+	_target = Vector3(cx + side * (RiverSystem.get_water_half_width(z) + 0.9), 0, z)
+	_need = "drink"
+	_need_timer = 4.0
+
+func _start_eat() -> void:
+	_need_target = _nearest_food(16.0)
+	if _need_target:
+		_target = _need_target.global_position
+		_need = "eat"
+		_need_target.set_meta("claimed", true)
+	else:
+		_need = "graze"
+	_need_timer = 4.0
+
+func _do_need(delta: float) -> bool:
+	var to := _target - global_position
+	to.y = 0.0
+	var arrive := 1.4 if _need == "eat" else 0.8
+	if _need != "graze" and to.length() > arrive:
+		body.head_down = false
+		_move_toward_target(delta, 1.6)
+		_ground_snap(0.0)
+		body.animate(delta, _speed)
+		return true
+	# Chegou: cabeça baixa por alguns segundos
+	_speed = 0.0
+	body.head_down = true
+	_need_timer -= delta
+	_ground_snap(0.0)
+	body.animate(delta, 0.0)
+	if _need_timer <= 0.0:
+		match _need:
+			"drink":
+				thirst = 0.0
+			"eat":
+				# Outro bicho pode ter comido antes: aí só pastou
+				if is_instance_valid(_need_target) and not _need_target.is_queued_for_deletion():
+					_consume(_need_target)
+					hunger = maxf(0.0, hunger - 0.7)
+				else:
+					hunger = maxf(0.0, hunger - 0.4)
+			"graze":
+				hunger = maxf(0.0, hunger - 0.5)
+		_need = ""
+		_need_target = null
+		body.head_down = false
+		_target = _pick_ground_target()
+	return true
+
+## Fruta caída no chão, ou arbusto/árvore com fruto, mais perto que `max_dist`
+func _nearest_food(max_dist: float) -> Node3D:
+	var best: Node3D = null
+	var best_d := max_dist
+	for n in get_tree().get_nodes_in_group("fallen_fruit"):
+		var f := n as Node3D
+		if f and not f.is_queued_for_deletion() and not f.get("is_collected") and not f.has_meta("claimed"):
+			var d := f.global_position.distance_to(global_position)
+			if d < best_d:
+				best = f
+				best_d = d
+	if best:
+		return best
+	for n in get_tree().get_nodes_in_group("plants"):
+		var p := n as PlantBody
+		if p and p.stage == PlantBody.Stage.FRUTO and p.dna.kind != PlantDNA.Kind.CEPA:
+			var d := p.global_position.distance_to(global_position)
+			if d < best_d:
+				best = p
+				best_d = d
+	return best
+
+func _consume(food: Object) -> void:
+	if food == null or not is_instance_valid(food):
+		return
+	if food is PlantBody:
+		# Comeu os frutos: a planta volta a adulta
+		(food as PlantBody).stage = PlantBody.Stage.ADULTA
+		(food as PlantBody).build()
+	else:
+		food.queue_free()
+
+## Adulto, alimentado, sem filhote recente, com um par da mesma espécie por perto
+func _try_breed() -> void:
+	if age_days < ADULT_AGE or breed_cooldown > 0.0 or hunger > 0.4 or thirst > 0.4:
+		return
+	var spawner := get_parent()
+	if spawner == null or not spawner.has_method("spawn_offspring"):
+		return
+	for n in get_tree().get_nodes_in_group("wild_creatures"):
+		var other := n as WildCreature
+		if other == null or other == self or other.dna.species != dna.species or not other.is_alive():
+			continue
+		if other.age_days < ADULT_AGE or other.breed_cooldown > 0.0 or other.global_position.distance_to(global_position) > 8.0:
+			continue
+		if spawner.spawn_offspring(self, other):
+			breed_cooldown = BREED_COOLDOWN
+			other.breed_cooldown = BREED_COOLDOWN
+			hunger += 0.2
+		return
 
 func _exhausted_walk(delta: float) -> void:
 	# Exausto: arrasta-se devagar (a ave pousa), não foge mais

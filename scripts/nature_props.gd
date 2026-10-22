@@ -7,11 +7,11 @@ class_name NatureProps
 const RiverClass = preload("res://scripts/river_system.gd")
 
 @export var landscape: MeshInstance3D
-@export var riparian_tree_count: int = 38
-@export var hill_tree_count: int = 24
-@export var bush_count: int = 36
-@export var rock_count: int = 30
-@export var mushroom_cluster_count: int = 22
+@export var riparian_tree_count: int = 70
+@export var hill_tree_count: int = 50
+@export var bush_count: int = 60
+@export var rock_count: int = 60
+@export var mushroom_cluster_count: int = 35
 
 # Cenas dos modelos 3D Stylized Nature
 const TREE_SCENES: Array = [
@@ -155,7 +155,7 @@ func _spawn_trees() -> void:
 
 	# 1. Mata Ciliar (árvores frondosas acompanhando o rio)
 	for i in range(riparian_tree_count):
-		var z: float = rng.randf_range(-70.0, 70.0)
+		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 		if z >= (RiverClass.WATERFALL_Z - 2.0) and z <= (RiverClass.WATERFALL_Z + 4.0):
 			continue
 
@@ -175,8 +175,8 @@ func _spawn_trees() -> void:
 
 	# 2. Árvores de Colina e Encostas (árvores retorcidas e secas no planalto)
 	for i in range(hill_tree_count):
-		var x: float = rng.randf_range(-70.0, 70.0)
-		var z: float = rng.randf_range(-70.0, 70.0)
+		var x: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
+		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		if dist_river < 15.0 or CityHub.in_village(x, z):
@@ -218,8 +218,8 @@ func _spawn_bushes() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 303
 	for i in range(bush_count):
-		var x: float = rng.randf_range(-65.0, 65.0)
-		var z: float = rng.randf_range(-65.0, 65.0)
+		var x: float = rng.randf_range(-WorldBounds.HALF * 0.88, WorldBounds.HALF * 0.88)
+		var z: float = rng.randf_range(-WorldBounds.HALF * 0.88, WorldBounds.HALF * 0.88)
 		if CityHub.in_village(x, z) or RiverClass.get_distance_to_river(x, z) < 4.0:
 			continue
 		var ground_y: float = _get_ground_y(x, z)
@@ -257,8 +257,8 @@ func _spawn_rocks() -> void:
 	rng.seed = 99
 
 	for i in range(rock_count):
-		var x: float = rng.randf_range(-70.0, 70.0)
-		var z: float = rng.randf_range(-70.0, 70.0)
+		var x: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
+		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		if dist_river < 3.5 or CityHub.in_village(x, z):

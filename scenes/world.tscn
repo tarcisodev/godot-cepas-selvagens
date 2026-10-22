@@ -29,6 +29,9 @@
 [ext_resource type="Script" path="res://scripts/ui/inventory_screen.gd" id="27_inventory"]
 [ext_resource type="Script" path="res://scripts/ui/quick_item_wheel.gd" id="28_wheel"]
 [ext_resource type="Script" path="res://scripts/creatures/ecosystem_spawner.gd" id="29_eco"]
+[ext_resource type="Script" path="res://scripts/ecology/weather_system.gd" id="30_weather"]
+[ext_resource type="Script" path="res://scripts/ecology/ecology.gd" id="31_ecology"]
+[ext_resource type="Script" path="res://scripts/ecology/moon.gd" id="32_moon"]
 [ext_resource type="Script" path="res://scripts/supply_chest.gd" id="28_chest"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
@@ -130,6 +133,15 @@ spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton")
 [node name="GatherableSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("23_gather")
 landscape = NodePath("../Landscape")
+
+[node name="WeatherSystem" type="Node3D" parent="."]
+script = ExtResource("30_weather")
+
+[node name="Moon" type="MeshInstance3D" parent="."]
+script = ExtResource("32_moon")
+
+[node name="Ecology" type="Node3D" parent="."]
+script = ExtResource("31_ecology")
 
 [node name="EcosystemSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("29_eco")

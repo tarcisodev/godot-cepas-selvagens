@@ -11,6 +11,9 @@ const ARENA_CENTER: Vector2 = Vector2(-27.0, 3.0)
 const MAX_OWNED: int = 3
 ## Bicho morto, capturado ou solto volta a nascer no mesmo lugar depois disso (s)
 const RESPAWN_DELAY: float = 90.0
+## População mínima (repõe se cair abaixo) e máxima (para de reproduzir) por espécie
+const POP_MIN: Dictionary = {CreatureDNA.Species.TROTADOR: 4, CreatureDNA.Species.SALTARELO: 4, CreatureDNA.Species.PLANADOR: 2}
+const POP_MAX: Dictionary = {CreatureDNA.Species.TROTADOR: 24, CreatureDNA.Species.SALTARELO: 18, CreatureDNA.Species.PLANADOR: 6}
 const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, CreatureDNA.Species.PLANADOR: Mount.Kind.AIR}
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 
@@ -18,15 +21,15 @@ const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 @export var world_seed: int = 2026
 
 @export_group("Quantidades")
-@export var trotador_herds: int = 4
-@export var saltarelos: int = 8
-@export var planadores: int = 3
-@export var raias: int = 2
-@export var lambari_schools: int = 3
-@export var trees: int = 35
-@export var bushes: int = 35
-@export var cepas: int = 30
-@export var mushrooms: int = 20
+@export var trotador_herds: int = 6
+@export var saltarelos: int = 12
+@export var planadores: int = 4
+@export var raias: int = 3
+@export var lambari_schools: int = 4
+@export var trees: int = 60
+@export var bushes: int = 55
+@export var cepas: int = 50
+@export var mushrooms: int = 30
 
 var _rng := RandomNumberGenerator.new()
 ## DNAs das montarias capturadas (save) e os nós delas no estábulo
@@ -58,11 +61,16 @@ func _spawn_plants() -> void:
 	var plan := [[PlantDNA.Kind.ARVORE, trees, 16.0], [PlantDNA.Kind.ARBUSTO, bushes, 15.0], [PlantDNA.Kind.CEPA, cepas, 15.0], [PlantDNA.Kind.COGUMELO, mushrooms, 15.0]]
 	for p in plan:
 		for i in p[1]:
-			var spot := _land_spot(p[2], 80.0)
+			var spot := _land_spot(p[2], WorldBounds.HALF * 0.92)
 			if spot == Vector3.INF:
 				continue
 			var plant := PlantBody.new()
 			plant.dna = PlantDNA.randomized(p[0], _rng.randi())
+			# O vale já está vivo: idades e estágios variados (GDD-10 §4)
+			var roll := _rng.randf()
+			plant.stage = PlantBody.Stage.JOVEM if roll < 0.15 else (PlantBody.Stage.FLORIDA if roll < 0.35 else (PlantBody.Stage.FRUTO if roll < 0.5 else PlantBody.Stage.ADULTA))
+			plant.age = _rng.randf() * plant.lifespan() * 0.6
+			plant.progress = _rng.randf() * 0.8
 			plant.position = spot
 			plant.rotation.y = _rng.randf() * TAU
 			add_child(plant)
@@ -71,23 +79,23 @@ func _spawn_plants() -> void:
 
 func _spawn_fauna() -> void:
 	for h in trotador_herds:
-		var center := _land_spot(25.0, 70.0)
+		var center := _land_spot(25.0, WorldBounds.HALF * 0.85)
 		if center == Vector3.INF:
 			continue
 		for i in _rng.randi_range(3, 4):
 			_add_wild(CreatureDNA.Species.TROTADOR, center + Vector3(_rng.randf_range(-3, 3), 0, _rng.randf_range(-3, 3)), 14.0)
 	for i in saltarelos:
-		var spot := _land_spot(16.0, 70.0)
+		var spot := _land_spot(16.0, WorldBounds.HALF * 0.85)
 		if spot != Vector3.INF:
 			_add_wild(CreatureDNA.Species.SALTARELO, spot, 8.0)
 	for i in planadores:
-		var spot := _land_spot(20.0, 50.0)
+		var spot := _land_spot(20.0, WorldBounds.HALF * 0.7)
 		if spot != Vector3.INF:
 			_add_wild(CreatureDNA.Species.PLANADOR, spot + Vector3(0, 15, 0), 16.0)
 	for i in raias:
-		_add_wild(CreatureDNA.Species.RAIA, _river_spot(_rng.randf_range(15.0, 55.0)), 14.0)
+		_add_wild(CreatureDNA.Species.RAIA, _river_spot(_rng.randf_range(15.0, WorldBounds.HALF * 0.8)), 18.0)
 	for s in lambari_schools:
-		var z := _rng.randf_range(-12.0, 60.0)
+		var z := _rng.randf_range(-12.0, WorldBounds.HALF * 0.8)
 		for i in 4:
 			_add_wild(CreatureDNA.Species.LAMBARI, _river_spot(z + i * 0.6), 10.0)
 
@@ -127,12 +135,34 @@ func _on_capture_choice(choice: StringName) -> void:
 			_say("🌿 Você soltou o %s" % c.dna.species_name())
 			c.take_away()
 
+## Bicho que sumiu só é reposto se a espécie ficou rara (o resto vem da reprodução)
 func _on_removed(_c: WildCreature, species: CreatureDNA.Species, pos: Vector3, roam: float) -> void:
 	if not is_inside_tree():
 		return
 	await get_tree().create_timer(RESPAWN_DELAY).timeout
-	if is_inside_tree():
+	if is_inside_tree() and population(species) < POP_MIN.get(species, 2):
 		_add_wild(species, pos, roam)
+
+func population(species: CreatureDNA.Species) -> int:
+	var n := 0
+	for c in get_tree().get_nodes_in_group("wild_creatures"):
+		if c is WildCreature and c.dna.species == species and c.is_alive():
+			n += 1
+	return n
+
+## Filhote de dois adultos (GDD-10 §5): DNA cruzado com mutação de 3%, nasce pequeno
+func spawn_offspring(a: WildCreature, b: WildCreature) -> bool:
+	if population(a.dna.species) >= POP_MAX.get(a.dna.species, 10):
+		return false
+	var c := _add_wild(a.dna.species, (a.global_position + b.global_position) * 0.5, a.roam_radius)
+	c.dna = CreatureDNA.cross(a.dna, b.dna, _rng.randi())
+	c.body.dna = c.dna
+	c.body.build()
+	c.age_days = 0.0
+	c.hunger = 0.3
+	c.thirst = 0.3
+	c.breed_cooldown = WildCreature.BREED_COOLDOWN
+	return true
 
 func _say(msg: String) -> void:
 	if _pending_player and is_instance_valid(_pending_player) and _pending_player.has_signal("posture_changed"):
@@ -230,7 +260,7 @@ func _land_spot(min_dist: float, max_dist: float) -> Vector3:
 			continue
 		if RiverSystem.get_distance_to_river(x, z) < RiverSystem.get_water_half_width(z) + 2.0:
 			continue
-		if absf(x) > 85.0 or absf(z) > 85.0:
+		if not WorldBounds.inside(x, z, 6.0):
 			continue
 		return Vector3(x, _ground(x, z), z)
 	return Vector3.INF

@@ -20,6 +20,30 @@ const KIND_NAMES: Dictionary = {
 @export var flower_color: Color = Color(0.9, 0.4, 0.5)
 @export var petals: int = 5
 @export var trunk_color: Color = Color(0.4, 0.28, 0.18)
+## Mutante (GDD-10 §4): cor rara e porte maior; nasce mais em solo rico
+@export var mutant: bool = false
+
+## Cores raras das plantas mutantes
+const MUTANT_HUES: Array[Color] = [Color(0.25, 0.55, 1.0), Color(1.0, 0.85, 0.15), Color(0.95, 0.25, 0.85), Color(0.3, 1.0, 0.85)]
+
+## Semente: herda da mãe (autopolinização), com mutação na chance dada (3% a 12%, GDD-10 §4)
+static func seed_of(parent: PlantDNA, p_seed: int, mutation_chance: float) -> PlantDNA:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = p_seed
+	var d: PlantDNA = parent.duplicate()
+	d.dna_seed = p_seed
+	d.porte = [parent.porte[rng.randi() % 2], parent.porte[rng.randi() % 2]]
+	d.branches = clampi(parent.branches + rng.randi_range(-1, 1), 2, 7)
+	d.petals = clampi(parent.petals + rng.randi_range(-1, 1), 3, 8)
+	d.leaf_color = parent.leaf_color.lerp(Color(rng.randf(), rng.randf(), rng.randf()), 0.04)
+	d.mutant = parent.mutant and rng.randf() < 0.5
+	if rng.randf() < mutation_chance:
+		d.mutant = true
+		d.porte[rng.randi() % 2] = "*"
+		d.flower_color = MUTANT_HUES[rng.randi() % MUTANT_HUES.size()]
+		if d.kind == Kind.CEPA:
+			d.leaf_color = d.leaf_color.lerp(d.flower_color, 0.35)
+	return d
 
 static func randomized(p_kind: Kind, p_seed: int) -> PlantDNA:
 	var rng := RandomNumberGenerator.new()
@@ -47,7 +71,7 @@ func size_factor() -> float:
 	for a in porte:
 		if a == "T" or a == "*":
 			big += 1
-	return [0.5, 0.75, 1.0][big]
+	return [0.5, 0.75, 1.0][big] * (1.15 if mutant else 1.0)
 
 func display_name() -> String:
 	return KIND_NAMES[kind]

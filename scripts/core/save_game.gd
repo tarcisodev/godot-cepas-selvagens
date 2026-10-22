@@ -90,6 +90,7 @@ func collect(player: Node) -> Dictionary:
 	var sun := _world_sun(player)
 	if sun and "current_time_hours" in sun:
 		data["time_hours"] = sun.current_time_hours
+		data["day"] = sun.get("day_count")
 	var visual = player.get("character_visual")
 	if visual and visual.dna:
 		data["appearance"] = visual.dna.to_dict()
@@ -188,13 +189,15 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		var py: float = float(pos[1])
 		var pz: float = float(pos[2])
 		# Se a posição estiver no limbo ou fora dos limites do mapa, restaura na área segura inicial
-		if py < -6.0 or py > 70.0 or absf(px) > 88.0 or absf(pz) > 88.0:
+		if py < -6.0 or py > 80.0 or not WorldBounds.inside(px, pz, 2.0):
 			_set_pos(player as Node3D, Vector3(0.0, 1.2, 0.0))
 		else:
 			_set_pos(player as Node3D, Vector3(px, py + 0.2, pz))
 	var sun := _world_sun(player)
 	if sun and data.has("time_hours") and sun.has_method("_update_sun_position_and_lighting"):
 		sun.current_time_hours = float(data["time_hours"])
+		if data.has("day"):
+			sun.set("day_count", int(data["day"]))
 		sun._update_sun_position_and_lighting()
 
 	var objectives := _objectives()

@@ -10,6 +10,11 @@ const UPPER_WATER_Y: float = 7.2
 const LOWER_WATER_Y: float = -0.65
 const LOWER_BED_Y: float = -2.4
 const UPPER_BED_Y: float = 5.6
+## Cheia máxima acima do nível normal (m)
+const FLOOD_MAX: float = 1.4
+
+## Cheia atual (0 a FLOOD_MAX m), escrita pelo WeatherSystem: a chuva enche, a vazão esvazia
+static var flood: float = 0.0
 
 # Centro do rio ao longo do eixo Z
 static func get_river_center_x(z: float) -> float:
@@ -35,20 +40,21 @@ static func get_water_half_width(z: float) -> float:
 
 static func get_water_height(z: float) -> float:
 	if z < (WATERFALL_Z - 1.5):
-		return UPPER_WATER_Y
+		return UPPER_WATER_Y + flood
 	elif z > (WATERFALL_Z + 1.5):
-		return LOWER_WATER_Y
+		return LOWER_WATER_Y + flood
 	else:
 		# Transição na crista da queda
 		var t: float = clamp((z - (WATERFALL_Z - 1.5)) / 3.0, 0.0, 1.0)
-		return lerp(UPPER_WATER_Y, LOWER_WATER_Y, t)
+		return lerp(UPPER_WATER_Y, LOWER_WATER_Y, t) + flood
 
 static func get_distance_to_river(x: float, z: float) -> float:
 	var river_center: float = get_river_center_x(z)
 	return abs(x - river_center)
 
+## Água no ponto: leito normal, ou várzea alagada quando a cheia passa do barranco
 static func is_in_water(pos: Vector3) -> bool:
 	var dist: float = get_distance_to_river(pos.x, pos.z)
-	var max_w: float = get_water_half_width(pos.z)
+	var max_w: float = get_water_half_width(pos.z) * (2.2 if flood > 0.05 else 1.0)
 	var surface_y: float = get_water_height(pos.z)
 	return dist < max_w and pos.y <= (surface_y + 0.15)

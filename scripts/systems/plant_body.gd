@@ -4,22 +4,88 @@ extends Node3D
 ## Planta procedural (GDD-09 §3) montada a partir do PlantDNA. Todas as partes viram UMA
 ## malha com cor por vértice (1 chamada de desenho por planta), para caber centenas no vale.
 ## Árvores ganham colisão no tronco; o cogumelo-lume tem chapéu que brilha à noite.
+## Ciclo de vida (GDD-10 §4): semente → broto → jovem → adulta → florida → com fruto → (semeia)
+## → volta a adulta; cresce com água, nutriente e luz da célula de solo (Ecology); definha sem
+## isso e morre de velhice ou de penúria, devolvendo nutriente.
+
+enum Stage { SEMENTE, BROTO, JOVEM, ADULTA, FLORIDA, FRUTO }
+
+## Dias de jogo em cada estágio [semente, broto, jovem, adulta→flor, florida, fruto] e vida total
+const TIMES: Dictionary = {
+	PlantDNA.Kind.ARVORE: [0.3, 0.8, 2.0, 1.5, 0.6, 0.8, 20.0],
+	PlantDNA.Kind.ARBUSTO: [0.2, 0.5, 1.0, 0.8, 0.5, 0.6, 12.0],
+	PlantDNA.Kind.CEPA: [0.1, 0.25, 0.4, 0.3, 0.3, 0.3, 5.0],
+	PlantDNA.Kind.COGUMELO: [0.1, 0.15, 0.2, 0.4, 0.2, 0.2, 3.0],
+}
+## Escala visual por estágio
+const STAGE_SCALE: Array[float] = [0.0, 0.18, 0.5, 1.0, 1.0, 1.0]
+## Quanto aguenta sem água/nutriente antes de morrer (dias)
+const STARVE_DAYS: float = 1.5
 
 @export var dna: PlantDNA
+@export var stage: Stage = Stage.ADULTA
+
+var age: float = 0.0
+var progress: float = 0.0
+var stress: float = 0.0
 
 var _st: SurfaceTool
 var _rng := RandomNumberGenerator.new()
+var _crown: Array[Vector3] = []
 static var _material: StandardMaterial3D
+static var _glow_material: StandardMaterial3D
 
 func _ready() -> void:
+	add_to_group("plants")
 	if dna == null:
 		dna = PlantDNA.randomized(PlantDNA.Kind.ARVORE, 1)
 	build()
 
+func lifespan() -> float:
+	return TIMES[dna.kind][6] * (1.2 if dna.mutant else 1.0)
+
+## Um passo de vida: `cell` = {"moisture", "nutrients"} da célula; `light` = é dia.
+## Devolve o que a planta tirou do solo e o que aconteceu: {"water", "food", "event"},
+## event = "", "grew", "seeds" ou "died".
+func life_tick(days: float, cell: Dictionary, light: bool) -> Dictionary:
+	age += days
+	var out := {"water": 0.0, "food": 0.0, "event": ""}
+	var need_w := 0.3 if dna.kind == PlantDNA.Kind.COGUMELO else 0.2
+	var ok: bool = cell.get("moisture", 0.0) >= need_w and cell.get("nutrients", 0.0) >= 0.12
+	if dna.kind == PlantDNA.Kind.COGUMELO:
+		light = true # cogumelo não precisa de sol
+	if age > lifespan() or stress > STARVE_DAYS:
+		out.event = "died"
+		return out
+	if not light:
+		return out
+	if not ok:
+		stress += days
+		return out
+	stress = maxf(0.0, stress - days * 0.5)
+	var growing := stage < Stage.ADULTA
+	out.water = days * (0.25 if growing else 0.12)
+	out.food = days * (0.12 if growing else 0.05)
+	progress += days / float(TIMES[dna.kind][stage])
+	if progress >= 1.0:
+		progress = 0.0
+		if stage == Stage.FRUTO:
+			stage = Stage.ADULTA
+			out.event = "seeds"
+		else:
+			stage = (stage + 1) as Stage
+			out.event = "grew"
+		build()
+	return out
+
 func build() -> void:
 	for c in get_children():
 		c.free()
+	scale = Vector3.ONE * maxf(STAGE_SCALE[stage], 0.001)
+	if stage == Stage.SEMENTE:
+		return
 	_rng.seed = dna.dna_seed
+	_crown.clear()
 	_st = SurfaceTool.new()
 	_st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	match dna.kind:
@@ -35,9 +101,39 @@ func build() -> void:
 	mi.mesh = _st.commit()
 	mi.material_override = _shared_material()
 	mi.visibility_range_end = 110.0
-	# Plantas baixas: a sombra quase não aparece e dobra o custo de desenho
-	if dna.kind == PlantDNA.Kind.CEPA or dna.kind == PlantDNA.Kind.COGUMELO:
+	# Plantas baixas e novas: a sombra quase não aparece e dobra o custo de desenho
+	if dna.kind == PlantDNA.Kind.CEPA or dna.kind == PlantDNA.Kind.COGUMELO or stage < Stage.ADULTA:
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	if dna.mutant and stage >= Stage.JOVEM:
+		_add_mutant_glow()
+
+## Brilho de esporos em volta da planta mutante (o "raro" que se vê de longe)
+func _add_mutant_glow() -> void:
+	if _glow_material == null:
+		_glow_material = StandardMaterial3D.new()
+		_glow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_glow_material.vertex_color_use_as_albedo = true
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var height := 4.0 if dna.kind == PlantDNA.Kind.ARVORE else 1.2
+	var sm := SphereMesh.new()
+	sm.radius = 0.06
+	sm.height = 0.12
+	sm.radial_segments = 6
+	sm.rings = 3
+	var arrays := sm.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	for i in 10:
+		var p := Vector3(_rng.randf_range(-0.8, 0.8), _rng.randf_range(0.3, 1.0) * height, _rng.randf_range(-0.8, 0.8))
+		for idx in indices:
+			st.set_color(dna.flower_color.lightened(0.3))
+			st.add_vertex(verts[idx] + p)
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	mi.material_override = _glow_material
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)
 
 static func _shared_material() -> StandardMaterial3D:
@@ -62,8 +158,14 @@ func _build_tree() -> void:
 		var dir := Vector3(cos(a), _rng.randf_range(0.5, 0.9), sin(a)).normalized()
 		var end := start + dir * h * _rng.randf_range(0.28, 0.4)
 		_add_cylinder(start, end, trunk_r * 0.45, trunk_r * 0.25, dna.trunk_color)
-		_add_blob(end + Vector3(0, 0.25 * f, 0), Vector3.ONE * h * _rng.randf_range(0.2, 0.28), _leaf_variant())
+		var blob_size := h * _rng.randf_range(0.2, 0.28)
+		_add_blob(end + Vector3(0, 0.25 * f, 0), Vector3.ONE * blob_size, _leaf_variant())
+		_crown.append(end + Vector3(0, 0.25 * f, 0))
+		_crown.append(Vector3(blob_size * 0.5, 0, 0))
 	_add_blob(Vector3(0, h * 0.85, 0), Vector3(h * 0.38, h * 0.32, h * 0.38), _leaf_variant())
+	_crown.append(Vector3(0, h * 0.85, 0))
+	_crown.append(Vector3(h * 0.19, 0, 0))
+	_add_blossoms_or_fruit(0.09 * f, 0.13 * f)
 	# Colisão só no tronco
 	var body := StaticBody3D.new()
 	var col := CollisionShape3D.new()
@@ -81,12 +183,11 @@ func _build_bush() -> void:
 	for i in n:
 		var a := TAU * i / n
 		var p := Vector3(cos(a) * 0.35 * f, 0.35 * f, sin(a) * 0.35 * f)
-		_add_blob(p, Vector3.ONE * _rng.randf_range(0.55, 0.8) * f, _leaf_variant())
-	for i in 9:
-		var a := _rng.randf() * TAU
-		var up := _rng.randf_range(0.2, 0.9)
-		var p := Vector3(cos(a) * 0.55 * f, (0.3 + up * 0.5) * f, sin(a) * 0.55 * f)
-		_add_flower(p, 0.1 * f)
+		var blob := _rng.randf_range(0.55, 0.8) * f
+		_add_blob(p, Vector3.ONE * blob, _leaf_variant())
+		_crown.append(p)
+		_crown.append(Vector3(blob * 0.5, 0, 0))
+	_add_blossoms_or_fruit(0.07 * f, 0.08 * f)
 
 func _build_cepa() -> void:
 	var f := dna.size_factor()
@@ -100,7 +201,8 @@ func _build_cepa() -> void:
 			var a := lv * 1.1 + side * PI
 			_add_fan_leaf(Vector3(0, y, 0), a, 0.55 * sc)
 	# Botão no topo, com a cor da "flor" do gene
-	_add_blob(Vector3(0, h + 0.08 * f, 0), Vector3(0.2, 0.34, 0.2) * f, dna.leaf_color.lerp(dna.flower_color, 0.35))
+	var bud := dna.leaf_color.lerp(dna.flower_color, 0.6) if stage >= Stage.FLORIDA else dna.leaf_color.darkened(0.1)
+	_add_blob(Vector3(0, h + 0.08 * f, 0), Vector3(0.2, 0.34, 0.2) * f, bud)
 
 ## Folha em leque (5–7 folíolos), a marca visual da Cepa Selvagem
 func _add_fan_leaf(origin: Vector3, yaw: float, length: float) -> void:
@@ -141,6 +243,22 @@ func _build_mushrooms() -> void:
 		m.emission_energy_multiplier = 1.2
 		cap.material_override = m
 		caps.add_child(cap)
+
+## Florida: flores na copa; com fruto: frutos pendurados
+func _add_blossoms_or_fruit(flower_size: float, fruit_size: float) -> void:
+	if stage < Stage.FLORIDA or _crown.is_empty():
+		return
+	var fruit_color := Color(0.75, 0.12, 0.2).lerp(dna.flower_color, 0.25)
+	for i in 14:
+		var k := (_rng.randi() % (_crown.size() / 2)) * 2
+		var c: Vector3 = _crown[k]
+		var r: float = _crown[k + 1].x
+		var dir := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-0.6, 1.0), _rng.randf_range(-1, 1)).normalized()
+		var p := c + dir * r * 0.95
+		if stage == Stage.FLORIDA:
+			_add_flower(p, flower_size)
+		else:
+			_add_sphere(Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * fruit_size), p - Vector3(0, fruit_size * 0.5, 0)), fruit_color)
 
 # ---------------------------------------------------------------- malha
 

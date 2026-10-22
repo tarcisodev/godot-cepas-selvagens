@@ -8,8 +8,8 @@ class_name WildBushes
 const RiverClass = preload("res://scripts/river_system.gd")
 
 @export var landscape: MeshInstance3D
-@export var bush_count: int = 22
-@export var spawn_radius: float = 55.0
+@export var bush_count: int = 50
+@export var spawn_radius: float = WorldBounds.HALF * 0.8
 
 func _ready() -> void:
 	if landscape == null:

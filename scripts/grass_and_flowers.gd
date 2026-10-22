@@ -21,9 +21,9 @@ const FLOWER_SCENES: Array[PackedScene] = [
 ]
 
 @export var landscape: MeshInstance3D
-@export var grass_count: int = 4000
-@export var flower_count: int = 320
-@export var spawn_radius: float = 65.0
+@export var grass_count: int = 11000
+@export var flower_count: int = 900
+@export var spawn_radius: float = WorldBounds.HALF * 0.85
 ## Os modelos do kit têm ~1,3 m de altura; a escala os traz para tufos de 40–60 cm.
 @export var grass_scale: Vector2 = Vector2(0.32, 0.5)
 @export var flower_scale: Vector2 = Vector2(0.22, 0.34)
