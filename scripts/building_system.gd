@@ -13,62 +13,30 @@ const ZoneManagerClass = preload("res://scripts/core/zone_manager.gd")
 @export var zone_manager: Node
 @export var snap_grid: float = 1.0
 
+## Distância (horizontal) do fantasma até a peça que [X] desmonta
+const DISMANTLE_REACH: float = 1.6
+
 var is_building: bool = false
 var current_piece_index: int = 0
 var current_rotation_y: float = 0.0
 
-# Lista de opções de construção:
-const CATALOG: Array[Dictionary] = [
-	{
+## Opções do modo construção: o totem primeiro, depois as peças na ordem do enum.
+## Nome, custo e tamanho vêm de ClaimTotem e BuildablePiece.PIECE_CONFIG (uma fonte só).
+var catalog: Array[Dictionary] = build_catalog()
+
+static func build_catalog() -> Array[Dictionary]:
+	var out: Array[Dictionary] = [{
 		"id": &"claim_totem",
-		"name": "Totem de Território",
-		"costs": { &"madeira": 4, &"pedra": 4 },
+		"name": ClaimTotemClass.DISPLAY_NAME,
+		"costs": ClaimTotemClass.COSTS,
 		"is_totem": true,
-		"size": Vector3(0.8, 2.4, 0.8)
-	},
-	{
-		"id": &"piso_madeira",
-		"name": "Piso de Madeira",
-		"costs": { &"madeira": 2 },
-		"type": BuildablePieceClass.PieceType.PISO_MADEIRA,
-		"size": Vector3(2.0, 0.12, 2.0)
-	},
-	{
-		"id": &"parede_madeira",
-		"name": "Parede de Madeira",
-		"costs": { &"madeira": 3, &"fibra": 1 },
-		"type": BuildablePieceClass.PieceType.PAREDE_MADEIRA,
-		"size": Vector3(2.0, 2.4, 0.16)
-	},
-	{
-		"id": &"parede_porta",
-		"name": "Parede com Porta",
-		"costs": { &"madeira": 4, &"fibra": 1 },
-		"type": BuildablePieceClass.PieceType.PAREDE_PORTA,
-		"size": Vector3(2.0, 2.4, 0.16)
-	},
-	{
-		"id": &"telhado",
-		"name": "Telhado de Palha e Madeira",
-		"costs": { &"madeira": 2, &"folha": 2 },
-		"type": BuildablePieceClass.PieceType.TELHADO,
-		"size": Vector3(2.0, 0.9, 2.0)
-	},
-	{
-		"id": &"cerca",
-		"name": "Cerca Rústica",
-		"costs": { &"galho": 2, &"fibra": 1 },
-		"type": BuildablePieceClass.PieceType.CERCA,
-		"size": Vector3(2.0, 0.9, 0.12)
-	},
-	{
-		"id": &"canteiro",
-		"name": "Canteiro de Cultivo",
-		"costs": { &"madeira": 2, &"erva": 2 },
-		"type": BuildablePieceClass.PieceType.CANTEIRO,
-		"size": Vector3(1.4, 0.35, 1.4)
-	}
-]
+		"size": ClaimTotemClass.SIZE
+	}]
+	for t in BuildablePieceClass.PieceType.values():
+		var entry: Dictionary = BuildablePieceClass.PIECE_CONFIG[t].duplicate()
+		entry["type"] = t
+		out.append(entry)
+	return out
 
 var ghost_root: Node3D
 var ghost_mesh: MeshInstance3D
@@ -156,11 +124,15 @@ func _input(event: InputEvent) -> void:
 	if not is_building:
 		return
 	
-	# Troca de peça com teclas numéricas 1 a 7
+	# Troca de peça com as teclas numéricas (1 = totem)
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode >= KEY_1 and event.keycode <= KEY_7:
+		if event.keycode >= KEY_1 and event.keycode < KEY_1 + catalog.size():
 			current_piece_index = event.keycode - KEY_1
 			_update_ghost_mesh()
+			get_viewport().set_input_as_handled()
+			return
+		elif event.keycode == KEY_X:
+			try_dismantle_at(ghost_root.global_position)
 			get_viewport().set_input_as_handled()
 			return
 		elif event.keycode == KEY_R:
@@ -203,7 +175,7 @@ func _process(_delta: float) -> void:
 	_validate_and_update_hud(target_pos)
 
 func _update_ghost_mesh() -> void:
-	var entry: Dictionary = CATALOG[current_piece_index]
+	var entry: Dictionary = catalog[current_piece_index]
 	var sz: Vector3 = entry["size"]
 	
 	var box_m := BoxMesh.new()
@@ -212,12 +184,10 @@ func _update_ghost_mesh() -> void:
 	ghost_mesh.position.y = sz.y * 0.5
 
 func _validate_and_update_hud(pos: Vector3) -> Dictionary:
-	var entry: Dictionary = CATALOG[current_piece_index]
-	var zm: Node = zone_manager
-	if zm == null and get_tree() != null:
-		zm = get_tree().get_first_node_in_group("zone_manager")
-	
-	var p_name: String = player.name if player else ""
+	var entry: Dictionary = catalog[current_piece_index]
+	var zm := _zone_manager()
+
+	var p_name := _owner_name()
 	var validation: Dictionary = { "allowed": true, "reason": "Liberado!" }
 	if zm:
 		validation = zm.can_build_at(pos, entry["id"], p_name)
@@ -241,13 +211,14 @@ func _validate_and_update_hud(pos: Vector3) -> Dictionary:
 		for mat_id in entry["costs"]:
 			cost_str += "%dx %s  " % [entry["costs"][mat_id], mat_id.capitalize()]
 		
-		var msg := "🏗️ [%d/7] %s  |  Custo: %s\n" % [current_piece_index + 1, entry["name"], cost_str]
+		var n := catalog.size()
+		var msg := "🏗️ [%d/%d] %s  |  Custo: %s\n" % [current_piece_index + 1, n, entry["name"], cost_str]
 		if not validation["allowed"]:
 			msg += "❌ %s" % validation["reason"]
 		elif not has_mats:
 			msg += "❌ Faltam materiais: %s" % " · ".join(missing)
 		else:
-			msg += "✅ [Clique Esquerdo] Construir  |  [R] Girar (90°)  |  [1-7] Trocar  |  [B] Sair"
+			msg += "✅ [Clique Esquerdo] Construir  |  [R] Girar (90°)  |  [1-%d] Trocar  |  [X] Desmontar  |  [B] Sair" % n
 		status_label.text = msg
 	
 	return { "allowed": can_place, "entry": entry, "pos": pos }
@@ -267,21 +238,112 @@ func _try_place_piece() -> bool:
 			return false
 	
 	# Instancia o Totem ou a Peça
+	var node: Node3D
 	if entry.get("is_totem", false):
-		var totem := ClaimTotemClass.new()
-		totem.owner_name = player.name if player else "Andarilho"
-		totem.position = pos
-		totem.rotation.y = current_rotation_y
-		get_parent().add_child(totem)
+		node = ClaimTotemClass.new()
 	else:
-		var piece := BuildablePieceClass.new()
-		piece.piece_type = entry["type"]
-		piece.owner_name = player.name if player else "Andarilho"
-		piece.position = pos
-		piece.rotation.y = current_rotation_y
-		get_parent().add_child(piece)
-	
-	if player and player.has_signal("posture_changed"):
-		player.posture_changed.emit("✨ Construído: %s" % entry["name"])
-	
+		node = BuildablePieceClass.new()
+		node.set("piece_type", entry["type"])
+	node.set("owner_name", _owner_name())
+	node.set("placed_at_msec", Time.get_ticks_msec())
+	node.position = pos
+	node.rotation.y = current_rotation_y
+	get_parent().add_child(node)
+
+	_notify("✨ Construído: %s" % entry["name"])
 	return true
+
+## Desmonta a peça ou o totem do jogador mais perto de `pos`. O totem só sai com o território vazio.
+func try_dismantle_at(pos: Vector3) -> bool:
+	var tree := get_tree()
+	if tree == null:
+		return false
+	var me := _owner_name()
+	var best: Node3D = null
+	var best_d := DISMANTLE_REACH
+	for n in tree.get_nodes_in_group("built_structures") + tree.get_nodes_in_group("claim_totems"):
+		var s := n as Node3D
+		if s == null or s.is_queued_for_deletion():
+			continue
+		var d := Vector2(s.global_position.x - pos.x, s.global_position.z - pos.z).length()
+		if d <= best_d:
+			best = s
+			best_d = d
+	if best == null:
+		_notify("Nada para desmontar aqui")
+		return false
+	var owner_of: String = best.get("owner_name")
+	if not owner_of.is_empty() and owner_of != me:
+		_notify("❌ Propriedade de %s" % owner_of)
+		return false
+	if best is ClaimTotemClass and _pieces_inside(best) > 0:
+		_notify("❌ Desmonte as construções do território antes do totem")
+		return false
+	var refunds: Dictionary = best.call("dismantle", player)
+	var parts: Array[String] = []
+	for mat_id in refunds:
+		parts.append("%dx %s" % [refunds[mat_id], String(mat_id).capitalize()])
+	_notify("🔨 Desmontado • Devolvido: %s" % (" · ".join(parts) if not parts.is_empty() else "nada"))
+	return true
+
+func _pieces_inside(totem: Node3D) -> int:
+	var count := 0
+	for n in get_tree().get_nodes_in_group("built_structures"):
+		var s := n as Node3D
+		if s and not s.is_queued_for_deletion():
+			var d := Vector2(s.global_position.x - totem.global_position.x, s.global_position.z - totem.global_position.z).length()
+			if d <= float(totem.get("radius")):
+				count += 1
+	return count
+
+func _zone_manager() -> Node:
+	if zone_manager == null and is_inside_tree():
+		return get_tree().get_first_node_in_group("zone_manager")
+	return zone_manager
+
+func _owner_name() -> String:
+	return String(player.name) if player else "Andarilho"
+
+func _notify(msg: String) -> void:
+	if player and player.has_signal("posture_changed"):
+		player.posture_changed.emit(msg)
+
+## Lista serializável das construções do mundo (para o SaveGame). Totens primeiro.
+static func collect_structures(tree: SceneTree) -> Array:
+	var out: Array = []
+	for group in [&"claim_totems", &"built_structures"]:
+		for n in tree.get_nodes_in_group(group):
+			var s := n as Node3D
+			if s == null or s.is_queued_for_deletion():
+				continue
+			var p := s.global_position
+			var entry := {
+				"kind": "totem" if group == &"claim_totems" else "piece",
+				"owner": s.get("owner_name"),
+				"position": [p.x, p.y, p.z],
+				"rotation_y": s.rotation.y
+			}
+			if s is BuildablePieceClass:
+				entry["type"] = BuildablePieceClass.PieceType.keys()[s.get("piece_type")]
+			out.append(entry)
+	return out
+
+## Recria as construções salvas como filhos de `parent` (o mundo). Totens antes das peças.
+static func restore_structures(parent: Node, list: Array) -> void:
+	for entry in list:
+		if not entry is Dictionary:
+			continue
+		var node: Node3D
+		if entry.get("kind") == "totem":
+			node = ClaimTotemClass.new()
+		else:
+			var type_name := str(entry.get("type", ""))
+			if not BuildablePieceClass.PieceType.has(type_name):
+				continue
+			node = BuildablePieceClass.new()
+			node.set("piece_type", BuildablePieceClass.PieceType[type_name])
+		node.set("owner_name", str(entry.get("owner", "")))
+		var p: Array = entry.get("position", [0, 0, 0])
+		node.position = Vector3(float(p[0]), float(p[1]), float(p[2]))
+		node.rotation.y = float(entry.get("rotation_y", 0.0))
+		parent.add_child(node)

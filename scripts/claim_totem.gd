@@ -4,9 +4,18 @@ extends StaticBody3D
 ## Totem de Território (Estaca de Reivindicação de Base / Guilda)
 ## Demarca uma área circular de posse onde o jogador pode construir livremente.
 
+const BuildablePieceClass = preload("res://scripts/buildable_piece.gd")
+
+const DISPLAY_NAME: String = "Totem de Território"
+const COSTS: Dictionary = { &"madeira": 4, &"pedra": 4 }
+const SIZE: Vector3 = Vector3(0.8, 2.4, 0.8)
+const DEFAULT_RADIUS: float = 14.0
+
 @export var owner_name: String = "Andarilho"
 @export var guild_name: String = ""
-@export var radius: float = 14.0
+@export var radius: float = DEFAULT_RADIUS
+## Ticks (ms) de quando foi fincado; -1 = sem janela de reembolso total
+var placed_at_msec: int = -1
 
 var label_prompt: Label3D
 var ring_mesh: MeshInstance3D
@@ -143,4 +152,10 @@ func _update_label() -> void:
 ## Interação ao apertar [E] perto do totem
 func talk_to(player: Node) -> void:
 	if player and player.has_signal("posture_changed"):
-		player.posture_changed.emit("🏕️ Base de %s: 100%% Seguro contra invasões" % owner_name)
+		player.posture_changed.emit("🏕️ Base de %s: indestrutível fora da Zona Selvagem; só o dono constrói" % owner_name)
+
+## Desmonta o totem (mudar de lugar = desmontar). Quem chama garante que o território está vazio.
+func dismantle(player: Node) -> Dictionary:
+	var refunds := BuildablePieceClass.refund_costs(COSTS, placed_at_msec, player)
+	queue_free()
+	return refunds

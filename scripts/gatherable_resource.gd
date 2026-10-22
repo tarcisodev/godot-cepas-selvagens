@@ -25,7 +25,7 @@ const TYPE_CONFIG: Dictionary = {
 		"name": "Tronco de Madeira",
 		"action": "Cortar",
 		"verb": "Cortando",
-		"tag": &"lenharia",
+		"tag": &"coleta",
 		"xp": 18.0,
 		"time": 1.4,
 		"min": 2,

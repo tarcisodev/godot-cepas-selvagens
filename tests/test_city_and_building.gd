@@ -26,13 +26,15 @@ func _run() -> void:
 	test_buildable_pieces_and_door()
 	test_building_system_flow()
 	test_city_hub_structures_and_npcs()
-	
+	await test_territory_rules_gdd08()
+	test_structures_save_roundtrip()
+
 	print("\n🎉 TODOS OS TESTES DE CIDADE E CONSTRUÇÃO PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
 
 func test_zone_manager_rules() -> void:
-	print("\n[1/5] Validando regras de zoneamento (Cidade, Perigo, Natureza)...")
+	print("\n[1/7] Validando regras de zoneamento (Cidade, Perigo, Natureza)...")
 	var zm := ZoneManagerClass.new()
 	root.add_child(zm)
 	
@@ -40,6 +42,7 @@ func test_zone_manager_rules() -> void:
 	var city_pos := Vector3(1.5, 0.0, 4.5)
 	assert(zm.get_zone_at(city_pos) == ZoneManagerClass.ZoneType.CITY, "Centro deve ser Zona da Cidade")
 	assert(not zm.can_combat_at(city_pos), "Combate deve ser desativado na Cidade")
+	assert(zm.can_combat_at(city_pos, true), "Duelo aceito libera o combate na Cidade (GDD-08 §8)")
 	
 	# Posição na Natureza aberta (30, 0, 30)
 	var wild_pos := Vector3(30.0, 0.0, 30.0)
@@ -67,7 +70,7 @@ func test_zone_manager_rules() -> void:
 	print("  ✓ Zonas urbana, perigo e natureza validadas com bloqueios corretos!")
 
 func test_claim_totem_territory() -> void:
-	print("\n[2/5] Testando Totem de Território e concessão de permissão de posse...")
+	print("\n[2/7] Testando Totem de Território e concessão de permissão de posse...")
 	var zm := ZoneManagerClass.new()
 	root.add_child(zm)
 	
@@ -96,7 +99,7 @@ func test_claim_totem_territory() -> void:
 	print("  ✓ Reivindicação de território, raio de posse e permissões de dono validadas!")
 
 func test_buildable_pieces_and_door() -> void:
-	print("\n[3/5] Testando catálogo de peças modulares, porta móvel e desmontagem...")
+	print("\n[3/7] Testando catálogo de peças modulares, porta móvel e desmontagem...")
 	var player: Player = PlayerScene.instantiate() as Player
 	root.add_child(player)
 	player._setup_components()
@@ -117,18 +120,34 @@ func test_buildable_pieces_and_door() -> void:
 	door_piece.talk_to(player)
 	assert(not door_piece.is_door_open, "Porta deve fechar na segunda interação")
 	
-	# 3. Desmontagem com reembolso de 50%
+	# 3. Desmontagem: peça antiga devolve 50% (arredondado para baixo)
 	var before_wood := player.inventory.get_material_count(&"madeira")
 	var refunds := floor_piece.dismantle(player)
-	assert(refunds.has(&"madeira"), "Reembolso deve conter madeira")
-	assert(player.inventory.get_material_count(&"madeira") > before_wood, "Player deve receber materiais de volta")
-	
+	assert(refunds.get(&"madeira", 0) == 1, "Piso antigo (2 madeira) devolve 1")
+	assert(player.inventory.get_material_count(&"madeira") == before_wood + 1, "Player deve receber 1 madeira de volta")
+
+	# 4. Desmontar na janela de 2 min devolve 100%
+	var wall := BuildablePieceClass.new()
+	wall.piece_type = BuildablePieceClass.PieceType.PAREDE_MADEIRA
+	wall.placed_at_msec = Time.get_ticks_msec()
+	root.add_child(wall)
+	var full := wall.dismantle(player)
+	assert(full.get(&"madeira", 0) == 3 and full.get(&"fibra", 0) == 1, "Janela de 2 min devolve o custo inteiro")
+
+	# 5. Fora da janela, 1 fibra vira 0 (ralo)
+	var old_wall := BuildablePieceClass.new()
+	old_wall.piece_type = BuildablePieceClass.PieceType.PAREDE_MADEIRA
+	old_wall.placed_at_msec = Time.get_ticks_msec() - BuildablePieceClass.FULL_REFUND_WINDOW_MS - 1000
+	root.add_child(old_wall)
+	var half := old_wall.dismantle(player)
+	assert(half.get(&"madeira", 0) == 1 and not half.has(&"fibra"), "Fora da janela: 3 madeira -> 1, 1 fibra -> 0")
+
 	door_piece.free()
 	player.free()
 	print("  ✓ Peças modulares, abertura de portas e reembolso de desmontagem validados!")
 
 func test_building_system_flow() -> void:
-	print("\n[4/5] Testando fluxo do BuildingSystem (B, preview e consumo)...")
+	print("\n[4/7] Testando fluxo do BuildingSystem (B, preview e consumo)...")
 	var zm := ZoneManagerClass.new()
 	root.add_child(zm)
 	
@@ -157,7 +176,15 @@ func test_building_system_flow() -> void:
 	var ok := bs._try_place_piece()
 	assert(ok, "Deve conseguir colocar o Totem de Território na Natureza com materiais")
 	assert(player.inventory.get_material_count(&"madeira") == 6, "Deve ter consumido 4 madeiras (sobram 6)")
-	
+	var placed: Array = get_nodes_in_group("claim_totems")
+	assert(placed.size() == 1 and placed[0].placed_at_msec >= 0, "Totem recém-fincado ganha a janela de reembolso total")
+
+	# Mesmo dono não finca um segundo totem
+	bs._process(0.016)
+	assert(not bs._try_place_piece(), "Segundo totem do mesmo dono deve ser negado")
+	for t in placed:
+		t.free()
+
 	bs.set_building_mode(false)
 	bs.free()
 	player.free()
@@ -165,7 +192,7 @@ func test_building_system_flow() -> void:
 	print("  ✓ Modo de construção, atalhos, validação e consumo de materiais aprovados!")
 
 func test_city_hub_structures_and_npcs() -> void:
-	print("\n[5/5] Testando montagem da Cidade Principal (Vila da Esperança)...")
+	print("\n[5/7] Testando montagem da Cidade Principal (Vila da Esperança)...")
 	var city := CityHubClass.new()
 	root.add_child(city)
 	
@@ -174,3 +201,103 @@ func test_city_hub_structures_and_npcs() -> void:
 	
 	city.free()
 	print("  ✓ Vila da Esperança montada com praça, portões e NPCs de profissões!")
+
+func test_territory_rules_gdd08() -> void:
+	print("\n[6/7] Testando regras de território do GDD-08 (distâncias, 1 totem, catálogo, desmontar)...")
+	var zm := ZoneManagerClass.new()
+	root.add_child(zm)
+	
+	# Totem a menos de 20 m da borda da cidade (centro 1.5,4.5; raio 16.5): (1.5, 30) fica a ~9 m
+	var near_city := zm.can_build_at(Vector3(1.5, 0.0, 30.0), &"claim_totem", "Explorador")
+	assert(not near_city["allowed"] and near_city["reason"].contains("Vila"), "Totem colado na vila deve ser negado")
+	
+	var totem := ClaimTotemClass.new()
+	totem.owner_name = "Explorador"
+	totem.position = Vector3(50.0, 0.0, 50.0)
+	root.add_child(totem)
+	
+	# Mesmo dono não finca um segundo totem, mesmo longe
+	var second := zm.can_build_at(Vector3(-60.0, 0.0, -60.0), &"claim_totem", "Explorador")
+	assert(not second["allowed"] and second["reason"].contains("Um só"), "Só 1 totem por personagem")
+	
+	# Vizinho: bordas a menos de 6 m (centros a 30 m, raios 14+14 = 28 -> folga 2 m)
+	var neighbor := zm.can_build_at(Vector3(80.0, 0.0, 50.0), &"claim_totem", "Vizinho")
+	assert(not neighbor["allowed"] and neighbor["reason"].contains("folga"), "Territórios precisam de 6 m de folga")
+	# Centros a 35 m -> folga 7 m: liberado
+	var neighbor_ok := zm.can_build_at(Vector3(50.0, 0.0, 85.0), &"claim_totem", "Vizinho")
+	assert(neighbor_ok["allowed"], "Com 7 m de folga o vizinho pode fincar (motivo: %s)" % neighbor_ok["reason"])
+	
+	# Catálogo único: totem + 7 peças, custos iguais aos de BuildablePiece
+	var catalog := BuildingSystemClass.build_catalog()
+	assert(catalog.size() == 8, "Catálogo deve ter totem + 7 peças (tem %d)" % catalog.size())
+	assert(catalog[0]["is_totem"], "Tecla 1 = totem")
+	assert(catalog[7]["id"] == &"bancada", "Bancada do Rancho entrou no catálogo")
+	assert(catalog[2]["costs"] == BuildablePieceClass.PIECE_CONFIG[BuildablePieceClass.PieceType.PAREDE_MADEIRA]["costs"], "Custos vêm de PIECE_CONFIG")
+	
+	# Desmontar pelo BuildingSystem: totem com peça dentro não sai; peça sai; depois o totem sai
+	var player: Player = PlayerScene.instantiate() as Player
+	player.name = "Explorador"
+	root.add_child(player)
+	player._setup_components()
+	var bs := BuildingSystemClass.new()
+	bs.player = player
+	bs.zone_manager = zm
+	root.add_child(bs)
+	
+	var piece := BuildablePieceClass.new()
+	piece.owner_name = "Explorador"
+	piece.position = Vector3(54.0, 0.0, 50.0)
+	root.add_child(piece)
+	assert(not bs.try_dismantle_at(Vector3(50.0, 0.0, 50.0)), "Totem com construção dentro não pode ser desmontado")
+	assert(bs.try_dismantle_at(Vector3(54.0, 0.0, 50.0)), "Dono desmonta a própria peça")
+	await process_frame
+	assert(bs.try_dismantle_at(Vector3(50.0, 0.0, 50.0)), "Território vazio: totem sai")
+	await process_frame
+	assert(zm.get_claim_at(Vector3(50.0, 0.0, 50.0)) == null, "Totem desmontado deixa de reivindicar a área")
+	
+	bs.free()
+	player.free()
+	zm.free()
+	print("  ✓ Distância da vila, 1 totem por dono, folga entre territórios, catálogo único e desmontagem validados!")
+
+func test_structures_save_roundtrip() -> void:
+	print("\n[7/7] Testando save das construções (ida e volta por JSON)...")
+	var zm := ZoneManagerClass.new()
+	root.add_child(zm)
+	var world := Node3D.new()
+	root.add_child(world)
+	
+	var totem := ClaimTotemClass.new()
+	totem.owner_name = "Explorador"
+	totem.position = Vector3(-50.0, 1.0, 60.0)
+	world.add_child(totem)
+	var door := BuildablePieceClass.new()
+	door.piece_type = BuildablePieceClass.PieceType.PAREDE_PORTA
+	door.owner_name = "Explorador"
+	door.position = Vector3(-48.0, 1.0, 60.0)
+	door.rotation.y = PI * 0.5
+	world.add_child(door)
+	
+	var saved: Array = JSON.parse_string(JSON.stringify(BuildingSystemClass.collect_structures(self)))
+	assert(saved.size() == 2, "Deve salvar totem e porta (salvou %d)" % saved.size())
+	assert(saved[0]["kind"] == "totem", "Totem vem primeiro no save")
+	
+	totem.free()
+	door.free()
+	assert(get_nodes_in_group("built_structures").is_empty(), "Mundo limpo antes de carregar")
+	
+	BuildingSystemClass.restore_structures(world, saved)
+	var pieces := get_nodes_in_group("built_structures")
+	var totems := get_nodes_in_group("claim_totems")
+	assert(pieces.size() == 1 and totems.size() == 1, "Carregar recria 1 totem e 1 peça")
+	var restored = pieces[0]
+	assert(restored.piece_type == BuildablePieceClass.PieceType.PAREDE_PORTA, "Tipo da peça preservado")
+	assert(restored.owner_name == "Explorador", "Dono preservado")
+	assert(restored.position.distance_to(Vector3(-48.0, 1.0, 60.0)) < 0.01, "Posição preservada")
+	assert(absf(restored.rotation.y - PI * 0.5) < 0.01, "Rotação preservada")
+	assert(restored.placed_at_msec == -1, "Peça carregada não ganha janela de reembolso total")
+	assert(zm.get_claim_at(Vector3(-50.0, 0.0, 60.0)) != null, "Totem carregado volta a reivindicar a área")
+	
+	world.free()
+	zm.free()
+	print("  ✓ Totens e peças sobrevivem ao save/load com tipo, dono, posição e rotação!")

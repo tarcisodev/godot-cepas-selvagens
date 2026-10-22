@@ -1,9 +1,12 @@
 extends Node
 
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
-# Guarda: nome, posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas e objetivos.
+# Guarda: nome, posição, hora do dia, aparência (DNA), materiais, elmo equipado, maestrias, cartas, objetivos
+# e construções (totens e peças).
 # "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
 # o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
+
+const BuildingSystemClass = preload("res://scripts/building_system.gd")
 
 const SAVE_PATH: String = "user://savegame.json"
 const SAVE_VERSION: int = 1
@@ -103,6 +106,8 @@ func collect(player: Node) -> Dictionary:
 	var objectives := _objectives()
 	if objectives:
 		data["objectives"] = objectives.get_state()
+	if player.is_inside_tree():
+		data["structures"] = BuildingSystemClass.collect_structures(player.get_tree())
 	return data
 
 func save_game() -> bool:
@@ -153,6 +158,7 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		for tag in data["mastery"]:
 			var entry: Dictionary = data["mastery"][tag]
 			restored[StringName(tag)] = {"level": int(entry.get("level", 1)), "xp": float(entry.get("xp", 0.0))}
+		restored.erase(&"lenharia") # tag removida pelo GDD-08; saves antigos ainda a trazem
 		mastery._masteries = restored
 
 	var cards = player.get("card_collection")
@@ -178,6 +184,11 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var objectives := _objectives()
 	if objectives and data.has("objectives"):
 		objectives.set_state(data["objectives"])
+
+	# Totens e peças voltam como filhos do mundo (irmãos do player)
+	var world := player.get_parent()
+	if world and data.has("structures"):
+		BuildingSystemClass.restore_structures(world, data["structures"])
 	loaded.emit()
 
 # O player é filho direto do mundo; fora da árvore só a posição local existe

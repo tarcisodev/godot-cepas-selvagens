@@ -100,24 +100,25 @@ func test_player_harvest_and_inventory() -> void:
 	print("  ✓ Coleta de Galho, Madeira e Pedra entregou os materiais corretos ao inventário!")
 
 func test_mastery_progression_by_gathering() -> void:
-	print("\n[3/6] Testando avanço de maestria (Lenharia, Mineração, Coleta)...")
+	print("\n[3/6] Testando avanço de maestria (Coleta, Mineração; sem Lenharia — GDD-08)...")
 	var player: Player = PlayerScene.instantiate() as Player
 	root.add_child(player)
 	player._setup_components()
-	
+
 	var mastery: MasteryComponent = player.mastery
 	assert(mastery != null, "Player deve ter MasteryComponent")
-	
-	var xp_lenharia_before: float = mastery.get_xp(&"lenharia")
+	assert(not mastery.initial_tags.has(&"lenharia"), "Lenharia saiu da lista de tags (GDD-08 §8)")
+
 	var xp_mineracao_before: float = mastery.get_xp(&"mineracao")
 	var xp_coleta_before: float = mastery.get_xp(&"coleta")
-	
-	# Cortar madeira -> sobe lenharia
+
+	# Cortar madeira -> sobe coleta
 	var wood := GatherableClass.new()
 	root.add_child(wood)
 	wood.type = GatherableClass.Type.MADEIRA
 	wood.harvest_next(player)
-	assert(mastery.get_xp(&"lenharia") > xp_lenharia_before, "Deveria ganhar XP em Lenharia")
+	assert(mastery.get_xp(&"coleta") > xp_coleta_before, "Madeira deveria dar XP em Coleta")
+	xp_coleta_before = mastery.get_xp(&"coleta")
 	
 	# Minerar pedra -> sobe mineracao
 	var rock := GatherableClass.new()
@@ -137,7 +138,7 @@ func test_mastery_progression_by_gathering() -> void:
 	rock.free()
 	herb.free()
 	player.free()
-	print("  ✓ Maestrias de Lenharia, Mineração e Coleta evoluíram com os atos físicos!")
+	print("  ✓ Maestrias de Coleta e Mineração evoluíram com os atos físicos!")
 
 func test_respawn_cycle() -> void:
 	print("\n[4/6] Testando ciclo de renascimento (Respawn)...")

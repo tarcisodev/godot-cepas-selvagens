@@ -7,7 +7,7 @@ extends Node
 signal xp_gained(tag: StringName, amount: float, current_level: int, current_xp: float, needed_xp: float)
 signal level_up(tag: StringName, new_level: int)
 
-@export var initial_tags: Array[StringName] = [&"lâmina", &"canalização", &"armadura_media", &"forja", &"esfola", &"coleta", &"lenharia", &"mineracao"]
+@export var initial_tags: Array[StringName] = [&"lâmina", &"canalização", &"armadura_media", &"forja", &"esfola", &"coleta", &"mineracao"]
 
 # Estrutura: tag -> { "level": int, "xp": float }
 var _masteries: Dictionary = {}

@@ -72,6 +72,8 @@ var flinch_timer: float = 0.0
 const DOWNED_DURATION: float = 5.0
 var is_downed: bool = false
 var downed_timer: float = 0.0
+## Em duelo consensual aceito (GDD-05): libera o ataque dentro da cidade. Ainda sem convite no jogo.
+var in_duel: bool = false
 var spawn_point: Vector3 = Vector3.ZERO
 var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
@@ -229,7 +231,7 @@ func _physics_process(delta: float) -> void:
 	var can_fight: bool = (tree == null or tree.get_nodes_in_group("open_menus").is_empty()) and not is_stunned() and not is_downed
 	if can_fight and tree != null:
 		var zm := tree.get_first_node_in_group("zone_manager")
-		if zm and zm.has_method("can_combat_at") and not zm.can_combat_at(global_position):
+		if zm and zm.has_method("can_combat_at") and not zm.can_combat_at(global_position, in_duel):
 			can_fight = false
 	var secondary: StyleAttack = weapon_style.secondary if weapon_style else null
 

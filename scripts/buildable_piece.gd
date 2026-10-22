@@ -3,6 +3,10 @@ extends StaticBody3D
 
 ## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada)
 ## Possui colisão sólida, custos de materiais, abertura de portas e desmontagem.
+## PIECE_CONFIG é a única fonte de nome, custo e tamanho das peças (o BuildingSystem lê daqui).
+
+## Desmontar até 2 min depois de colocar devolve tudo; depois, 50% (GDD-08 §8).
+const FULL_REFUND_WINDOW_MS: int = 120000
 
 enum PieceType {
 	PISO_MADEIRA,
@@ -61,6 +65,8 @@ const PIECE_CONFIG: Dictionary = {
 
 @export var piece_type: PieceType = PieceType.PISO_MADEIRA
 @export var owner_name: String = ""
+## Ticks (ms) de quando foi colocada; -1 = sem janela de reembolso total (ex.: veio do save).
+var placed_at_msec: int = -1
 
 var is_door_open: bool = false
 var door_pivot: Node3D
@@ -238,16 +244,23 @@ func talk_to(player: Node) -> void:
 		if player and player.has_signal("posture_changed"):
 			player.posture_changed.emit("🚪 Porta %s" % ("Aberta" if is_door_open else "Fechada"))
 
-## Devolve 50% dos materiais na desmontagem
+## Desmonta a peça e devolve material (100% na janela de 2 min, senão 50%)
 func dismantle(player: Node) -> Dictionary:
 	var cfg: Dictionary = PIECE_CONFIG.get(piece_type, {})
-	var refunds: Dictionary = {}
-	if cfg.has("costs"):
-		for mat_id in cfg["costs"]:
-			var cost: int = cfg["costs"][mat_id]
-			var refund: int = maxi(1, cost / 2)
-			refunds[mat_id] = refund
-			if player and "inventory" in player and player.inventory != null:
-				player.inventory.add_material(mat_id, refund)
+	var refunds := refund_costs(cfg.get("costs", {}), placed_at_msec, player)
 	queue_free()
+	return refunds
+
+## Reembolso comum a peças e totem. Arredonda para baixo: o que sobra é ralo de material.
+static func refund_costs(costs: Dictionary, placed_at: int, player: Node) -> Dictionary:
+	var full := placed_at >= 0 and Time.get_ticks_msec() - placed_at <= FULL_REFUND_WINDOW_MS
+	var refunds: Dictionary = {}
+	for mat_id in costs:
+		var cost: int = costs[mat_id]
+		var amount: int = cost if full else cost / 2
+		if amount <= 0:
+			continue
+		refunds[mat_id] = amount
+		if player and "inventory" in player and player.inventory != null:
+			player.inventory.add_material(mat_id, amount)
 	return refunds

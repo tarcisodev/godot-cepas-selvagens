@@ -11,10 +11,20 @@ enum ZoneType {
 	DANGER,       ## Ninhos de feras e arenas de monstros
 	WATER,        ## Rios profundos e cachoeiras
 	CLAIMED,      ## Território particular reivindicado por Totem
-	WILDERNESS    ## Natureza aberta (liberada para fincar novo Totem)
+	WILDERNESS,   ## Natureza aberta = zona de Exploração do GDD-08 (liberada para fincar novo Totem)
+	WILD_PVP      ## Zona Selvagem do GDD-05 (PvP aberto, full loot): sem construção por enquanto
 }
 
 const RiverClass = preload("res://scripts/river_system.gd")
+const ClaimTotemClass = preload("res://scripts/claim_totem.gd")
+
+## Totem precisa ficar a esta distância da borda da cidade (GDD-08 §8)
+const CITY_BUILD_MARGIN: float = 20.0
+## Folga mínima entre as bordas de dois territórios
+const CLAIM_GAP: float = 6.0
+
+## Áreas de Zona Selvagem (vazio até o mapa ter uma): { "center": Vector2, "radius": float, "name": String }
+const WILD_PVP_ZONES: Array[Dictionary] = []
 
 ## Centro e raio da Cidade Principal (Vila da Esperança)
 const CITY_CENTER: Vector2 = Vector2(1.5, 4.5)
@@ -57,8 +67,13 @@ func get_zone_at(pos: Vector3) -> ZoneType:
 	# 3. Rio e Água Profunda
 	if RiverClass.is_in_water(pos):
 		return ZoneType.WATER
-	
-	# 4. Território Reivindicado por Totem
+
+	# 4. Zona Selvagem (PvP aberto)
+	for wz in WILD_PVP_ZONES:
+		if p2.distance_to(wz["center"]) <= wz["radius"]:
+			return ZoneType.WILD_PVP
+
+	# 5. Território Reivindicado por Totem
 	if get_claim_at(pos) != null:
 		return ZoneType.CLAIMED
 	
@@ -75,9 +90,9 @@ func get_claim_at(pos: Vector3) -> Node3D:
 				return totem
 	return null
 
-## Define se o combate é permitido na posição (Cidade é Zona de Paz)
-func can_combat_at(pos: Vector3) -> bool:
-	return get_zone_at(pos) != ZoneType.CITY
+## Define se o combate é permitido na posição. Cidade é Zona de Paz, exceto em duelo aceito (GDD-05).
+func can_combat_at(pos: Vector3, in_duel: bool = false) -> bool:
+	return in_duel or get_zone_at(pos) != ZoneType.CITY
 
 ## Nome descritivo da zona para exibição no HUD
 func get_zone_name_at(pos: Vector3) -> String:
@@ -88,6 +103,8 @@ func get_zone_name_at(pos: Vector3) -> String:
 			return "⚠️ Covil Selvagem (Área de Risco)"
 		ZoneType.WATER:
 			return "🌊 Rio da Cachoeira"
+		ZoneType.WILD_PVP:
+			return "☠️ Zona Selvagem (PvP aberto)"
 		ZoneType.CLAIMED:
 			var totem := get_claim_at(pos)
 			var owner_name: String = totem.get("owner_name") if totem and "owner_name" in totem else "Andarilho"
@@ -120,16 +137,16 @@ func can_build_at(pos: Vector3, piece_type: StringName = &"piece", player_name: 
 			"zone": zone
 		}
 	
+	if zone == ZoneType.WILD_PVP:
+		return {
+			"allowed": false,
+			"reason": "Zona Selvagem: Ninguém ergue base onde reina o saque.",
+			"zone": zone
+		}
+
 	# Se for o Totem de Território sendo colocado na Natureza:
 	if piece_type == &"claim_totem":
-		var existing := get_claim_at(pos)
-		if existing != null:
-			return {
-				"allowed": false,
-				"reason": "Sobreposição: Já existe um território reivindicado aqui.",
-				"zone": zone
-			}
-		return { "allowed": true, "reason": "Área selvagem livre para novo território!", "zone": zone }
+		return _check_new_totem(pos, player_name, zone)
 	
 	# Para peças normais (paredes, pisos, telhados, canteiros):
 	var claim := get_claim_at(pos)
@@ -150,3 +167,36 @@ func can_build_at(pos: Vector3, piece_type: StringName = &"piece", player_name: 
 		}
 	
 	return { "allowed": true, "reason": "Construção permitida dentro do território!", "zone": zone }
+
+## Regras de um novo totem (GDD-08 §8): 1 por dono, longe da cidade, folga entre territórios.
+func _check_new_totem(pos: Vector3, player_name: String, zone: ZoneType) -> Dictionary:
+	var p2 := Vector2(pos.x, pos.z)
+	var r_new: float = ClaimTotemClass.DEFAULT_RADIUS
+	
+	if p2.distance_to(CITY_CENTER) - CITY_RADIUS < CITY_BUILD_MARGIN:
+		return {
+			"allowed": false,
+			"reason": "Arredores da Vila: Finque o totem a pelo menos %.0fm da cidade." % CITY_BUILD_MARGIN,
+			"zone": zone
+		}
+	
+	for totem in active_totems:
+		if not is_instance_valid(totem) or totem.is_queued_for_deletion():
+			continue
+		var t_owner: String = totem.get("owner_name") if "owner_name" in totem else ""
+		if not player_name.is_empty() and t_owner == player_name:
+			return {
+				"allowed": false,
+				"reason": "Um só território: Desmonte seu totem atual para mudar de lugar.",
+				"zone": zone
+			}
+		var t_pos := Vector2(totem.global_position.x, totem.global_position.z)
+		var r: float = totem.get("radius") if "radius" in totem else ClaimTotemClass.DEFAULT_RADIUS
+		if p2.distance_to(t_pos) - r - r_new < CLAIM_GAP:
+			return {
+				"allowed": false,
+				"reason": "Vizinho perto demais: Territórios precisam de %.0fm de folga." % CLAIM_GAP,
+				"zone": zone
+			}
+	
+	return { "allowed": true, "reason": "Área selvagem livre para novo território!", "zone": zone }
