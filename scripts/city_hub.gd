@@ -27,6 +27,10 @@ static func in_village(x: float, z: float, margin: float = 1.0) -> bool:
 
 ## Reputação da Vila do jogador: 1 por unidade doada
 var reputation: int = 0
+## Mercado da Vila (GDD-05 §6): encomendas e ordens de venda atendidas pela caravana
+var market := VillageMarket.new()
+var _market_screen: MarketScreen
+var _last_hour: int = -1
 
 ## Contratos da Vila (GDD-05 §5): sempre 3 pedidos "entregue N de um material comum"
 const CONTRACT_SLOTS: int = 3
@@ -64,6 +68,35 @@ func _ready() -> void:
 	_build_board()
 	_spawn_city_npcs()
 	_refresh_workers()
+
+func _process(_delta: float) -> void:
+	# A caravana passa pelo Mercado às 8h e às 17h (só com o Mercado pronto)
+	var sun := get_parent().get_node_or_null("Sun") if get_parent() else null
+	if sun == null or not "current_time_hours" in sun:
+		return
+	var hour := int(sun.current_time_hours)
+	if hour == _last_hour:
+		return
+	var first := _last_hour == -1
+	_last_hour = hour
+	if not first and VillageMarket.CARAVAN_HOURS.has(hour) and market_open():
+		var report := market.caravan_visit()
+		var player := get_tree().get_first_node_in_group("player")
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("🐪 A caravana passou pelo Mercado" + ("" if report.is_empty() else ": " + report[0] + (" e mais" if report.size() > 1 else "")))
+
+func market_open() -> bool:
+	var m := get_project(&"mercado")
+	return m == null or m.is_complete()
+
+func open_market(player: Node) -> void:
+	var p := player as Player
+	if p == null:
+		return
+	if not market_open():
+		p.posture_changed.emit("Mercadora: 'As bancas ainda estão em obras. Termine o Mercado no Quadro de Obras!'")
+		return
+	_market_screen.open(p)
 
 func _get_ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
@@ -148,7 +181,7 @@ func get_state() -> Dictionary:
 	var saved_contracts: Array = []
 	for c in contracts:
 		saved_contracts.append({"id": String(c.id), "amount": c.amount, "reward": c.reward})
-	return {"reputation": reputation, "projects": projects, "contracts": saved_contracts}
+	return {"reputation": reputation, "projects": projects, "contracts": saved_contracts, "market": market.get_state()}
 
 func apply_state(state: Dictionary) -> void:
 	reputation = int(state.get("reputation", 0))
@@ -158,6 +191,8 @@ func apply_state(state: Dictionary) -> void:
 			contracts.append({"id": StringName(c.get("id", "madeira")), "amount": int(c.get("amount", 1)), "reward": int(c.get("reward", 1))})
 		_fill_contracts()
 		contracts_changed.emit()
+	if state.has("market"):
+		market.apply_state(state["market"])
 	var projects: Dictionary = state.get("projects", {})
 	for p in _projects:
 		if projects.has(String(p.project_id)):
@@ -330,6 +365,9 @@ func _build_board() -> void:
 	_board = TownBoard.new()
 	_board.city = self
 	_board_layer.add_child(_board)
+	_market_screen = MarketScreen.new()
+	_market_screen.city = self
+	_board_layer.add_child(_market_screen)
 
 func _spawn_city_npcs() -> void:
 	var builder := TownNPC.new()
@@ -351,3 +389,20 @@ func _spawn_city_npcs() -> void:
 	alchemist.talked.connect(open_shop)
 	alchemist.position = Vector3(-1.2, _get_ground_y(-1.2, -2.8), -2.8)
 	add_child(alchemist)
+
+	var merchant := TownNPC.new()
+	merchant.name = "Mercadora"
+	merchant.display_name = "Mercadora"
+	merchant.idle_anim = &"Idle_Talking"
+	merchant.prompt = "[E] Mercado: encomendas e vendas"
+	merchant.talked.connect(open_market)
+	merchant.position = Vector3(3.2, _get_ground_y(3.2, 10.6), 10.6)
+	add_child(merchant)
+
+	# Mesa do Duelo de Cepas na porta da Taverna (GDD-07 §7)
+	var cards := TavernTable.new()
+	cards.name = "MesaDeCartas"
+	cards.city = self
+	cards.position = Vector3(-2.6, _get_ground_y(-2.6, 7.4), 7.4)
+	cards.rotation.y = PI * 0.5
+	add_child(cards)
