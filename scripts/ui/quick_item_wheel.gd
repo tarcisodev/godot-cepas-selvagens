@@ -99,6 +99,9 @@ func use_selected() -> bool:
 	if selected_id.is_empty() or player == null or player.pools == null or player.is_downed:
 		_notify("Nenhum consumível na mochila")
 		return false
+	# Tocha: acende ou apaga (o mesmo que [T])
+	if MaterialData.of(selected_id).tool_action == &"tocha":
+		return player.torch != null and player.torch.toggle()
 	# Vara de pesca: lança ou recolhe a linha (GDD-10 §8)
 	if MaterialData.of(selected_id).tool_action == &"pesca":
 		return player.fishing != null and player.fishing.toggle()
@@ -225,7 +228,7 @@ func _update_hover() -> void:
 	if _hover >= 0 and _hover < _options.size():
 		var d := MaterialData.of(_options[_hover])
 		_center_name.text = d.display_name
-		_center_effect.text = d.effect_text() if d.is_consumable() else {&"laco": "Prende bicho exausto", &"pesca": "Lança / recolhe a linha"}.get(d.tool_action, "Captura bicho preso")
+		_center_effect.text = d.effect_text() if d.is_consumable() else {&"laco": "Prende bicho exausto", &"pesca": "Lança / recolhe a linha", &"tocha": "Acende / apaga · [T]"}.get(d.tool_action, "Captura bicho preso")
 
 func _style_slots() -> void:
 	for i in _slots.size():
@@ -272,6 +275,8 @@ func _refresh_indicator() -> void:
 	_ind_icon.text = d.icon
 	_ind_name.text = "%s  ×%d" % [d.display_name, player.inventory.get_material_count(selected_id)]
 	_ind_qty.text = "[G] usar · [Z]/[X] trocar · segure [F] roda"
+	if d.tool_action == &"tocha" and player.torch and player.torch.is_lit:
+		_ind_qty.text = "acesa · %d s · [T] apaga" % ceili(player.torch.burn_left)
 	# Mantém o canto inferior direito mesmo quando o texto muda de largura
 	_indicator.reset_size()
 	_indicator.position = get_viewport_rect().size - _indicator.size - Vector2(24, 24)

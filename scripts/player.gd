@@ -34,6 +34,7 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 var wallet: WalletComponent
 ## Pesca com a vara (GDD-10 §8)
 var fishing: FishingComponent
+var torch: TorchComponent
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
@@ -205,6 +206,13 @@ func _setup_components() -> void:
 			fishing.name = "FishingComponent"
 			fishing.player = self
 			add_child(fishing)
+	if torch == null:
+		torch = get_node_or_null("TorchComponent") as TorchComponent
+		if torch == null:
+			torch = TorchComponent.new()
+			torch.name = "TorchComponent"
+			add_child(torch)
+		torch.player = self
 
 func _setup_footsteps() -> void:
 	if footstep_player != null:

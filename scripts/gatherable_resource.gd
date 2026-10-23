@@ -420,6 +420,11 @@ static func roll_quality(mastery_level: int, max_quality: int = 2, rng: RandomNu
 	return 2 if roll < chance else 1
 
 func _handle_bee_hazard(harvester: Node) -> void:
+	# Fumaça da tocha acesa acalma as abelhas
+	if TorchComponent.is_lit_on(harvester):
+		if harvester.has_signal("posture_changed"):
+			harvester.posture_changed.emit("🔥 A fumaça da tocha acalmou as abelhas")
+		return
 	if harvester and "pools" in harvester and harvester.pools != null:
 		# Zumbido e dano leve de abelhas
 		harvester.pools.take_damage(4.0)

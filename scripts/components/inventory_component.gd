@@ -202,6 +202,7 @@ func _add_to_stack(material_id: StringName, amount: int, quality: int, traits: A
 
 ## Receitas de ofício simples (GDD-03 §9): resultado -> {materiais}
 const RECIPES: Dictionary = {
+	&"tocha": {&"galho": 2, &"fibra": 1},
 	&"laco_fibra": {&"fibra": 4, &"galho": 2},
 	&"sedativo_erva": {&"erva": 3, &"mel": 1},
 	&"vara_pesca": {&"galho": 3, &"fibra": 4},

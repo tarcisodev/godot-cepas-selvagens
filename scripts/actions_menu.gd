@@ -38,10 +38,19 @@ func _ready() -> void:
 		$PanelContainer/MarginContainer/VBoxContainer.move_child(build_btn, close_button.get_index())
 	build_btn.pressed.connect(_on_build_pressed)
 
-	# Ofícios de captura (GDD-03 §9): laço e sedativo
+	# Ofícios de mão (GDD-03 §9): tocha, laço, sedativo, vara. Cada botão mostra o que tem e o que falta
+	var craft_header := Label.new()
+	craft_header.name = "CraftHeader"
+	craft_header.text = "🔨 Fabricar"
+	craft_header.add_theme_font_size_override("font_size", 15)
+	craft_header.add_theme_color_override("font_color", Color(0.95, 0.78, 0.45))
+	$PanelContainer/MarginContainer/VBoxContainer.add_child(craft_header)
+	$PanelContainer/MarginContainer/VBoxContainer.move_child(craft_header, build_btn.get_index())
 	for recipe_id in InventoryComponent.RECIPES:
 		var craft_btn := Button.new()
 		craft_btn.name = "Craft_" + String(recipe_id)
+		craft_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		craft_btn.tooltip_text = MaterialData.of(recipe_id).description
 		$PanelContainer/MarginContainer/VBoxContainer.add_child(craft_btn)
 		$PanelContainer/MarginContainer/VBoxContainer.move_child(craft_btn, build_btn.get_index())
 		craft_btn.pressed.connect(_on_craft_pressed.bind(recipe_id))
@@ -74,6 +83,9 @@ func open_menu() -> void:
 	visible = true
 	add_to_group("open_menus")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# Coletou ou gastou algo com o menu aberto: os botões de fabricar acompanham
+	if player and player.inventory and not player.inventory.stacks_changed.is_connected(_update_button_texts):
+		player.inventory.stacks_changed.connect(_update_button_texts)
 	_update_button_texts()
 
 func close_menu() -> void:
@@ -85,12 +97,17 @@ func close_menu() -> void:
 func _update_button_texts() -> void:
 	for recipe_id in _craft_buttons:
 		var data := MaterialData.of(recipe_id)
+		var inv: InventoryComponent = player.inventory if player else null
 		var parts: Array[String] = []
 		for mat in InventoryComponent.RECIPES[recipe_id]:
-			parts.append("%d %s" % [InventoryComponent.RECIPES[recipe_id][mat], MaterialData.of(mat).display_name.get_slice(" ", 0)])
-		var have: int = player.inventory.get_material_count(recipe_id) if player and player.inventory else 0
-		_craft_buttons[recipe_id].text = "%s Fazer %s (%s) · tem %d" % [data.icon, data.display_name, " + ".join(parts), have]
-		_craft_buttons[recipe_id].disabled = player == null or player.inventory == null or not player.inventory.has_materials(InventoryComponent.RECIPES[recipe_id])
+			var need: int = InventoryComponent.RECIPES[recipe_id][mat]
+			var got: int = inv.get_material_count(mat) if inv else 0
+			parts.append("%s %d/%d %s" % ["✓" if got >= need else "✗", mini(got, need), need, MaterialData.of(mat).display_name.get_slice(" ", 0)])
+		var have: int = inv.get_material_count(recipe_id) if inv else 0
+		var shortcut: String = " · [T] usa" if recipe_id == TorchComponent.ITEM else ""
+		_craft_buttons[recipe_id].text = "%s %s  (na mochila: %d%s)
+	  %s" % [data.icon, data.display_name, have, shortcut, "   ".join(parts)]
+		_craft_buttons[recipe_id].disabled = inv == null or not inv.has_materials(InventoryComponent.RECIPES[recipe_id])
 	if player:
 		if player.is_sitting:
 			sit_button.text = "🚶 Levantar e Caminhar"
