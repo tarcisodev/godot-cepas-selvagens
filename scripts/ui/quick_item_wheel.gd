@@ -99,6 +99,9 @@ func use_selected() -> bool:
 	if selected_id.is_empty() or player == null or player.pools == null or player.is_downed:
 		_notify("Nenhum consumível na mochila")
 		return false
+	# Vara de pesca: lança ou recolhe a linha (GDD-10 §8)
+	if MaterialData.of(selected_id).tool_action == &"pesca":
+		return player.fishing != null and player.fishing.toggle()
 	# Ferramenta de captura (laço, sedativo): age no bicho mais próximo
 	if MaterialData.of(selected_id).is_tool():
 		return WildCreature.use_tool(player, selected_id)
@@ -222,7 +225,7 @@ func _update_hover() -> void:
 	if _hover >= 0 and _hover < _options.size():
 		var d := MaterialData.of(_options[_hover])
 		_center_name.text = d.display_name
-		_center_effect.text = d.effect_text() if d.is_consumable() else ("Prende bicho exausto" if d.tool_action == &"laco" else "Captura bicho preso")
+		_center_effect.text = d.effect_text() if d.is_consumable() else {&"laco": "Prende bicho exausto", &"pesca": "Lança / recolhe a linha"}.get(d.tool_action, "Captura bicho preso")
 
 func _style_slots() -> void:
 	for i in _slots.size():

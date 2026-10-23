@@ -30,6 +30,9 @@ func _ready() -> void:
 		player.pools.ether_changed.connect(_on_ether_changed)
 		player.pools.vigor_changed.connect(_on_vigor_changed)
 		player.pools.poise_changed.connect(_on_poise_changed)
+		if player.has_signal("oxygen_changed"):
+			_build_oxygen_ui()
+			player.oxygen_changed.connect(_on_oxygen_changed)
 		if player.stats != null:
 			_on_health_changed(player.pools.current_health, player.stats.get_stat(&"max_health"))
 			_on_ether_changed(player.pools.current_ether, player.stats.get_stat(&"max_ether"))
@@ -62,6 +65,51 @@ func _process(_delta: float) -> void:
 		if cur_zone != _last_zone:
 			_last_zone = cur_zone
 			_update_hud_status()
+
+	_update_underwater_tint()
+
+# ---------------------------------------------------------------- fôlego e embaixo d'água
+
+var _oxygen_bar: ProgressBar
+var _underwater_tint: ColorRect
+
+## Barra de fôlego (só aparece quando o ar não está cheio) e um véu azul com a câmera na água
+func _build_oxygen_ui() -> void:
+	var bars := get_node_or_null("MarginContainer/VBoxContainer/StatusBars")
+	if bars:
+		_oxygen_bar = ProgressBar.new()
+		_oxygen_bar.name = "OxygenBar"
+		_oxygen_bar.modulate = Color(0.55, 0.85, 1.0, 0.95)
+		_oxygen_bar.custom_minimum_size = Vector2(220, 6)
+		_oxygen_bar.show_percentage = false
+		_oxygen_bar.max_value = Player.OXYGEN_MAX
+		_oxygen_bar.value = Player.OXYGEN_MAX
+		_oxygen_bar.visible = false
+		bars.add_child(_oxygen_bar)
+	_underwater_tint = ColorRect.new()
+	_underwater_tint.color = Color(0.05, 0.25, 0.32, 0.45)
+	_underwater_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_underwater_tint.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_underwater_tint.visible = false
+	add_child(_underwater_tint)
+	move_child(_underwater_tint, 0)
+
+func _on_oxygen_changed(current: float, max_val: float) -> void:
+	if _oxygen_bar:
+		_oxygen_bar.max_value = max_val
+		_oxygen_bar.value = current
+		_oxygen_bar.visible = current < max_val
+		_oxygen_bar.modulate = Color(1.0, 0.35, 0.3) if current < max_val * 0.25 else Color(0.55, 0.85, 1.0, 0.95)
+
+func _update_underwater_tint() -> void:
+	if _underwater_tint == null or not is_inside_tree():
+		return
+	var cam := get_viewport().get_camera_3d()
+	var under := false
+	if cam:
+		var p := cam.global_position
+		under = p.y < RiverSystem.get_water_height(p.z) - 0.05 and RiverSystem.get_distance_to_river(p.x, p.z) < RiverSystem.get_water_half_width(p.z)
+	_underwater_tint.visible = under
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:

@@ -12,7 +12,8 @@ const MAX_OWNED: int = 3
 ## Bicho morto, capturado ou solto volta a nascer no mesmo lugar depois disso (s)
 const RESPAWN_DELAY: float = 90.0
 ## População mínima (repõe se cair abaixo) e máxima (para de reproduzir) por espécie
-const POP_MIN: Dictionary = {CreatureDNA.Species.TROTADOR: 4, CreatureDNA.Species.SALTARELO: 4, CreatureDNA.Species.PLANADOR: 2}
+const POP_MIN: Dictionary = {CreatureDNA.Species.TROTADOR: 4, CreatureDNA.Species.SALTARELO: 4, CreatureDNA.Species.PLANADOR: 2,
+	CreatureDNA.Species.LAMBARI: 16, CreatureDNA.Species.TRAIRA: 4, CreatureDNA.Species.DOURADO: 2}
 const POP_MAX: Dictionary = {CreatureDNA.Species.TROTADOR: 24, CreatureDNA.Species.SALTARELO: 18, CreatureDNA.Species.PLANADOR: 6}
 const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, CreatureDNA.Species.PLANADOR: Mount.Kind.AIR}
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
@@ -25,7 +26,9 @@ const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 @export var saltarelos: int = 12
 @export var planadores: int = 4
 @export var raias: int = 3
-@export var lambari_schools: int = 4
+@export var lambari_schools: int = 6
+@export var trairas: int = 5
+@export var dourados: int = 2
 @export var trees: int = 60
 @export var bushes: int = 55
 @export var cepas: int = 50
@@ -97,10 +100,24 @@ func _spawn_fauna() -> void:
 			_add_wild(CreatureDNA.Species.PLANADOR, spot + Vector3(0, 15, 0), 16.0)
 	for i in raias:
 		_add_wild(CreatureDNA.Species.RAIA, _river_spot(_rng.randf_range(15.0, WorldBounds.HALF * 0.8)), 18.0)
-	for s in lambari_schools:
-		var z := _rng.randf_range(-12.0, WorldBounds.HALF * 0.8)
-		for i in 4:
-			_add_wild(CreatureDNA.Species.LAMBARI, _river_spot(z + i * 0.6), 10.0)
+	_spawn_fish(false)
+
+## Peixes do rio (GDD-10 §8). Com `only_missing`, só repõe espécie que está abaixo do mínimo —
+## save antigo, de antes da Traíra e do Dourado, ganha os peixes novos ao carregar
+func _spawn_fish(only_missing: bool) -> void:
+	if not only_missing or population(CreatureDNA.Species.LAMBARI) < POP_MIN[CreatureDNA.Species.LAMBARI]:
+		for s in lambari_schools:
+			var z := _rng.randf_range(-12.0, WorldBounds.HALF * 0.8)
+			for i in 4:
+				_add_wild(CreatureDNA.Species.LAMBARI, _river_spot(z + i * 0.6), 10.0)
+	# Traíras nos remansos do rio de baixo e no rio da serra; Dourados no poço da cachoeira
+	if not only_missing or population(CreatureDNA.Species.TRAIRA) < POP_MIN[CreatureDNA.Species.TRAIRA]:
+		for i in trairas:
+			var z := _rng.randf_range(-80.0, -34.0) if i == 0 else _rng.randf_range(-8.0, WorldBounds.HALF * 0.8)
+			_add_wild(CreatureDNA.Species.TRAIRA, _river_spot(z), 8.0)
+	if not only_missing or population(CreatureDNA.Species.DOURADO) < POP_MIN[CreatureDNA.Species.DOURADO]:
+		for i in dourados:
+			_add_wild(CreatureDNA.Species.DOURADO, _river_spot(RiverSystem.WATERFALL_Z + _rng.randf_range(4.0, 10.0)), 5.0)
 
 func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float, p_dna: CreatureDNA = null) -> WildCreature:
 	var c := WildCreature.new()
@@ -225,6 +242,7 @@ func restore_nature(d: Dictionary) -> void:
 		c.hunger = float(e.get("hunger", 0.2))
 		c.thirst = float(e.get("thirst", 0.2))
 		c.breed_cooldown = float(e.get("breed", 0.0))
+	_spawn_fish.call_deferred(true) # depois do queue_free dos bichos antigos
 
 static func _vec(a: Array) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
@@ -296,10 +314,13 @@ func _build_stable() -> void:
 	bird.alleles["porte"] = ["T", "T"]
 	bird.alleles["chifre"] = ["C", "C"]
 	_add_mount(bird, Mount.Kind.AIR, "Planador", base + Vector3(1.7, 0, 0.3))
-	# Raia montável no rio, na altura da vila
+	# Raia montável no rio, na altura da vila, encostada na margem do lado da vila (dá para montar
+	# da beira ou nadando até ela)
 	var raia := CreatureDNA.randomized(CreatureDNA.Species.RAIA, 303)
 	raia.alleles["porte"] = ["T", "T"]
-	_add_mount(raia, Mount.Kind.WATER, "Raia-do-Rio", _river_spot(10.0))
+	var raia_spot := _river_spot(10.0)
+	raia_spot.x -= RiverSystem.get_water_half_width(10.0) * 0.7
+	_add_mount(raia, Mount.Kind.WATER, "Raia-do-Rio", raia_spot)
 
 func _add_mount(d: CreatureDNA, kind: Mount.Kind, mount_name: String, pos: Vector3) -> Mount:
 	var m := Mount.new()

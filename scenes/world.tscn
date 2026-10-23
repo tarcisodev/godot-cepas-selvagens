@@ -4,7 +4,6 @@
 [ext_resource type="Script" path="res://scripts/landscape_generator.gd" id="2_terrain"]
 [ext_resource type="Script" path="res://scripts/nature_props.gd" id="3_props"]
 [ext_resource type="Script" path="res://scripts/river_plants.gd" id="4_plants"]
-[ext_resource type="Script" path="res://scripts/fish_school.gd" id="5_fish"]
 [ext_resource type="Script" path="res://scripts/grass_and_flowers.gd" id="6_grass"]
 [ext_resource type="Script" path="res://scripts/wild_bushes.gd" id="7_bushes"]
 [ext_resource type="Script" path="res://scripts/wildlife_ambient.gd" id="8_wildlife"]
@@ -83,9 +82,6 @@ landscape = NodePath("../Landscape")
 
 [node name="RiverPlants" type="Node3D" parent="."]
 script = ExtResource("4_plants")
-
-[node name="FishSchool" type="Node3D" parent="."]
-script = ExtResource("5_fish")
 
 [node name="GrassAndFlowers" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("6_grass")

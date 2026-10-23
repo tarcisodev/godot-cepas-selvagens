@@ -29,6 +29,9 @@ const THIRST_RATE: float = 1.6
 const ADULT_AGE: float = 1.5
 const BREED_COOLDOWN: float = 2.0
 const DAY_SECONDS: float = 300.0
+## Peixes: velocidade de passeio (m/s) e altura preferida na água (0 = leito, 1 = superfície)
+const FISH_SPEED: Dictionary = {CreatureDNA.Species.LAMBARI: 1.3, CreatureDNA.Species.TRAIRA: 0.6, CreatureDNA.Species.DOURADO: 1.6}
+const FISH_DEPTH: Dictionary = {CreatureDNA.Species.LAMBARI: 0.75, CreatureDNA.Species.TRAIRA: 0.1, CreatureDNA.Species.DOURADO: 0.45}
 ## Vida por espécie de caça (GDD-03 §9.1); quem não está aqui não apanha
 const HEALTH: Dictionary = {
 	CreatureDNA.Species.TROTADOR: 120.0, CreatureDNA.Species.PLANADOR: 90.0, CreatureDNA.Species.SALTARELO: 25.0,
@@ -72,6 +75,10 @@ var _rng := RandomNumberGenerator.new()
 var _landscape: Node
 var _label: Label3D
 var _rope: MeshInstance3D
+## Pesca (GDD-10 §8): boia que atrai o peixe e peixe fisgado (a linha move o corpo)
+var lure: Vector3 = Vector3.INF
+var hooked: bool = false
+var _swim_offset: Vector3
 
 func _ready() -> void:
 	add_to_group("wild_creatures")
@@ -86,6 +93,9 @@ func _ready() -> void:
 	lifespan_days = _rng.randf_range(12.0, 18.0)
 	breed_cooldown = _rng.randf_range(0.0, BREED_COOLDOWN)
 	_altitude = _rng.randf_range(10.0, 20.0)
+	_swim_offset = Vector3(_rng.randf_range(-0.6, 0.6), _rng.randf_range(-0.15, 0.15), _rng.randf_range(-0.8, 0.8))
+	if dna.plan() == CreatureDNA.Plan.FISH:
+		add_to_group("fish")
 	var scene := get_tree().current_scene if is_inside_tree() else null
 	_landscape = scene.get_node_or_null("Landscape") if scene else null
 	if is_huntable():
@@ -277,6 +287,8 @@ func _remove() -> void:
 		if eco:
 			eco.deposit(global_position, 0.25)
 	remove_from_group("harvestable")
+	remove_from_group("fish")
+	remove_from_group("wild_creatures")
 	removed.emit(self)
 	queue_free()
 
@@ -531,11 +543,77 @@ func _fly(delta: float) -> void:
 	body.animate(delta, vel.length(), vel.y, true)
 
 func _swim(delta: float) -> void:
-	_angle += delta * (0.25 if dna.species == CreatureDNA.Species.RAIA else 0.6)
+	if dna.species == CreatureDNA.Species.RAIA:
+		_swim_raia(delta)
+		return
+	if hooked:
+		body.animate(delta, 4.0) # quem move é a linha (FishingComponent)
+		return
+	var surface := RiverSystem.get_water_height(global_position.z)
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	var speed := FISH_SPEED.get(dna.species, 1.0) as float
+	var target: Vector3
+	if player and player.global_position.distance_to(global_position) < 3.5 and (player.get("is_swimming") or absf(player.global_position.y - global_position.y) < 2.0):
+		# Dispara para longe de quem chegou perto (nadando ou pisando no raso)
+		var away := global_position - player.global_position
+		away.y = 0.0
+		target = global_position + away.normalized() * 5.0
+		speed = 4.0
+		_wait = 0.0
+	elif lure != Vector3.INF:
+		target = lure + Vector3(0, -0.35, 0)
+		speed *= 0.6
+	elif dna.species == CreatureDNA.Species.LAMBARI:
+		# Cardume: todos do mesmo cardume seguem a mesma trilha (a casa é a mesma), cada um com um desvio
+		var t := Time.get_ticks_msec() / 1000.0 * 0.12 + home.z
+		var z := home.z + sin(t) * roam_radius
+		var half := RiverSystem.get_water_half_width(z)
+		target = Vector3(RiverSystem.get_river_center_x(z) + cos(t * 1.7) * half * 0.45 + _swim_offset.x, 0, z + _swim_offset.z)
+		target.y = _depth_at(target)
+	else:
+		_wait -= delta
+		if _wait <= 0.0 or global_position.distance_to(_target) < 0.4:
+			_wait = _rng.randf_range(4.0, 10.0)
+			var z := home.z + _rng.randf_range(-roam_radius, roam_radius)
+			var half := RiverSystem.get_water_half_width(z)
+			_target = Vector3(RiverSystem.get_river_center_x(z) + _rng.randf_range(-0.7, 0.7) * half, 0, z)
+			_target.y = _depth_at(_target)
+		target = _target
+	target = _keep_in_water(target)
+	var old := global_position
+	var to := target - global_position
+	if to.length() > 0.01:
+		global_position += to.normalized() * minf(to.length(), speed * delta)
+	global_position.y = minf(global_position.y, surface - 0.12)
+	var vel := (global_position - old) / maxf(delta, 0.001)
+	if Vector2(vel.x, vel.z).length() > 0.05:
+		rotation.y = lerp_angle(rotation.y, atan2(-vel.x, -vel.z), minf(1.0, delta * 5.0))
+	body.animate(delta, vel.length())
+
+## Profundidade preferida da espécie entre o leito e a superfície naquele ponto
+func _depth_at(p: Vector3) -> float:
+	var surface := RiverSystem.get_water_height(p.z)
+	var bed := minf(_ground(p.x, p.z), surface - 0.5)
+	var pref: float = FISH_DEPTH.get(dna.species, 0.5)
+	return lerpf(bed + 0.2, surface - 0.2, clampf(pref + _swim_offset.y, 0.0, 1.0))
+
+## Não passa a cachoeira nem sai do leito: prende z do lado em que nasceu e x dentro da água
+func _keep_in_water(p: Vector3) -> Vector3:
+	var fall := RiverSystem.WATERFALL_Z
+	p.z = minf(p.z, fall - 2.0) if home.z < fall else clampf(p.z, fall + 2.0, WorldBounds.HALF - 2.0)
+	var cx := RiverSystem.get_river_center_x(p.z)
+	var half := RiverSystem.get_water_half_width(p.z) * 0.8
+	p.x = clampf(p.x, cx - half, cx + half)
+	var surface := RiverSystem.get_water_height(p.z)
+	p.y = clampf(p.y, minf(_ground(p.x, p.z) + 0.15, surface - 0.3), surface - 0.15)
+	return p
+
+func _swim_raia(delta: float) -> void:
+	_angle += delta * 0.25
 	var z := home.z + sin(_angle) * roam_radius
 	var half := RiverSystem.get_water_half_width(z)
 	var x := RiverSystem.get_river_center_x(z) + cos(_angle * 1.7) * half * 0.45
-	var y := RiverSystem.get_water_height(z) - (0.35 if dna.species == CreatureDNA.Species.RAIA else 0.5)
+	var y := RiverSystem.get_water_height(z) - 0.35
 	var old := global_position
 	global_position = global_position.lerp(Vector3(x, y, z), minf(1.0, delta * 1.2))
 	var vel := (global_position - old) / maxf(delta, 0.001)

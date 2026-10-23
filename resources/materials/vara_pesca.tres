@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"vara_pesca"
+display_name = "Vara de Pesca"
+description = "Galho flexível com linha de fibra. Use pela roda rápida perto da água: lança a boia, espera o peixe fisgar e recolhe sem arrebentar a linha. Besouro na mochila vira isca e apressa a fisgada. Não gasta."
+category = 5
+icon = "🎣"
+color = Color(0.62, 0.48, 0.28, 1)
+unit_weight = 0.8
+max_gather_quality = 5
+base_value = 8
+tool_action = &"pesca"

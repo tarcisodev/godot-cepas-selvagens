@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"peixe_dourado"
+display_name = "Dourado-da-Cachoeira"
+description = "O rei do poço da cachoeira. Puxa forte e arrebenta linha de quem tem pressa. Repõe muito Vigor e vale bem no mercado."
+category = 3
+icon = "🐠"
+color = Color(0.95, 0.68, 0.2, 1)
+unit_weight = 1.4
+max_gather_quality = 5
+base_value = 18
+restore_vigor = 35.0

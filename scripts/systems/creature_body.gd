@@ -186,7 +186,9 @@ func _build_bird() -> void:
 
 func _build_fish() -> void:
 	var info := dna.info()
-	var f := dna.size_factor()
+	# Peixe comum tem proporções de 1 m em "body" e "tail": multiplica pelo tamanho da espécie.
+	# A Raia (wide) já vem em metros.
+	var f := dna.size_factor() * (1.0 if info.get("wide", false) else float(info["size"]))
 	var body: Vector3 = info["body"] * f
 	back_height = body.y * 0.6
 	var center := Vector3.ZERO
@@ -204,14 +206,18 @@ func _build_fish() -> void:
 		for side in [-1.0, 1.0]:
 			_ellipsoid(_torso, Vector3.ONE * body.y * 0.25, Vector3(side * body.x * 0.12, body.y * 0.35, -body.z * 0.38), Color(0.05, 0.05, 0.05))
 	else:
+		var fin_color: Color = info.get("fin", dna.belly_color)
+		# Faixa lateral brilhante (Lambari) ou escura (Traíra), da guelra ao rabo
+		if info.has("stripe"):
+			_ellipsoid(_torso, Vector3(body.x * 1.02, body.y * 0.16, body.z * 0.78), center + Vector3(0, body.y * 0.05, body.z * 0.06), info["stripe"])
 		for side in [-1.0, 1.0]:
 			var pivot := Node3D.new()
 			pivot.position = Vector3(side * body.x * 0.45, -body.y * 0.1, -body.z * 0.1)
 			_torso.add_child(pivot)
-			_ellipsoid(pivot, Vector3(body.x * 0.5, 0.02 * f, body.z * 0.2), Vector3(side * body.x * 0.2, 0, 0), dna.belly_color)
+			_ellipsoid(pivot, Vector3(body.x * 0.5, 0.02 * f, body.z * 0.2), Vector3(side * body.x * 0.2, 0, 0), fin_color)
 			_fins.append(pivot)
 			_ellipsoid(_torso, Vector3.ONE * body.x * 0.25, Vector3(side * body.x * 0.38, body.y * 0.12, -body.z * 0.32), Color(0.05, 0.05, 0.05))
-		_cone(_torso, body.x * 0.05, body.y * 0.6, Vector3(0, body.y * 0.55, 0.05), dna.coat_color().darkened(0.15), Basis.IDENTITY)
+		_cone(_torso, body.x * 0.05, body.y * 0.6, Vector3(0, body.y * 0.55, 0.05), fin_color.darkened(0.15), Basis.IDENTITY)
 	_tail = Node3D.new()
 	_tail.position = Vector3(0, 0, body.z * 0.48)
 	_torso.add_child(_tail)
@@ -219,7 +225,7 @@ func _build_fish() -> void:
 	if info.get("wide", false):
 		_capsule(_tail, 0.03 * f, tail, Vector3(0, 0, tail * 0.5), dna.coat_color().darkened(0.3), Basis(Vector3.RIGHT, PI * 0.5))
 	else:
-		_ellipsoid(_tail, Vector3(0.03 * f, body.y * 1.1, tail * 0.6), Vector3(0, 0, tail * 0.3), dna.coat_color().darkened(0.1))
+		_ellipsoid(_tail, Vector3(0.03 * f, body.y * 1.1, tail * 0.6), Vector3(0, 0, tail * 0.3), info.get("fin", dna.coat_color().darkened(0.1)))
 
 ## Listras (gene P_) e pintas (mutação)
 func _pattern(body: Vector3, center: Vector3) -> void:

@@ -6,7 +6,7 @@ extends Resource
 ## O corpo é montado por CreatureBody a partir deste DNA.
 
 enum Plan { QUADRUPED, BIRD, FISH }
-enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI }
+enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO }
 
 ## Tabela das espécies do slice: plano de corpo, tamanho máximo (m), cores e proporções
 const SPECIES: Dictionary = {
@@ -34,6 +34,20 @@ const SPECIES: Dictionary = {
 		"name": "Lambari-Brilho", "plan": Plan.FISH, "size": 0.32,
 		"color": Color(0.7, 0.75, 0.82), "belly": Color(0.95, 0.95, 0.9),
 		"body": Vector3(0.3, 0.42, 1.0), "tail": 0.35, "wide": false,
+		"fin": Color(0.9, 0.42, 0.22), "stripe": Color(0.85, 0.95, 1.0),
+	},
+	# Peixes de pesca (GDD-10 §8): Traíra fica no fundo dos remansos, Dourado no poço da cachoeira
+	Species.TRAIRA: {
+		"name": "Traíra-do-Remanso", "plan": Plan.FISH, "size": 0.62,
+		"color": Color(0.32, 0.36, 0.22), "belly": Color(0.78, 0.74, 0.55),
+		"body": Vector3(0.22, 0.24, 1.0), "tail": 0.28, "wide": false,
+		"fin": Color(0.25, 0.28, 0.16), "stripe": Color(0.18, 0.2, 0.12),
+	},
+	Species.DOURADO: {
+		"name": "Dourado-da-Cachoeira", "plan": Plan.FISH, "size": 0.95,
+		"color": Color(0.93, 0.66, 0.18), "belly": Color(0.98, 0.9, 0.6),
+		"body": Vector3(0.26, 0.36, 1.0), "tail": 0.32, "wide": false,
+		"fin": Color(0.95, 0.4, 0.12),
 	},
 }
 

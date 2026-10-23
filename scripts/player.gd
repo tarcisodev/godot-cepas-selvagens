@@ -32,6 +32,8 @@ const CameraRigScript = preload("res://scripts/camera_rig.gd")
 @onready var inventory: InventoryComponent = get_node_or_null("InventoryComponent")
 ## Dólares de Sucata (GDD-05 §5)
 var wallet: WalletComponent
+## Pesca com a vara (GDD-10 §8)
+var fishing: FishingComponent
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
@@ -78,6 +80,34 @@ var downed_timer: float = 0.0
 var in_duel: bool = false
 ## Montaria em que está sentado (GDD-09 §5); null a pé. A montaria move o player.
 var mounted_on: Node3D = null
+## Nado (GDD-10 §7): água mais funda que SWIM_DEPTH boia o corpo com a cabeça para fora.
+## Sem arma nem esquiva na água; correr nadando gasta Vigor e a correnteza empurra rio abaixo.
+const SWIM_DEPTH: float = 1.2
+## Origem do corpo abaixo da superfície enquanto boia. As animações Swim_* do UAL já põem o corpo
+## deitado na linha d'água, com a cabeça ~26 cm acima da origem (medido no jogo)
+const SWIM_FLOAT: float = 0.12
+const SWIM_SPEED: float = 2.2
+const SWIM_SPRINT_SPEED: float = 3.6
+const SWIM_SPRINT_VIGOR: float = 14.0
+## Correnteza (m/s) com o rio normal; a cheia dobra
+const RIVER_CURRENT: float = 0.45
+var is_swimming: bool = false
+## Mergulho: Ctrl desce, Espaço sobe; parado embaixo d'água o corpo sobe devagar
+const DIVE_SPEED: float = 2.2
+const RISE_SPEED: float = 2.6
+const DRIFT_UP: float = 0.6
+## Fôlego embaixo d'água (s); recupera com a cabeça fora e, zerado, afoga tirando Vida por segundo
+const OXYGEN_MAX: float = 30.0
+const OXYGEN_REGEN: float = 10.0
+const DROWN_DPS: float = 8.0
+## Altura da boca acima da origem nadando: abaixo da superfície = sem ar
+const HEAD_HEIGHT: float = 0.22
+var oxygen: float = OXYGEN_MAX
+var is_underwater: bool = false
+signal oxygen_changed(current: float, max_val: float)
+## O jogador está apertando direção neste frame (a correnteza mexe o corpo sem ser ele)
+var wants_move: bool = false
+var _landscape: Node
 var spawn_point: Vector3 = Vector3.ZERO
 var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
@@ -168,6 +198,13 @@ func _setup_components() -> void:
 			card_collection = CardCollectionComponent.new()
 			card_collection.name = "CardCollectionComponent"
 			add_child(card_collection)
+	if fishing == null:
+		fishing = get_node_or_null("FishingComponent") as FishingComponent
+		if fishing == null:
+			fishing = FishingComponent.new()
+			fishing.name = "FishingComponent"
+			fishing.player = self
+			add_child(fishing)
 
 func _setup_footsteps() -> void:
 	if footstep_player != null:
@@ -212,16 +249,22 @@ func _setup_combat_audio() -> void:
 		add_child(dodge_player)
 
 func _physics_process(delta: float) -> void:
+	_update_oxygen(delta)
 	if mounted_on:
 		_process_mounted()
+		return
+
+	# Obter input de movimentação
+	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	wants_move = input_dir != Vector2.ZERO
+
+	if not is_downed and _update_swim_state():
+		_process_swimming(delta, input_dir)
 		return
 
 	# Aplicar gravidade
 	if not is_on_floor():
 		velocity.y -= gravity * delta
-
-	# Obter input de movimentação
-	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 
 	# Se estava sentado e pressionou mover, levanta automaticamente
 	if is_sitting and input_dir != Vector2.ZERO:
@@ -252,7 +295,7 @@ func _physics_process(delta: float) -> void:
 	# Básicos do estilo (clique esq./dir.); menu aberto ou Postura quebrada travam o combate
 	_process_attack(delta)
 	var tree := get_tree()
-	var can_fight: bool = (tree == null or tree.get_nodes_in_group("open_menus").is_empty()) and not is_stunned() and not is_downed
+	var can_fight: bool = (tree == null or tree.get_nodes_in_group("open_menus").is_empty()) and not is_stunned() and not is_downed and not (fishing and fishing.is_busy()) # o clique é da vara enquanto pesca
 	if can_fight and tree != null:
 		var zm := tree.get_first_node_in_group("zone_manager")
 		if zm and zm.has_method("can_combat_at") and not zm.can_combat_at(global_position, in_duel):
@@ -405,6 +448,103 @@ func _process_mounted() -> void:
 	if Input.is_action_just_pressed("interact") and (tree == null or tree.get_nodes_in_group("open_menus").is_empty()):
 		mounted_on.call("dismount")
 
+## Entra no nado quando a água no ponto passa de SWIM_DEPTH e o corpo está dentro dela;
+## sai quando o leito sobe (chegou no raso ou na margem). Devolve se está nadando.
+func _update_swim_state() -> bool:
+	var pos := global_position
+	var surface := RiverSystem.get_water_height(pos.z)
+	var deep := RiverSystem.is_in_water(Vector3(pos.x, surface, pos.z)) and surface - _ground_at(pos.x, pos.z) > SWIM_DEPTH
+	var in_water := pos.y < surface - 0.4
+	var swim := deep and (in_water or is_swimming)
+	if swim != is_swimming:
+		is_swimming = swim
+		if swim:
+			if is_crouching:
+				is_crouching = false
+				_update_collision_for_crouch()
+			is_sitting = false
+			_set_aiming(false)
+			is_blocking = false
+			if is_harvesting:
+				_cancel_harvest("Em Pé")
+			posture_changed.emit("🌊 Nadando · Ctrl mergulha · Shift nada rápido (Vigor)")
+		else:
+			posture_changed.emit("Em Pé")
+		set_hand_gear_visible(not swim)
+	return is_swimming
+
+## Mostra ou guarda o que está preso nas mãos (arma, escudo): some ao nadar e ao pescar
+func set_hand_gear_visible(on: bool) -> void:
+	if character_visual == null or character_visual.skeleton == null:
+		return
+	for socket in character_visual.skeleton.get_children():
+		if socket is BoneAttachment3D and ("hand" in String(socket.bone_name) or socket.name == "WeaponSocket"):
+			socket.visible = on
+
+func _process_swimming(delta: float, input_dir: Vector2) -> void:
+	if flinch_timer > 0.0:
+		flinch_timer -= delta
+	# Sem golpe nem esquiva na água; um golpe em andamento termina
+	if current_attack:
+		_end_attack()
+	is_dodging = false
+	var cam_yaw: float = camera_rig.global_rotation.y if camera_rig else 0.0
+	var move_direction: Vector3 = (Basis(Vector3.UP, cam_yaw) * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	var speed := SWIM_SPEED
+	if Input.is_action_pressed("sprint") and wants_move and pools != null and pools.consume_vigor(SWIM_SPRINT_VIGOR * delta):
+		speed = SWIM_SPRINT_SPEED
+	var target := move_direction * speed + Vector3(0, 0, RIVER_CURRENT * (1.0 + RiverSystem.flood / RiverSystem.FLOOD_MAX))
+	var flat := Vector3(velocity.x, 0, velocity.z).lerp(target, 3.0 * delta)
+	# Boia: perto da superfície uma mola segura os pés em SWIM_FLOAT; mergulhado, Ctrl desce,
+	# Espaço sobe e sem tecla o corpo sobe devagar
+	var float_y := RiverSystem.get_water_height(global_position.z) - SWIM_FLOAT
+	var vy := 0.0
+	var menus_open := get_tree() != null and not get_tree().get_nodes_in_group("open_menus").is_empty()
+	if Input.is_action_pressed("crouch") and not menus_open:
+		vy = -DIVE_SPEED
+	elif Input.is_action_pressed("jump") and not menus_open:
+		vy = minf(RISE_SPEED, (float_y - global_position.y) * 4.0)
+	elif global_position.y > float_y - 0.35:
+		vy = (float_y - global_position.y) * 4.0
+	else:
+		vy = DRIFT_UP
+	velocity = Vector3(flat.x, move_toward(velocity.y, vy, 10.0 * delta), flat.z)
+	_handle_harvest(delta, input_dir) # [E] fala/monta também nadando
+	move_and_slide()
+	if global_position.y < -20.0:
+		_recover_from_void()
+	_update_camera_height(delta)
+	if character_visual:
+		character_visual.play(&"Swim_Fwd" if wants_move else &"Swim_Idle", maxf(speed / SWIM_SPEED, 0.6) if wants_move else 1.0)
+	_handle_rotation(delta, move_direction)
+
+## Fôlego: cai com a boca embaixo d'água, volta com ela fora; zerado, afoga
+func _update_oxygen(delta: float) -> void:
+	var surface := RiverSystem.get_water_height(global_position.z)
+	var under := is_swimming and global_position.y + HEAD_HEIGHT < surface
+	if under != is_underwater:
+		is_underwater = under
+		if under:
+			posture_changed.emit("🤿 Mergulhando · Espaço sobe · fôlego %d s" % roundi(oxygen))
+		elif is_swimming:
+			posture_changed.emit("🌊 Nadando · Ctrl mergulha · Shift nada rápido (Vigor)")
+	var before := oxygen
+	if under:
+		oxygen = maxf(0.0, oxygen - delta)
+		if oxygen <= 0.0 and pools and not is_downed:
+			pools.take_damage(DROWN_DPS * delta)
+			if fmod(Time.get_ticks_msec() / 1000.0, 1.5) < delta:
+				posture_changed.emit("🫧 Sem ar! Suba para respirar!")
+	else:
+		oxygen = minf(OXYGEN_MAX, oxygen + OXYGEN_REGEN * delta)
+	if oxygen != before:
+		oxygen_changed.emit(oxygen, OXYGEN_MAX)
+
+func _ground_at(x: float, z: float) -> float:
+	if _landscape == null and get_tree() and get_tree().current_scene:
+		_landscape = get_tree().current_scene.get_node_or_null("Landscape")
+	return _landscape.get_height_at(x, z) if _landscape and _landscape.has_method("get_height_at") else 1000.0 # sem terreno, sem nado
+
 func _on_item_used(material_id: StringName, effect: String) -> void:
 	var data := MaterialData.of(material_id)
 	posture_changed.emit("%s %s: %s" % [data.icon, data.display_name, effect])
@@ -419,7 +559,10 @@ func _update_camera_height(delta: float) -> void:
 	if camera_rig == null:
 		return
 	var target_cam_y: float = STAND_CAM_Y
-	if is_sitting:
+	if is_swimming:
+		# Boiando, a câmera fica acima da água para ver o corpo; mergulhado, acompanha na altura do peito
+		target_cam_y = 0.3 if is_underwater else 1.0
+	elif is_sitting:
 		target_cam_y = SIT_CAM_Y
 	elif is_crouching:
 		target_cam_y = CROUCH_CAM_Y
@@ -432,6 +575,8 @@ func _update_animation(speed: float) -> void:
 		return
 	var moving: bool = speed > 0.15
 
+	if fishing and fishing.is_busy() and not is_downed:
+		return # a pesca anima (arremesso, segurar a vara, recolher)
 	if is_downed:
 		character_visual.play(&"Death01")
 	elif is_stunned():
@@ -506,7 +651,9 @@ func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 		var tree := get_tree()
 		if Input.is_action_just_pressed("interact") and (tree == null or tree.get_nodes_in_group("open_menus").is_empty()):
 			var npc: Node3D = _find_nearest_in_group(&"talkable", TALK_RANGE)
-			if npc and _find_harvest_target() == null:
+			var near_harvest: Node3D = _find_harvest_target()
+			# Fala/monta se não há o que coletar ou se quem fala está mais perto que a coleta
+			if npc and (near_harvest == null or talk_distance(global_position, npc) < global_position.distance_to(near_harvest.global_position)):
 				npc.talk_to(self)
 				return
 		if Input.is_action_pressed("interact") and is_on_floor() and not (is_attacking or is_casting or is_dodging or is_sitting):
@@ -610,11 +757,16 @@ func _find_nearest_in_group(group: StringName, max_dist: float) -> Node3D:
 	var best_dist: float = max_dist
 	for node in get_tree().get_nodes_in_group(group):
 		if node is Node3D:
-			var d: float = global_position.distance_to((node as Node3D).global_position)
+			var d: float = talk_distance(global_position, node as Node3D)
 			if d < best_dist:
 				best = node
 				best_dist = d
 	return best
+
+## Distância para interagir: até a borda de quem é grande (`talk_radius`, ex.: o disco da Raia)
+static func talk_distance(from: Vector3, node: Node3D) -> float:
+	var radius = node.get("talk_radius")
+	return from.distance_to(node.global_position) - (float(radius) if radius != null else 0.0)
 
 # --- Estilos de batalha (B10) ---
 

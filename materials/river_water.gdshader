@@ -1,5 +1,5 @@
 shader_type spatial;
-render_mode blend_mix, depth_draw_never, cull_back, specular_schlick_ggx;
+render_mode blend_mix, depth_draw_never, cull_disabled, specular_schlick_ggx; // dos dois lados: dá para ver a superfície mergulhado
 
 // Rio com profundidade de verdade: lê a profundidade da cena atrás da água.
 // Raso = transparente, mostra o leito (refração leve) com tom verde-água;

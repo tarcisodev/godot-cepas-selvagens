@@ -432,6 +432,7 @@ func _scatter_river_rocks() -> void:
 		rock.rotation = Vector3(rng.randf_range(-0.2, 0.2), rng.randf() * TAU, rng.randf_range(-0.2, 0.2))
 		rock.scale = Vector3.ONE * (rng.randf_range(0.8, 1.6) if big else rng.randf_range(1.5, 3.0))
 		holder.add_child(rock)
+		RockCollision.add(rock)
 		if near_fall:
 			# Paredão: mais pedras subindo pela queda
 			for k in 3:
@@ -442,3 +443,4 @@ func _scatter_river_rocks() -> void:
 				r2.rotation.y = rng.randf() * TAU
 				r2.scale = Vector3.ONE * rng.randf_range(1.2, 2.2)
 				holder.add_child(r2)
+				RockCollision.add(r2)

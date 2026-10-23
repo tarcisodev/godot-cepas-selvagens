@@ -28,6 +28,8 @@ var body: CreatureBody
 var rider: Player
 var stamina: float = STAMINA_MAX
 var airborne: bool = false
+## Alcance do [E] conta a partir da borda do corpo (Player.talk_distance); a Raia é larga e baixa
+var talk_radius: float = 0.0
 
 var _channel_player: Player
 var _channel_time: float = 0.0
@@ -44,6 +46,7 @@ func _ready() -> void:
 	body = CreatureBody.new()
 	body.dna = dna if dna else CreatureDNA.randomized(CreatureDNA.Species.TROTADOR, 7)
 	add_child(body)
+	talk_radius = body.dna.body_size() * 0.5 + (0.6 if kind == Kind.WATER else 0.0)
 	_label = Label3D.new()
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.font_size = 16
@@ -70,16 +73,19 @@ func _process(delta: float) -> void:
 	if _channel_player:
 		_process_channel(delta)
 	_label.visible = rider == null
-	_label.text = "%s\n%s" % [display_name, "Montando..." if _channel_player else "[E] Montar"]
+	var player := get_tree().get_first_node_in_group("player") as Node3D
+	var near := player != null and Player.talk_distance(player.global_position, self) < Player.TALK_RANGE
+	_label.text = "%s\n%s" % [display_name, "Montando..." if _channel_player else ("[E] Montar" if near else "chegue mais perto")]
 	if rider == null:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
 		body.animate(delta, 0.0, 0.0, false)
 
 func _process_channel(delta: float) -> void:
 	var p := _channel_player
-	var moved := Vector2(p.velocity.x, p.velocity.z).length() > 0.5
+	# Nadando, a correnteza arrasta o corpo: conta só o jogador apertando direção
+	var moved := p.wants_move if p.is_swimming else Vector2(p.velocity.x, p.velocity.z).length() > 0.5
 	var hurt := p.pools != null and p.pools.current_health < _channel_health
-	if moved or hurt or p.is_downed or p.global_position.distance_to(global_position) > Player.TALK_RANGE + 1.0:
+	if moved or hurt or p.is_downed or Player.talk_distance(p.global_position, self) > Player.TALK_RANGE + 1.0:
 		p.posture_changed.emit("Montaria interrompida" + (" pelo dano!" if hurt else ""))
 		_channel_player = null
 		return
@@ -91,6 +97,9 @@ func _process_channel(delta: float) -> void:
 func mount(p: Player) -> void:
 	rider = p
 	p.mounted_on = self
+	p.is_swimming = false
+	_speed = 0.0 # sem sobra do último passeio (na borda ela jogaria a Raia para fora d'água)
+	_vertical = 0.0
 	p.velocity = Vector3.ZERO
 	if p.pools and not p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.connect(_on_rider_poise_broken)
@@ -103,6 +112,7 @@ func dismount() -> void:
 	var p := rider
 	rider = null
 	p.mounted_on = null
+	_speed = 0.0
 	if p.pools and p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.disconnect(_on_rider_poise_broken)
 	var side := global_transform.basis.x.normalized()
@@ -153,7 +163,7 @@ func _physics_process(delta: float) -> void:
 		Kind.AIR:
 			_move_air(step, delta, menus_open)
 		Kind.WATER:
-			_move_water(step)
+			_move_water(step, moving)
 	if rider == null:
 		return
 	body.animate(delta, _speed, _vertical, airborne)
@@ -198,13 +208,13 @@ func _move_air(step: Vector3, delta: float, menus_open: bool) -> void:
 		next.y = ground
 	global_position = next
 
-func _move_water(step: Vector3) -> void:
+func _move_water(step: Vector3, moving: bool) -> void:
 	var next := global_position + step
 	var surface := RiverSystem.get_water_height(next.z) - 0.05
 	var ground := _ground(next.x, next.z)
 	if not RiverSystem.is_in_water(Vector3(next.x, ground, next.z)):
-		# Empurrou para fora do rio: desce na margem
-		if step.length() > 0.001:
+		# Só desce na margem quem empurra para a terra; embalo sem tecla apenas para na borda
+		if moving:
 			dismount()
 		return
 	global_position = Vector3(next.x, surface, next.z)
@@ -220,11 +230,25 @@ func _settle() -> void:
 	else:
 		global_position.y = _ground(global_position.x, global_position.z)
 
+## Terra firme mais perto da Raia (procura em volta, de 1 em 1 m), para descer ao lado dela
 func _nearest_shore(from: Vector3) -> Vector3:
+	for r in range(1, 9):
+		var best := Vector3.INF
+		var best_rise := INF
+		for i in 16:
+			var a := TAU * i / 16.0
+			var p := from + Vector3(cos(a), 0, sin(a)) * float(r)
+			var g := _ground(p.x, p.z)
+			var surface := RiverSystem.get_water_height(p.z)
+			# Seco (acima da água): escolhe o ponto menos alto, para não descer em cima do barranco
+			if g > surface - 0.05 and g - surface < best_rise:
+				best = Vector3(p.x, g, p.z)
+				best_rise = g - surface
+		if best != Vector3.INF:
+			return best
 	var cx := RiverSystem.get_river_center_x(from.z)
-	var half := RiverSystem.get_water_half_width(from.z)
 	var side := 1.0 if from.x >= cx else -1.0
-	return Vector3(cx + side * (half + 1.5), from.y, from.z)
+	return Vector3(cx + side * (RiverSystem.get_water_half_width(from.z) + 1.5), from.y, from.z)
 
 func _ground(x: float, z: float) -> float:
 	return _landscape.get_height_at(x, z) if _landscape else 0.0

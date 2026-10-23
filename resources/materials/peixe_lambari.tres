@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"peixe_lambari"
+display_name = "Lambari-Brilho"
+description = "Peixinho prateado de cardume. Petisco cru que repõe um pouco de Vigor; melhor na cozinha."
+category = 3
+icon = "🐟"
+color = Color(0.75, 0.82, 0.9, 1)
+unit_weight = 0.1
+max_gather_quality = 5
+base_value = 2
+restore_vigor = 8.0

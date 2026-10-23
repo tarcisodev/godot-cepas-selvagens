@@ -272,14 +272,7 @@ func _spawn_rocks() -> void:
 		rock_node.scale = Vector3(s, s, s)
 		rock_node.rotation.y = rng.randf_range(0.0, TAU)
 
-		# Colisão da rocha
-		var static_body := StaticBody3D.new()
-		var col := CollisionShape3D.new()
-		var sphere := SphereShape3D.new()
-		sphere.radius = 0.8 * s
-		col.shape = sphere
-		col.position.y = 0.4 * s
-		static_body.add_child(col)
-		rock_node.add_child(static_body)
+		# Colisão no formato da pedra (casca convexa da malha)
+		RockCollision.add(rock_node)
 
 		add_child(rock_node)
