@@ -418,6 +418,17 @@ func _show_detail(s: Dictionary) -> void:
 	if not s.traits.is_empty():
 		_detail.add_child(_stat_row("Traits", ", ".join(s.traits.map(func(t): return MaterialData.trait_name(t)))))
 
+	# Pinhão-Lume: escolhe qual genoma a roda rápida planta com [G] (GDD-10 §9)
+	if data.tool_action == &"plantar" and player:
+		var chosen: bool = player.get_meta("seed_traits", []) == s.traits
+		var seed_btn := Button.new()
+		seed_btn.text = "Plantar este com [G]" if not chosen else "Escolhido para plantar"
+		_style_pill(seed_btn, MaterialData.category_color(MaterialData.Category.PLANTA), not chosen)
+		seed_btn.pressed.connect(func():
+			player.set_meta("seed_traits", s.traits.duplicate())
+			seed_btn.text = "Escolhido para plantar")
+		_detail.add_child(seed_btn)
+
 	if data.is_consumable():
 		_detail.add_child(_stat_row("Efeito", data.effect_text()))
 		var use_btn := Button.new()

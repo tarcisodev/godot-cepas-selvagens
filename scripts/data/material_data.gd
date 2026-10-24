@@ -102,4 +102,7 @@ static func category_color(cat: int) -> Color:
 
 ## Nome de exibição de um trait (StringName em snake_case → "Snake Case")
 static func trait_name(trait_id: StringName) -> String:
+	# Genoma do pinhão (GDD-10 §9) aparece legível no lugar do código
+	if String(trait_id).begins_with("gen_"):
+		return PlantDNA.from_genome_code(String(trait_id)).describe()
 	return String(trait_id).capitalize()

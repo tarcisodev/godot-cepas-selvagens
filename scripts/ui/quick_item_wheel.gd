@@ -105,6 +105,12 @@ func use_selected() -> bool:
 	# Vara de pesca: lança ou recolhe a linha (GDD-10 §8)
 	if MaterialData.of(selected_id).tool_action == &"pesca":
 		return player.fishing != null and player.fishing.toggle()
+	# Pinhão-Lume: planta à frente (GDD-10 §9)
+	if MaterialData.of(selected_id).tool_action == &"plantar":
+		var eco := get_tree().get_first_node_in_group("ecology") as Ecology
+		var msg := eco.plant_by_player(player, selected_id) if eco else "Aqui nada brota"
+		_notify(msg)
+		return msg.begins_with("Pinhão-Lume plantado")
 	# Ferramenta de captura (laço, sedativo): age no bicho mais próximo
 	if MaterialData.of(selected_id).is_tool():
 		return WildCreature.use_tool(player, selected_id)
@@ -228,7 +234,7 @@ func _update_hover() -> void:
 	if _hover >= 0 and _hover < _options.size():
 		var d := MaterialData.of(_options[_hover])
 		_center_name.text = d.display_name
-		_center_effect.text = d.effect_text() if d.is_consumable() else {&"laco": "Prende bicho exausto", &"pesca": "Lança / recolhe a linha", &"tocha": "Acende / apaga · [T]"}.get(d.tool_action, "Captura bicho preso")
+		_center_effect.text = d.effect_text() if d.is_consumable() else {&"laco": "Prende bicho exausto", &"pesca": "Lança / recolhe a linha", &"tocha": "Acende / apaga · [T]", &"plantar": "Planta à frente"}.get(d.tool_action, "Captura bicho preso")
 
 func _style_slots() -> void:
 	for i in _slots.size():

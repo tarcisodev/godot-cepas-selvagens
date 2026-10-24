@@ -33,6 +33,9 @@ const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 @export var bushes: int = 55
 @export var cepas: int = 50
 @export var mushrooms: int = 30
+## Pinheiras-Lume (GDD-10 §9): bosques pequenos, para o pólen ir de uma para outra
+@export var pinheira_groves: int = 2
+@export var pinheiras_per_grove: int = 4
 
 var _rng := RandomNumberGenerator.new()
 ## DNAs das montarias capturadas (save) e os nós delas no estábulo
@@ -78,6 +81,29 @@ func _spawn_plants() -> void:
 			plant.age = _rng.randf() * plant.lifespan() * 0.6
 			plant.progress = _rng.randf() * 0.8
 			plant.position = spot
+			plant.rotation.y = _rng.randf() * TAU
+			add_child(plant)
+	_spawn_pinheiras()
+
+## Bosques de Pinheira-Lume com idades variadas; o primeiro fica perto da vila, para ser visto
+func _spawn_pinheiras() -> void:
+	var stages := [PlantBody.Stage.FRUTO, PlantBody.Stage.ADULTA, PlantBody.Stage.FRUTO, PlantBody.Stage.FLORIDA, PlantBody.Stage.JOVEM]
+	for g in pinheira_groves:
+		var center := _land_spot(24.0 if g == 0 else 55.0, 40.0 if g == 0 else WorldBounds.HALF * 0.8)
+		if center == Vector3.INF:
+			continue
+		for i in pinheiras_per_grove:
+			var a := TAU * i / pinheiras_per_grove + _rng.randf() * 0.5
+			var x := center.x + cos(a) * _rng.randf_range(7.0, 12.0)
+			var z := center.z + sin(a) * _rng.randf_range(7.0, 12.0)
+			if CityHub.in_village(x, z, 3.0) or RiverSystem.get_distance_to_river(x, z) < RiverSystem.get_water_half_width(z) + 3.0 or not WorldBounds.inside(x, z, 6.0):
+				continue
+			var plant := PlantBody.new()
+			plant.dna = PlantDNA.randomized(PlantDNA.Kind.PINHEIRA, _rng.randi())
+			plant.stage = stages[(i + g) % stages.size()]
+			plant.age = _rng.randf_range(8.0, 20.0)
+			plant.progress = _rng.randf() * 0.6
+			plant.position = Vector3(x, _ground(x, z), z)
 			plant.rotation.y = _rng.randf() * TAU
 			add_child(plant)
 
@@ -197,8 +223,15 @@ func nature_state() -> Dictionary:
 		plants.append({
 			"dna": p.dna.to_dict(), "stage": p.stage, "age": snappedf(p.age, 0.01), "progress": snappedf(p.progress, 0.01),
 			"stress": snappedf(p.stress, 0.01), "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)],
-			"rot": snappedf(p.rotation.y, 0.01),
+			"rot": snappedf(p.rotation.y, 0.01), "garden": p.garden, "by": p.planted_by,
 		})
+	# Pinhas no chão: são sementes esperando brotar (GDD-10 §9)
+	var pinhas := []
+	for n in get_tree().get_nodes_in_group("pinhas"):
+		var f := n as PinhaFruit
+		if f and not f.is_collected and not f.is_queued_for_deletion():
+			var pos := f.global_position
+			pinhas.append({"gen": f.dna.genome_code(), "age": snappedf(f.age_days, 0.01), "pos": [snappedf(pos.x, 0.01), snappedf(pos.y, 0.01), snappedf(pos.z, 0.01)]})
 	var wild := []
 	for n in get_tree().get_nodes_in_group("wild_creatures"):
 		var c := n as WildCreature
@@ -210,8 +243,9 @@ func nature_state() -> Dictionary:
 			"home": [snappedf(c.home.x, 0.01), snappedf(c.home.y, 0.01), snappedf(c.home.z, 0.01)], "roam": c.roam_radius,
 			"age": snappedf(c.age_days, 0.01), "life": snappedf(c.lifespan_days, 0.01), "hunger": snappedf(c.hunger, 0.01),
 			"thirst": snappedf(c.thirst, 0.01), "breed": snappedf(c.breed_cooldown, 0.01),
+			"gut": c.gut.map(func(g): return {"gen": g.dna.genome_code(), "t": snappedf(g.t, 0.01)}),
 		})
-	return {"plants": plants, "wild": wild}
+	return {"plants": plants, "wild": wild, "pinhas": pinhas}
 
 ## Troca a natureza do mundo pela do save
 func restore_nature(d: Dictionary) -> void:
@@ -232,7 +266,20 @@ func restore_nature(d: Dictionary) -> void:
 		plant.stress = float(e.get("stress", 0.0))
 		plant.position = _vec(e.get("pos", [0, 0, 0]))
 		plant.rotation.y = float(e.get("rot", 0.0))
+		plant.garden = bool(e.get("garden", false))
+		plant.planted_by = str(e.get("by", ""))
 		add_child(plant)
+	for n in get_tree().get_nodes_in_group("pinhas"):
+		n.remove_from_group("pinhas")
+		n.remove_from_group("fallen_fruit")
+		n.queue_free()
+	var eco := get_tree().get_first_node_in_group("ecology") as Ecology
+	if eco:
+		for e in d.get("pinhas", []):
+			eco.spawn_pinha(PlantDNA.from_genome_code(str(e.get("gen", ""))), _vec(e.get("pos", [0, 0, 0])), float(e.get("age", 0.0)))
+	# Save de antes da Pinheira-Lume: o vale ganha os bosques
+	if not d.get("plants", []).any(func(e): return e.get("dna", {}).has("gen")):
+		_spawn_pinheiras()
 	for e in d.get("wild", []):
 		var dna := CreatureDNA.from_dict(e.get("dna", {}))
 		var c := _add_wild(dna.species, _vec(e.get("pos", [0, 0, 0])), float(e.get("roam", 14.0)), dna)
@@ -242,6 +289,8 @@ func restore_nature(d: Dictionary) -> void:
 		c.hunger = float(e.get("hunger", 0.2))
 		c.thirst = float(e.get("thirst", 0.2))
 		c.breed_cooldown = float(e.get("breed", 0.0))
+		for g in e.get("gut", []):
+			c.gut.append({"dna": PlantDNA.from_genome_code(str(g.get("gen", ""))), "t": float(g.get("t", 0.2))})
 	_spawn_fish.call_deferred(true) # depois do queue_free dos bichos antigos
 
 static func _vec(a: Array) -> Vector3:

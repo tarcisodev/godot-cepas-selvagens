@@ -61,6 +61,11 @@ var _need: String = ""
 var _need_target: Node3D
 var _need_timer: float = 0.0
 var _breed_check: float = 0.0
+## Sementes de Pinheira-Lume comidas, esperando sair no esterco: [{"dna", "t" (dias)}] (GDD-10 §9)
+var gut: Array[Dictionary] = []
+## Ave: de tempos em tempos voa até uma Pinheira com pinhas e come uma
+var _forage_timer: float = 40.0
+var _perch: PlantBody
 
 var _target: Vector3
 var _speed: float = 0.0
@@ -331,6 +336,7 @@ func _process(delta: float) -> void:
 				return
 			_exhausted_walk(delta)
 			return
+	_digest(delta)
 	if dna.plan() == CreatureDNA.Plan.QUADRUPED:
 		if _live(delta):
 			return
@@ -466,7 +472,8 @@ func _nearest_food(max_dist: float) -> Node3D:
 		return best
 	for n in get_tree().get_nodes_in_group("plants"):
 		var p := n as PlantBody
-		if p and p.stage == PlantBody.Stage.FRUTO and p.dna.kind != PlantDNA.Kind.CEPA:
+		# As pinhas ficam no alto da Pinheira: no chão só se come a que caiu
+		if p and p.stage == PlantBody.Stage.FRUTO and p.dna.kind != PlantDNA.Kind.CEPA and p.dna.kind != PlantDNA.Kind.PINHEIRA:
 			var d := p.global_position.distance_to(global_position)
 			if d < best_d:
 				best = p
@@ -477,11 +484,64 @@ func _consume(food: Object) -> void:
 	if food == null or not is_instance_valid(food):
 		return
 	if food is PlantBody:
+		var plant := food as PlantBody
+		# Pinha comida no pé (ave): a semente é o cruzamento com o pólen da vizinha
+		if plant.dna.kind == PlantDNA.Kind.PINHEIRA:
+			var eco := get_tree().get_first_node_in_group("ecology") as Ecology
+			var father := eco.pollen_father(plant) if eco else plant.dna
+			gut.append({"dna": PlantDNA.cross(plant.dna, father, _rng.randi()), "t": Ecology.GUT_DAYS})
 		# Comeu os frutos: a planta volta a adulta
-		(food as PlantBody).stage = PlantBody.Stage.ADULTA
-		(food as PlantBody).build()
+		plant.stage = PlantBody.Stage.ADULTA
+		plant.progress = 0.0
+		plant.build()
 	else:
+		if food is PinhaFruit:
+			(food as PinhaFruit).is_collected = true
+			gut.append({"dna": (food as PinhaFruit).dna, "t": Ecology.GUT_DAYS})
 		food.queue_free()
+
+## A semente atravessa a barriga e sai no esterco onde o bicho estiver (a ave solta voando)
+func _digest(delta: float) -> void:
+	if gut.is_empty():
+		return
+	var days := delta / DAY_SECONDS
+	for i in range(gut.size() - 1, -1, -1):
+		gut[i].t -= days
+		if gut[i].t <= 0.0:
+			var eco := get_tree().get_first_node_in_group("ecology") as Ecology
+			if eco:
+				eco.drop_dung(global_position, gut[i].dna)
+			gut.remove_at(i)
+
+## Ave procura uma Pinheira com pinhas por perto e voa até a copa
+func _forage(delta: float) -> bool:
+	if _perch and (not is_instance_valid(_perch) or _perch.stage != PlantBody.Stage.FRUTO):
+		_perch = null
+	if _perch == null:
+		_forage_timer -= delta
+		if _forage_timer > 0.0:
+			return false
+		_forage_timer = _rng.randf_range(60.0, 120.0)
+		var best_d := 80.0
+		for n in get_tree().get_nodes_in_group("pinheiras"):
+			var p := n as PlantBody
+			if p and p.stage == PlantBody.Stage.FRUTO and p.global_position.distance_to(global_position) < best_d:
+				_perch = p
+				best_d = p.global_position.distance_to(global_position)
+		if _perch == null:
+			return false
+	var crown := _perch.global_position + Vector3.UP * 12.0 * _perch.dna.size_factor()
+	var old := global_position
+	global_position = global_position.move_toward(crown, delta * 9.0)
+	var vel := (global_position - old) / maxf(delta, 0.001)
+	if Vector2(vel.x, vel.z).length() > 0.1:
+		rotation.y = lerp_angle(rotation.y, atan2(-vel.x, -vel.z), minf(1.0, delta * 3.0))
+	body.animate(delta, vel.length(), vel.y, true)
+	if global_position.distance_to(crown) < 2.5:
+		_consume(_perch)
+		_perch = null
+		home = global_position # volta a circular por aqui
+	return true
 
 ## Adulto, alimentado, sem filhote recente, com um par da mesma espécie por perto
 func _try_breed() -> void:
@@ -529,6 +589,8 @@ func _fly(delta: float) -> void:
 		_timer -= delta
 		if _timer <= 0.0:
 			state = State.WANDER
+	elif _forage(delta):
+		return
 	_angle += delta * 0.22 * speed_mult
 	var r := roam_radius * 1.6
 	var desired := home + Vector3(cos(_angle) * r, 0, sin(_angle) * r)
