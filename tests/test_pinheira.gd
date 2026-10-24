@@ -21,12 +21,13 @@ func _run() -> void:
 	test_animals_spread_seeds()
 	test_planting()
 	await test_save()
+	await test_visible_growth()
 	print("\n🎉 TODOS OS TESTES DA PINHEIRA-LUME PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
 
 func test_genome() -> void:
-	print("\n[1/6] Genoma: código, descrição e cruzamento...")
+	print("\n[1/7] Genoma: código, descrição e cruzamento...")
 	var a := PlantDNA.randomized(PlantDNA.Kind.PINHEIRA, 10)
 	var code := a.genome_code()
 	assert(code.begins_with("gen_"), "Código do genoma")
@@ -62,7 +63,7 @@ func test_genome() -> void:
 	print("  ✓ %s → %s" % [code, a.describe()])
 
 func test_body_and_life() -> void:
-	print("\n[2/6] Corpo procedural e ciclo (broto em 2 dias)...")
+	print("\n[2/7] Corpo procedural e ciclo (broto em 2 dias)...")
 	for copa in ["TT", "CC", "HH", "*T"]:
 		for forma in ["FF", "ff"]:
 			var p := PlantBody.new()
@@ -82,7 +83,7 @@ func test_body_and_life() -> void:
 		seedling.life_tick(0.05, good, true)
 		days += 0.05
 	assert(absf(days - 2.0) < 0.11, "Broto aparece depois de 2 dias (%.2f)" % days)
-	assert(seedling.scale.x == 1.0, "Broto em tamanho real")
+	assert(is_equal_approx(seedling.growth_scale(), PlantBody.PINHEIRA_GROWTH[PlantBody.Stage.BROTO][0]), "Broto sai pequeno")
 	var seen := {}
 	var seeds := 0
 	for i in 600:
@@ -100,7 +101,7 @@ func _world() -> Ecology:
 	return eco
 
 func test_harvest_and_pinhas() -> void:
-	print("\n[3/6] Safra com pólen, abrir pinha, sacudir e pinha que brota...")
+	print("\n[3/7] Safra com pólen, abrir pinha, sacudir e pinha que brota...")
 	var eco := _world()
 	var mom := PlantBody.new()
 	mom.dna = PlantDNA.from_genome_code("gen_TT-TT-BB-FF-00-5-21-4")
@@ -154,7 +155,7 @@ class _Holder extends Node3D:
 	var mastery: MasteryComponent
 
 func test_animals_spread_seeds() -> void:
-	print("\n[4/6] Bicho come a pinha e solta a semente no esterco...")
+	print("\n[4/7] Bicho come a pinha e solta a semente no esterco...")
 	var eco := _world()
 	var spot := Vector3(70, 0, 160)
 	var pinha := eco.spawn_pinha(PlantDNA.randomized(PlantDNA.Kind.PINHEIRA, 21), spot)
@@ -202,7 +203,7 @@ func test_animals_spread_seeds() -> void:
 	print("  ✓ Saltarelo come, esterco aduba e semeia (%d brotos); Planador come no pé" % sown)
 
 func test_planting() -> void:
-	print("\n[5/6] Jogador planta: terra firme, vila só no canteiro...")
+	print("\n[5/7] Jogador planta: terra firme, vila só no canteiro...")
 	var eco := _world()
 	var holder := _Holder.new()
 	holder.name = "Plantador"
@@ -244,7 +245,7 @@ func test_planting() -> void:
 	print("  ✓ Vila recusa, canteiro aceita 1, campo aceita, genoma escolhido")
 
 func test_save() -> void:
-	print("\n[6/6] Save: pinhas no chão, canteiro e semente na barriga...")
+	print("\n[6/7] Save: pinhas no chão, canteiro e semente na barriga...")
 	var eco := _world()
 	var spawner := EcosystemSpawner.new()
 	spawner.trees = 0
@@ -271,6 +272,43 @@ func test_save() -> void:
 	spawner.free()
 	eco.free()
 	print("  ✓ %d Pinheiras, pinha e barriga sobrevivem ao save" % pinheiras)
+
+func test_visible_growth() -> void:
+	print("\n[7/7] Crescimento contínuo e troca de etapa suave...")
+	var holder := Node3D.new()
+	root.add_child(holder)
+	var p := PlantBody.new()
+	p.dna = PlantDNA.randomized(PlantDNA.Kind.PINHEIRA, 70)
+	p.stage = PlantBody.Stage.JOVEM
+	holder.add_child(p)
+	assert(p.is_processing(), "Jovem cresce na tela")
+	var good := {"moisture": 0.8, "nutrients": 0.8}
+	var start := p.growth_scale()
+	p.life_tick(1.5, good, true)
+	var mid := p.growth_scale()
+	assert(p.growth_scale() > start + 0.3, "Metade da etapa jovem: a árvore já cresceu (%.2f → %.2f)" % [start, mid])
+	var before := p.scale.x
+	await create_timer(0.5).timeout
+	assert(p.scale.x > before and p.scale.x < p.growth_scale(), "Tamanho na tela persegue o progresso aos poucos")
+	# Fim da etapa: vira adulta do mesmo tamanho, sem salto, e para de processar
+	p.life_tick(1.6, good, true)
+	assert(p.stage == PlantBody.Stage.ADULTA and not p.is_processing(), "Adulta não cresce mais")
+	assert(p.find_child("Faiscas", false, false) is CPUParticles3D, "Troca de etapa solta faíscas do lume")
+	# Broto → jovem muda de tamanho: a malha velha fica ao lado e encolhe até sumir
+	var s := PlantBody.new()
+	s.dna = PlantDNA.randomized(PlantDNA.Kind.PINHEIRA, 71)
+	s.stage = PlantBody.Stage.BROTO
+	s.progress = 0.99
+	holder.add_child(s)
+	s.life_tick(0.1, good, true)
+	assert(s.stage == PlantBody.Stage.JOVEM, "Broto virou jovem")
+	assert(holder.find_child("PlantaSaindo", false, false) != null, "Broto velho continua à vista na troca")
+	assert(s.scale.x < 0.01, "Jovem começa do zero e cresce")
+	await create_timer(PlantBody.STAGE_BLEND + 0.3).timeout
+	assert(holder.find_child("PlantaSaindo", false, false) == null, "Broto velho sumiu")
+	assert(absf(s.scale.x - s.growth_scale()) < 0.02, "Jovem chegou ao tamanho do progresso (%.3f)" % s.scale.x)
+	holder.free()
+	print("  ✓ Jovem cresce %.2f → %.2f; troca de etapa sem salto" % [start, mid])
 
 func _clear_groups() -> void:
 	for g in ["pinhas", "plants", "pinheiras", "dung", "fallen_fruit", "harvestable", "wild_creatures"]:

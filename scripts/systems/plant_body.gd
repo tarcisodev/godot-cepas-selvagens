@@ -21,8 +21,13 @@ const TIMES: Dictionary = {
 }
 ## Escala visual por estágio
 const STAGE_SCALE: Array[float] = [0.0, 0.18, 0.5, 1.0, 1.0, 1.0]
-## A Pinheira tem broto próprio (em tamanho real) e jovem a 35% da árvore
-const PINHEIRA_SCALE: Array[float] = [0.0, 1.0, 0.35, 1.0, 1.0, 1.0]
+## A Pinheira cresce contínuo dentro da etapa: escala [no começo, no fim] de cada estágio.
+## O broto sobe de 13 cm a 60 cm; a jovem sai do chão a 6% da árvore (~75 cm) e chega inteira.
+const PINHEIRA_GROWTH: Array = [[1.0, 1.0], [0.35, 1.6], [0.06, 1.0], [1.0, 1.0], [1.0, 1.0], [1.0, 1.0]]
+## Quão rápido o tamanho na tela alcança o do progresso (1/s); o progresso só anda a cada tick da Ecology
+const GROW_FOLLOW: float = 1.5
+## Duração da troca de etapa (s): a malha velha some enquanto a nova cresce
+const STAGE_BLEND: float = 0.7
 ## Luz da Pinheira adulta: alcance máximo (m) com brilho forte
 const LUME_RANGE: float = 8.0
 ## Quanto aguenta sem água/nutriente antes de morrer (dias)
@@ -43,6 +48,9 @@ var _st: MeshBatch
 var _glow: MeshBatch
 var _rng := RandomNumberGenerator.new()
 var _crown: Array[Vector3] = []
+## Escala que está na tela (persegue growth_scale) e o fator da transição de etapa
+var _shown: float = 1.0
+var _pop: float = 1.0
 static var _material: StandardMaterial3D
 static var _glow_material: StandardMaterial3D
 
@@ -89,18 +97,122 @@ func life_tick(days: float, cell: Dictionary, light: bool) -> Dictionary:
 		else:
 			stage = (stage + 1) as Stage
 			out.event = "grew"
-		build()
+		build(true, out.event == "grew")
 	return out
 
-func build() -> void:
-	for c in get_children():
-		c.free()
+## Escala que a planta deve ter agora; a Pinheira acompanha o progresso dentro da etapa
+func growth_scale() -> float:
+	if dna.kind == PlantDNA.Kind.PINHEIRA:
+		var g: Array = PINHEIRA_GROWTH[stage]
+		return lerpf(g[0], g[1], clampf(progress, 0.0, 1.0))
+	return maxf(STAGE_SCALE[stage], 0.001)
+
+## Só a Pinheira de broto ou jovem cresce na frente do jogador (no máximo 36 no vale)
+func grows_visibly() -> bool:
+	return dna.kind == PlantDNA.Kind.PINHEIRA and (stage == Stage.BROTO or stage == Stage.JOVEM)
+
+func _process(delta: float) -> void:
+	_shown = lerpf(_shown, growth_scale(), 1.0 - exp(-delta * GROW_FOLLOW))
+	_apply_scale()
+
+func _apply_scale() -> void:
+	scale = Vector3.ONE * maxf(_shown * _pop, 0.001)
+
+## Monta a malha do estágio atual. `animate`: troca de etapa à vista (a velha some, a nova cresce);
+## `sparkle`: faíscas na cor do lume quando a planta sobe de etapa.
+func build(animate: bool = false, sparkle: bool = false) -> void:
+	var old: Array[Node] = get_children()
+	var old_scale := scale.x
+	var blend := animate and is_inside_tree()
+	if not blend:
+		for c in old:
+			c.free()
+		old.clear()
+	_shown = growth_scale()
+	_pop = 1.0
+	_apply_scale()
+	_build_meshes()
+	set_process(grows_visibly())
+	if blend:
+		_blend_from(old, old_scale)
+		if sparkle and dna.kind == PlantDNA.Kind.PINHEIRA:
+			_sparkle()
+
+## Troca de etapa sem salto. Se o tamanho muda (pinhão → broto → jovem), a malha velha encolhe
+## até sumir enquanto a nova sai do zero; se é o mesmo tamanho, a árvore só "respira".
+func _blend_from(old: Array[Node], old_scale: float) -> void:
+	# A malha velha vai para um irmão no lugar da planta, com a escala que tinha: assim
+	# a transição da nova (que mexe na escala do corpo) não a arrasta junto
+	var leaving := Node3D.new()
+	leaving.name = "PlantaSaindo"
+	get_parent().add_child(leaving)
+	leaving.global_transform = Transform3D(global_basis.orthonormalized().scaled(Vector3.ONE * old_scale), global_position)
+	for c in old:
+		if c is CPUParticles3D:
+			continue # faíscas de uma troca anterior terminam sozinhas
+		if c is CollisionObject3D or c is Light3D:
+			c.free() # a colisão e a luz já vêm da malha nova
+		else:
+			c.reparent(leaving, false)
+	var resized := absf(old_scale - scale.x) > 0.05 * maxf(old_scale, scale.x)
+	var from := 0.0 if resized else 0.94
+	_set_pop(from) # já neste quadro, antes do tween dar o primeiro passo
+	var tw := create_tween().set_parallel()
+	tw.tween_method(_set_pop, from, 1.0, STAGE_BLEND) \
+		.set_trans(Tween.TRANS_BACK if not resized else Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	if resized:
+		tw.tween_property(leaving, "scale", Vector3.ONE * 0.001, STAGE_BLEND).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.chain().tween_callback(leaving.queue_free)
+	else:
+		leaving.free()
+
+func _set_pop(v: float) -> void:
+	_pop = v
+	_apply_scale()
+
+## Faíscas na cor do lume subindo da planta quando ela muda de etapa
+func _sparkle() -> void:
+	var p := CPUParticles3D.new()
+	p.name = "Faiscas"
+	p.top_level = true
+	add_child(p)
+	var tall := (12.0 * dna.size_factor() if stage >= Stage.JOVEM else 0.5) * scale.x
+	p.global_position = global_position + Vector3.UP * maxf(tall * 0.5, 0.25)
+	p.one_shot = true
+	p.explosiveness = 0.6
+	p.amount = 28
+	p.lifetime = 1.4
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = maxf(tall * 0.35, 0.3)
+	p.direction = Vector3.UP
+	p.spread = 35.0
+	p.gravity = Vector3(0, 0.4, 0)
+	p.initial_velocity_min = 0.3
+	p.initial_velocity_max = 0.9
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.2
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 1.0))
+	curve.add_point(Vector2(1.0, 0.0))
+	p.scale_amount_curve = curve
+	var sm := SphereMesh.new()
+	sm.radius = 0.035
+	sm.height = 0.07
+	sm.radial_segments = 6
+	sm.rings = 3
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.albedo_color = dna.lume_color().lightened(0.3)
+	sm.material = m
+	p.mesh = sm
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+
+func _build_meshes() -> void:
 	var pinheira := dna.kind == PlantDNA.Kind.PINHEIRA
-	scale = Vector3.ONE * maxf((PINHEIRA_SCALE if pinheira else STAGE_SCALE)[stage], 0.001)
 	if stage == Stage.SEMENTE:
 		if dna.kind == PlantDNA.Kind.PINHEIRA:
 			# Pinhão plantado: só um montinho de terra marca o lugar até o broto sair
-			scale = Vector3.ONE
 			var mound := MeshInstance3D.new()
 			var sm := SphereMesh.new()
 			sm.radius = 0.16
@@ -447,7 +559,7 @@ func harvest_next(_harvester: Node = null) -> String:
 		eco.drop_pinhas(self, 2)
 	stage = Stage.ADULTA
 	progress = 0.0
-	build()
+	build(true)
 	return "2 Pinhas-Lume caíram"
 
 # ---------------------------------------------------------------- malha
