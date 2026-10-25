@@ -40,6 +40,9 @@
 [ext_resource type="Script" path="res://scripts/ui/explorer_guide.gd" id="45_guide"]
 [ext_resource type="Script" path="res://scripts/ui/coop_menu.gd" id="46_coop"]
 [ext_resource type="Script" path="res://scripts/ui/mobile_touch_controls.gd" id="47_touch"]
+[ext_resource type="Script" path="res://scripts/world/world_settlements.gd" id="48_settlements"]
+[ext_resource type="Script" path="res://scripts/world/tutorial_trail.gd" id="49_trail"]
+[ext_resource type="Script" path="res://scripts/ui/world_map_screen.gd" id="50_worldmap"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -171,6 +174,15 @@ script = ExtResource("24_zone")
 script = ExtResource("25_city")
 landscape = NodePath("../Landscape")
 
+[node name="WorldSettlements" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("48_settlements")
+landscape = NodePath("../Landscape")
+
+[node name="TutorialTrail" type="Node3D" parent="." node_paths=PackedStringArray("landscape", "player")]
+script = ExtResource("49_trail")
+landscape = NodePath("../Landscape")
+player = NodePath("../Player")
+
 [node name="BuildingSystem" type="Node3D" parent="." node_paths=PackedStringArray("player", "zone_manager")]
 script = ExtResource("26_build")
 player = NodePath("../Player")
@@ -193,14 +205,14 @@ layout_mode = 2
 
 [node name="TimeLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
 layout_mode = 2
-text = "⏰ 08:00 · Manhã Clara"
+text = "â° 08:00 Â· ManhÃ£ Clara"
 label_settings = SubResource("LabelSettings_time")
 
 [node name="ModeLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.85, 0.85, 0.85, 0.8)
 theme_override_font_sizes/font_size = 14
-text = "🌄 3ª Pessoa (Visão panorâmica)"
+text = "ðŸŒ„ 3Âª Pessoa (VisÃ£o panorÃ¢mica)"
 
 [node name="StatusBars" type="VBoxContainer" parent="HUD/MarginContainer/VBoxContainer"]
 layout_mode = 2
@@ -343,13 +355,13 @@ layout_mode = 2
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 0.75)
 theme_override_font_sizes/font_size = 13
-text = "• Cajado: Botão Dir. mira (ombro) + Botão Esq. atira dardo arcano  |  Botão Esq. sem mirar: golpe corpo a corpo
-• Espada: Esq. combo / Dir. bloqueio (Esq. bloqueando: escudo na cara)  |  Martelo: Esq. balanço / Dir. investida
-• WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)  |  E perto do Mestre de Armas: trocar estilo
-• 1: Curar (erva/poção)  |  2: Comer (Vigor)  |  3: Cannabis (Éter)  |  E no Baú de Suprimentos: repor o kit
-• F (segurar): Roda de itens  |  G: Usar item escolhido  |  Z / X: Item anterior / próximo
-• Tab: Ações & Forja  |  I: Inventário  |  B: Construir  |  E (segurar): Esfolar/Coletar  |  K: Álbum  |  Scroll / V: Zoom
-• H: Ocultar dicas  |  ESC: Menu / Configurações"
+text = "â€¢ Cajado: BotÃ£o Dir. mira (ombro) + BotÃ£o Esq. atira dardo arcano  |  BotÃ£o Esq. sem mirar: golpe corpo a corpo
+â€¢ Espada: Esq. combo / Dir. bloqueio (Esq. bloqueando: escudo na cara)  |  Martelo: Esq. balanÃ§o / Dir. investida
+â€¢ WASD: Caminhar  |  Shift: Correr  |  C: Esquivar (gasta Vigor)  |  E perto do Mestre de Armas: trocar estilo
+â€¢ 1: Curar (erva/poÃ§Ã£o)  |  2: Comer (Vigor)  |  3: Cannabis (Ã‰ter)  |  E no BaÃº de Suprimentos: repor o kit
+â€¢ F (segurar): Roda de itens  |  G: Usar item escolhido  |  Z / X: Item anterior / prÃ³ximo
+â€¢ Tab: AÃ§Ãµes & Forja  |  I: InventÃ¡rio  |  B: Construir  |  E (segurar): Esfolar/Coletar  |  K: Ãlbum  |  Scroll / V: Zoom
+â€¢ H: Ocultar dicas  |  ESC: Menu / ConfiguraÃ§Ãµes"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
 visible = false
@@ -391,34 +403,34 @@ theme_override_constants/separation = 10
 [node name="Title" type="Label" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 17
-text = "⛺ Ações do Andarilho"
+text = "â›º AÃ§Ãµes do Andarilho"
 horizontal_alignment = 1
 
 [node name="SitButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "🔥 Descansar (sentar)"
+text = "ðŸ”¥ Descansar (sentar)"
 
 [node name="PovButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "👁 Alternar 1ª / 3ª Pessoa"
+text = "ðŸ‘ Alternar 1Âª / 3Âª Pessoa"
 
 [node name="ForgeButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "🔨 Forjar Elmo Chifre-de-Pedra"
+text = "ðŸ”¨ Forjar Elmo Chifre-de-Pedra"
 
 [node name="ForgeStatusLabel" type="Label" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
-text = "Materiais: 0 Chifres · 2 Placas"
+text = "Materiais: 0 Chifres Â· 2 Placas"
 horizontal_alignment = 1
 
 [node name="CardsButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "🃏 Álbum de Cartas 3D (K)"
+text = "ðŸƒ Ãlbum de Cartas 3D (K)"
 
 [node name="CloseButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
@@ -490,6 +502,17 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("46_coop")
+player = NodePath("../../Player")
+
+[node name="WorldMapScreen" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("50_worldmap")
 player = NodePath("../../Player")
 
 [node name="MobileTouchControls" type="Control" parent="HUD" node_paths=PackedStringArray("player")]

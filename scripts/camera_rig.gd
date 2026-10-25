@@ -50,9 +50,18 @@ func _ready() -> void:
 func _input(event: InputEvent) -> void:
 	# O ESC agora abre o Menu de Pausa (pause_menu.gd), que libera o mouse.
 
-	# Se clicou na tela com mouse solto (ex.: após alt-tab), recaptura,
-	# exceto quando algum menu está aberto ou quando os controles de toque mobile estão ativos
+	# Segurar ou apertar [Alt] libera o cursor do mouse para interagir com os botões do HUD
+	if event is InputEventKey and event.keycode == KEY_ALT and not event.echo:
+		if event.pressed:
+			Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+		elif get_tree().get_nodes_in_group("open_menus").is_empty() and get_tree().get_nodes_in_group("touch_controls_active").is_empty():
+			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
+		return
+
+	# Se clicou na tela com mouse solto (ex.: após alt-tab), recaptura apenas se NÃO clicou num controle de UI/HUD
 	if event is InputEventMouseButton and event.pressed and Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
+		if get_viewport() and get_viewport().gui_get_hovered_control() != null:
+			return
 		if get_tree().get_nodes_in_group("open_menus").is_empty() and get_tree().get_nodes_in_group("touch_controls_active").is_empty():
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 		return

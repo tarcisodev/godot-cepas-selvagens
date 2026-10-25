@@ -73,6 +73,7 @@ const TRAINING_BY_STYLE: Dictionary = {
 	&"sword": [&"espada_ferro"],
 	&"heavy_hammer": [&"mangual"],
 	&"arcane_staff": [&"cajado_arcano"],
+	&"hunting_horn": [&"berrante_caca"],
 }
 
 func choose(style: WeaponStyle) -> void:

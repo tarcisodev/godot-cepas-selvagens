@@ -1,6 +1,9 @@
 class_name InventoryComponent
 extends Node
 
+const _ForgedItem = preload("res://scripts/data/forged_item.gd")
+const _StatsComponent = preload("res://scripts/components/stats_component.gd")
+
 ## Gerencia inventário de materiais de caça e forja de equipamentos (GDD-03, GDD-05 e GDD-06).
 ## Peças forjadas (GDD-06 §6) ficam em `items`; uma por encaixe em `equipped_items`, com os
 ## efeitos aplicados ao StatsComponent. `equipped` guarda só os nomes (HUD, objetivos).
@@ -16,6 +19,10 @@ signal equipment_changed(slot: StringName, item_name: StringName)
 signal stacks_changed()
 ## Consumível usado (poção, carne, erva...): `effect` é o resumo do que repôs
 signal item_used(material_id: StringName, effect: String)
+## Pilha de material jogada no chão
+signal stack_dropped(stack: Dictionary)
+## Peça forjada jogada no chão
+signal forged_item_dropped(item: ForgedItem)
 
 @export var stats: StatsComponent
 
@@ -44,10 +51,19 @@ const BASE_CARRY: float = 20.0
 ## Peças forjadas guardadas e as equipadas (encaixe -> ForgedItem)
 var items: Array[ForgedItem] = []
 var equipped_items: Dictionary = {}
+## Se verdadeiro, esconde o capacete/capuz no personagem mantendo a defesa e a habilidade
+var hide_helmet: bool = false
 ## Fonte dos modificadores de cada encaixe (para tirar só os daquela peça)
 var _slot_sources: Dictionary = {}
 
 signal items_changed()
+
+func set_hide_helmet(hide: bool) -> void:
+	if hide_helmet == hide:
+		return
+	hide_helmet = hide
+	equipment_changed.emit(&"head", equipped[&"head"])
+	items_changed.emit()
 
 func _init() -> void:
 	_add_to_stack(&"placa_carapaca", 2, 1, []) # Já inicia com 2 placas de carapaça para o slice
@@ -102,12 +118,62 @@ func get_stacks(material_id: StringName = &"") -> Array[Dictionary]:
 
 ## Consome `amount` de uma pilha específica (a forja escolhe a pilha).
 func consume_stack(stack: Dictionary, amount: int = 1) -> bool:
-	if not stacks.has(stack) or stack.amount < amount:
+	var target := _resolve_stack(stack)
+	if target.is_empty() or target.amount < amount:
 		return false
-	stack.amount -= amount
+	target.amount -= amount
 	_drop_empty()
 	stacks_changed.emit()
 	return true
+
+## Remove `amount` (ou tudo se `amount <= 0`) de uma pilha para jogar no chão.
+## Devolve o dicionário da pilha descartada ({id, quality, traits, amount}) ou {} se falhar.
+func drop_stack(stack: Dictionary, amount: int = -1) -> Dictionary:
+	var target := _resolve_stack(stack)
+	if target.is_empty() or int(target.amount) <= 0:
+		return {}
+	var take: int = int(target.amount) if amount <= 0 else mini(amount, int(target.amount))
+	if take <= 0:
+		return {}
+	var dropped := {
+		"id": StringName(target.id),
+		"quality": int(target.quality),
+		"traits": target.traits.duplicate(),
+		"amount": take,
+	}
+	target.amount -= take
+	_drop_empty()
+	stack_dropped.emit(dropped)
+	stacks_changed.emit()
+	return dropped
+
+## Troca a posição de duas pilhas no array do inventário (usado no arrastar e soltar manual)
+func swap_stacks(stack_a: Dictionary, stack_b: Dictionary) -> bool:
+	var a := _resolve_stack(stack_a)
+	var b := _resolve_stack(stack_b)
+	if a.is_empty() or b.is_empty() or a == b:
+		return false
+	var idx_a: int = stacks.find(a)
+	var idx_b: int = stacks.find(b)
+	if idx_a < 0 or idx_b < 0:
+		return false
+	stacks[idx_a] = b
+	stacks[idx_b] = a
+	stacks_changed.emit()
+	return true
+
+func _resolve_stack(stack: Dictionary) -> Dictionary:
+	if stack.is_empty():
+		return {}
+	if stacks.has(stack):
+		return stack
+	var want_id := StringName(stack.get("id", &""))
+	var want_q: int = int(stack.get("quality", 1))
+	var want_traits: Array = stack.get("traits", [])
+	for s in stacks:
+		if s.id == want_id and int(s.quality) == want_q and s.traits == want_traits:
+			return s
+	return {}
 
 ## Usa uma unidade de um consumível da pilha dada: gasta e repõe Vida/Vigor/Éter nos pools.
 ## Recusa se o item não é consumível ou se não repõe nada (tudo cheio), para não desperdiçar.
@@ -285,6 +351,14 @@ func remove_item(item: ForgedItem) -> void:
 	items.erase(item)
 	items_changed.emit()
 
+## Joga uma peça forjada no chão (desequipa se estiver equipada e emite sinal)
+func drop_forged_item(item: ForgedItem) -> bool:
+	if item == null or not items.has(item):
+		return false
+	remove_item(item)
+	forged_item_dropped.emit(item)
+	return true
+
 func equipped_in(slot: int) -> ForgedItem:
 	return equipped_items.get(slot)
 
@@ -324,12 +398,13 @@ func items_to_save() -> Dictionary:
 	var eq := {}
 	for slot in equipped_items:
 		eq[str(slot)] = items.find(equipped_items[slot])
-	return {"items": items.map(func(it): return it.to_dict()), "equipped": eq}
+	return {"items": items.map(func(it): return it.to_dict()), "equipped": eq, "hide_helmet": hide_helmet}
 
 func load_items(data: Dictionary) -> void:
 	for slot in equipped_items.keys():
 		unequip(slot)
 	items.clear()
+	hide_helmet = bool(data.get("hide_helmet", false))
 	for d in data.get("items", []):
 		items.append(ForgedItem.from_dict(d))
 	var eq: Dictionary = data.get("equipped", {})
@@ -337,6 +412,7 @@ func load_items(data: Dictionary) -> void:
 		var idx := int(eq[slot])
 		if idx >= 0 and idx < items.size():
 			equip(items[idx])
+	equipment_changed.emit(&"head", equipped[&"head"])
 	items_changed.emit()
 
 ## Atalho do slice: forja o Elmo Chifre-de-Pedra com o chifre dado (ou o melhor) e as placas,

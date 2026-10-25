@@ -1,5 +1,17 @@
 extends Node
 
+# Preload bootstrap dos tipos centrais do projeto para registro imediato no ScriptServer
+const _HitEvent = preload("res://scripts/data/hit_event.gd")
+const _DamageType = preload("res://scripts/data/damage_type.gd")
+const _CombatResolver = preload("res://scripts/systems/combat_resolver.gd")
+const _CharacterDNA = preload("res://scripts/data/character_dna.gd")
+const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
+const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
+const _StyleAttack = preload("res://scripts/data/style_attack.gd")
+const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
+const _PoolsComponent = preload("res://scripts/components/pools_component.gd")
+const _WorldBounds = preload("res://scripts/core/world_bounds.gd")
+
 ## Configurações do Jogo (Autoload "GameSettings")
 # Guarda volumes, controles e vídeo em user://settings.cfg
 # e aplica tudo nos buses de áudio, janela e câmera.

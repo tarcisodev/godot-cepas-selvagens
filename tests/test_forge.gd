@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## B16 / GDD-06 §6: forja modular — prévia, qualidade, traits, equipar, desgaste, reparo, desmanche,
-## save e peças visíveis.
+## save, peças visíveis, e tela da bigorna com boneco 3D, filtro de equipamentos/derivações e esconder capacete.
 
 const PlayerScene: PackedScene = preload("res://scenes/player.tscn")
 
@@ -20,16 +20,18 @@ func _run() -> void:
 	var player: Player = PlayerScene.instantiate() as Player
 	root.add_child(player)
 	player._setup_components()
+	player.set_physics_process(false)
 	test_preview(player)
 	test_forge_and_equip(player)
 	test_wear_repair_salvage(player)
 	await test_save_and_visuals(player)
+	await test_forge_screen_preview_and_filters(player)
 	print("\n🎉 TODOS OS TESTES DA FORJA PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
 
 func test_preview(player: Player) -> void:
-	print("\n[1/4] Prévia: qualidade ponderada, traits e tempero travado...")
+	print("\n[1/5] Prévia: qualidade ponderada, traits e tempero travado...")
 	var inv := player.inventory
 	inv.add_material(&"couro_trotador", 3, 3, [&"integro"])
 	inv.add_material(&"fibra", 4, 1)
@@ -48,7 +50,7 @@ func test_preview(player: Player) -> void:
 	print("  ✓ Qualidade ponderada, herança de trait, tempero na forja 10 e crítico")
 
 func test_forge_and_equip(player: Player) -> void:
-	print("\n[2/4] Forjar gasta o material, equipar aplica os efeitos...")
+	print("\n[2/5] Forjar gasta o material, equipar aplica os efeitos...")
 	var inv := player.inventory
 	var stats := player.stats
 	var slash0 := stats.get_stat(&"resist_slash")
@@ -82,7 +84,7 @@ func test_forge_and_equip(player: Player) -> void:
 	print("  ✓ Gasto de material, efeitos × qualidade, Carga, troca e desequipar")
 
 func test_wear_repair_salvage(player: Player) -> void:
-	print("\n[3/4] Desgaste, quebra, reparo e desmanche...")
+	print("\n[3/5] Desgaste, quebra, reparo e desmanche...")
 	var inv := player.inventory
 	var stats := player.stats
 	var item := inv.equipped_in(ForgedItem.Slot.BODY)
@@ -111,7 +113,7 @@ func test_wear_repair_salvage(player: Player) -> void:
 	print("  ✓ Golpe, queda, quebra, reparo com perda de máximo e desmanche")
 
 func test_save_and_visuals(player: Player) -> void:
-	print("\n[4/4] Save das peças e peça visível no corpo...")
+	print("\n[4/5] Save das peças e peça visível no corpo...")
 	var inv := player.inventory
 	var data: Dictionary = JSON.parse_string(JSON.stringify(inv.items_to_save()))
 	var item := inv.equipped_in(ForgedItem.Slot.BODY)
@@ -128,3 +130,68 @@ func test_save_and_visuals(player: Player) -> void:
 	gear.refresh()
 	assert(not gear._sockets.is_empty(), "Gibão aparece preso ao osso do peito")
 	print("  ✓ Save das peças e gibão visível")
+
+func test_forge_screen_preview_and_filters(player: Player) -> void:
+	print("\n[5/5] Tela da bigorna: personagem 3D com a peça, filtros de equipamento/derivação e esconder capacete...")
+	var screen := ForgeScreen.new()
+	root.add_child(screen)
+	screen.open(player, true)
+	await process_frame
+	assert(screen.preview != null and screen.preview.skeleton != null, "A bigorna tem o boneco 3D com esqueleto")
+	assert(player.character_visual == null or screen.preview.dna == player.character_visual.dna, "O boneco da bigorna usa o DNA do personagem")
+
+	# Mesmo sem chifre de Rinolito na mochila, o boneco veste a prévia do Elmo Chifre-de-Pedra
+	assert(screen._recipe == &"elmo_chifre_de_pedra", "Receita inicial é o elmo")
+	var demo_elmo := screen.current_preview_item()
+	assert(demo_elmo != null and demo_elmo.recipe_id == &"elmo_chifre_de_pedra" and demo_elmo.family == &"ferro", "Prévia inicial: elmo de ferro")
+	assert(screen._gear._sockets.any(func(k): return is_instance_valid(k) and not k.is_queued_for_deletion() and k.name == "Gear_Head"), "O elmo aparece na cabeça do boneco na bigorna")
+
+	# Trocar derivação do elmo para Couro muda a peça e o material na prévia 3D
+	screen.select_derivation_family(&"couro")
+	await process_frame
+	var demo_elmo_couro := screen.current_preview_item()
+	assert(demo_elmo_couro.family == &"couro" and demo_elmo_couro.display_name.contains("de Couro"), "Derivação trocada para Elmo de Couro")
+
+	# Esconder capacete direto na bigorna
+	screen.toggle_hide_helmet()
+	await process_frame
+	assert(player.inventory.hide_helmet, "Escondeu o capacete")
+	assert(not screen._gear._sockets.any(func(k): return is_instance_valid(k) and not k.is_queued_for_deletion() and k.name == "Gear_Head"), "Capacete sumiu da cabeça do boneco na bigorna")
+	screen.toggle_hide_helmet()
+	await process_frame
+	assert(not player.inventory.hide_helmet and screen._gear._sockets.any(func(k): return is_instance_valid(k) and not k.is_queued_for_deletion() and k.name == "Gear_Head"), "Capacete voltou ao boneco na bigorna")
+
+	# Filtrar por encaixe (Botas) e testar as 3 derivações (Pano, Couro, Ferro)
+	screen.set_slot_filter(ForgedItem.Slot.FEET)
+	await process_frame
+	assert(screen.filtered_recipes() == [&"botas_saltarelo"] and screen._recipe == &"botas_saltarelo", "Filtro de Botas seleciona Botas de Saltarelo")
+	for fam in [&"pano", &"couro", &"ferro"]:
+		screen.select_derivation_family(fam)
+		await process_frame
+		assert(screen.current_preview_item().family == fam, "Botas na derivação %s" % fam)
+		assert(screen._gear._sockets.any(func(k): return is_instance_valid(k) and not k.is_queued_for_deletion() and k.name == "Gear_calf_l"), "Botas visíveis nas pernas do boneco")
+
+	# Filtrar por derivação (Ferro) em todos os encaixes
+	screen.set_slot_filter(-1)
+	screen.set_family_filter(&"ferro")
+	await process_frame
+	var ferro_recipes := screen.filtered_recipes()
+	assert(ferro_recipes.has(&"cota_ferro") and ferro_recipes.has(&"couraca_galhada") and not ferro_recipes.has(&"capuz_penacho"), "Filtro de Ferro mostra só receitas que têm derivação de ferro")
+	assert(screen.filtered_items().is_empty(), "Filtro também filtra 'Suas peças' (o jogador só tem um gibão de pano)")
+	screen.set_family_filter(&"pano")
+	assert(screen.filtered_items().size() == 1, "Filtro de Pano mostra o gibão de pano em 'Suas peças'")
+	screen.set_family_filter(&"")
+
+	# Prévia de armas no boneco da bigorna
+	screen.select_recipe(&"mangual")
+	await process_frame
+	assert(screen.preview.weapon != null, "Selecionar Mangual mostra a arma nas mãos do boneco na bigorna")
+	screen.select_slot_option(0, 1) # núcleo de pedra (−15% dano)
+	assert(is_equal_approx(screen.current_preview_item().weapon_power(), 0.85), "Derivação de núcleo de pedra no mangual mostra força 0,85")
+	screen.select_recipe(&"berrante_caca")
+	await process_frame
+	assert(screen.preview.weapon != null and screen.preview.weapon.has_node("HornBell"), "Selecionar Berrante de Caça mostra a campana acústica nas mãos do boneco na bigorna")
+
+	screen.close()
+	screen.free()
+	print("  ✓ Boneco 3D na bigorna, troca de derivações, filtros por encaixe/família, prévia de armas e esconder capacete")

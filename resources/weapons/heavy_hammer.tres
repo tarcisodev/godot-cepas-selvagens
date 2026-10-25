@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponStyle" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="WeaponStyle" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="1_style"]
 [ext_resource type="Script" path="res://scripts/data/style_attack.gd" id="2_attack"]
@@ -39,6 +39,23 @@ cost = 20.0
 move_mult = 0.0
 lunge_speed = 8.5
 
+[sub_resource type="Resource" id="Attack_seismic"]
+script = ExtResource("2_attack")
+kind = 3
+display_name = "Abalo Sísmico"
+anims = Array[StringName]([&"Sword_Attack"])
+duration = 0.78
+hit_delay = 0.28
+active_time = 0.25
+damage = 62.0
+damage_type = 1
+poise_damage = 55.0
+break_mult = 2.6
+reach = 3.8
+cost_pool = &"vigor"
+cost = 24.0
+move_mult = 0.15
+
 [sub_resource type="Resource" id="Piece_hammer"]
 script = ExtResource("3_piece")
 scene = ExtResource("4_hammer")
@@ -61,8 +78,9 @@ transform = Transform3D(0.906, 0.423, 0, -0.423, 0.906, 0, 0, 0, 1, -0.17, 0.03,
 script = ExtResource("1_style")
 id = &"heavy_hammer"
 display_name = "Arma pesada"
-description = "Martelo de guerra: clique esquerdo desfere balanços rápidos de impacto. Botão direito executa uma investida demolidora pesada que quebra carapaças e Postura."
+description = "Martelo de guerra: Mouse 1 desfere balanços rápidos de impacto e Mouse 2 executa a investida demolidora. Apertar Mouse 1 + Mouse 2 juntos desfere o golpe especial Abalo Sísmico em área."
 weight = 30.0
 primary = SubResource("Attack_swing")
 secondary = SubResource("Attack_smash_lunge")
+special = SubResource("Attack_seismic")
 pieces = Array[ExtResource("3_piece")]([SubResource("Piece_hammer"), SubResource("Piece_pauldron_l"), SubResource("Piece_pauldron_r")])

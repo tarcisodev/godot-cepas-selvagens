@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="WeaponStyle" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="WeaponStyle" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="1_style"]
 [ext_resource type="Script" path="res://scripts/data/style_attack.gd" id="2_attack"]
@@ -39,6 +39,23 @@ cost_pool = &"vigor"
 cost = 16.0
 move_mult = 0.2
 
+[sub_resource type="Resource" id="Attack_whirlwind"]
+script = ExtResource("2_attack")
+kind = 3
+display_name = "Turbilhão de Aço"
+anims = Array[StringName]([&"Sword_Regular_C"])
+duration = 0.62
+hit_delay = 0.22
+active_time = 0.22
+damage = 48.0
+damage_type = 0
+poise_damage = 34.0
+break_mult = 1.6
+reach = 3.2
+cost_pool = &"vigor"
+cost = 20.0
+move_mult = 0.3
+
 [sub_resource type="Resource" id="Piece_sword"]
 script = ExtResource("3_piece")
 scene = ExtResource("4_sword")
@@ -55,8 +72,9 @@ transform = Transform3D(0.906, -0.423, 0, 0.423, 0.906, 0, 0, 0, 1, 0.17, 0.03, 
 script = ExtResource("1_style")
 id = &"sword"
 display_name = "Espada"
-description = "Combo rápido cortante. Sem escudo, o botão direito desfere um corte pesado que quebra Postura. Equipe um escudo na mão secundária para bloquear."
+description = "Mouse 1 desfere combo rápido cortante e Mouse 2 aplica um corte pesado que quebra Postura. Apertar Mouse 1 + Mouse 2 juntos executa o golpe especial Turbilhão de Aço em 360°."
 weight = 10.0
 primary = SubResource("Attack_combo")
 secondary = SubResource("Attack_heavy")
+special = SubResource("Attack_whirlwind")
 pieces = Array[ExtResource("3_piece")]([SubResource("Piece_sword"), SubResource("Piece_pauldron_l")])

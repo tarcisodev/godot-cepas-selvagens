@@ -20,7 +20,8 @@ func _run() -> void:
 	test_celestial_sky()
 	test_cosmetics_3d_and_shop()
 	test_guide_and_feedback()
-	print("\n🎉 TODOS OS TESTES DE CÉU, COSMÉTICOS E INTERFACE PASSARAM!")
+	test_world_settlements_map_and_tutorial()
+	print("\n🎉 TODOS OS TESTES DE CÉU, COSMÉTICOS, MAPA, VILAS E TUTORIAL PASSARAM!")
 	print("========================================================\n")
 	quit(0)
 
@@ -120,3 +121,60 @@ func test_guide_and_feedback() -> void:
 	assert(not touch.is_enabled and not touch.visible, "Controles Touch de celular desativaram")
 	touch.free()
 	print("  ✓ Guia, Mural de Feedback, Menu Coop LAN e Controles Mobile Touch validados")
+
+func test_world_settlements_map_and_tutorial() -> void:
+	print("\n[4/4] Cidades do Vale, Mapa Mundial [M] e Trilha do Tutorial...")
+	var player: Player = PlayerScene.instantiate() as Player
+	root.add_child(player)
+	player.set_physics_process(false)
+
+	var ws := WorldSettlements.new()
+	root.add_child(ws)
+	assert(ws.get_node_or_null("VilaPortoBruma") != null, "Vila Ribeirinha de Porto Bruma criada")
+	assert(ws.get_node_or_null("PostoVigiaDoNorte") != null, "Posto da Vigia do Norte criado")
+	assert(ws.get_node_or_null("SantuarioAstral") != null, "Santuário Astral do Mirante criado")
+	var santuario_hub := ws.get_node("SantuarioAstral")
+	var spawner := santuario_hub.get_node_or_null("AstralSanctuarySpawner") as AstralSanctuarySpawner
+	assert(spawner != null, "AstralSanctuarySpawner @tool presente no Santuário Astral")
+
+	# Simula assets estáticos colocados manualmente e testa a substituição procedural
+	var manual_tree := Node3D.new()
+	manual_tree.name = "Manual_Tree_Static_01"
+	manual_tree.position = Vector3(82.0, 0.0, -36.0)
+	santuario_hub.add_child(manual_tree)
+	var manual_rock := Node3D.new()
+	manual_rock.name = "StaticRock_Old_02"
+	manual_rock.position = Vector3(80.0, 0.0, -39.0)
+	santuario_hub.add_child(manual_rock)
+	spawner.rebuild_sanctuary()
+	assert(spawner.last_purged_manual_count == 2, "Varredura @tool excluiu os 2 assets estáticos manuais")
+	assert(spawner.get_node_or_null("Procedural_AltarAndPillars/AltarCentral/AltarOmniLight") is OmniLight3D, "Altar tem OmniLight3D")
+	assert(spawner.get_node_or_null("Procedural_AltarAndPillars/AltarCentral/AltarAuraParticles") is GPUParticles3D, "Altar tem GPUParticles3D")
+	assert(spawner.get_node_or_null("Procedural_FloraAndRocks/Procedural_MultiMesh_Trees") is MultiMeshInstance3D, "MultiMesh de árvores procedurais criado")
+	assert(spawner.get_node_or_null("Procedural_FloraAndRocks/Procedural_MultiMesh_LushFoliage") is MultiMeshInstance3D, "MultiMesh de flora densa criado")
+
+	assert(ws.fast_travel_to(&"porto_bruma", player), "Viagem rápida para Porto Bruma funciona")
+	assert(player.global_position.distance_to(Vector3(39.0, player.global_position.y, 46.0)) < 5.0, "Player chegou em Porto Bruma")
+
+	var trail := TutorialTrail.new()
+	trail.player = player
+	root.add_child(trail)
+	assert(trail.current_step == 0 and not trail.is_completed, "Trilha do Tutorial inicia no Passo 1/8")
+	trail.advance_step()
+	assert(trail.current_step == 1, "Avançou para o Passo 2/8 da Trilha do Tutorial")
+	trail.jump_to_step(7)
+	trail.advance_step()
+	assert(trail.is_completed, "Concluiu as 8 estações da Trilha do Tutorial")
+
+	var map_screen := WorldMapScreen.new()
+	root.add_child(map_screen)
+	map_screen.open_map(player)
+	assert(map_screen.is_open, "Mapa Mundial [M] abriu")
+	map_screen.close_map()
+	assert(not map_screen.is_open, "Mapa Mundial [M] fechou")
+
+	map_screen.free()
+	trail.free()
+	ws.free()
+	player.free()
+	print("  ✓ 4 Cidades/Assentamentos, Viagem Rápida, Mapa [M] e Trilha do Tutorial (8 estações) validados")

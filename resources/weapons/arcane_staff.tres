@@ -23,15 +23,6 @@ cost_pool = &"vigor"
 cost = 7.0
 move_mult = 0.4
 
-[sub_resource type="Resource" id="Attack_aim"]
-script = ExtResource("2_attack")
-kind = 5
-display_name = "Mira arcana"
-anims = Array[StringName]([&"Pistol_Aim_Neutral"])
-cost_pool = &"ether"
-cost = 0.0
-move_mult = 0.6
-
 [sub_resource type="Resource" id="Attack_bolt"]
 script = ExtResource("2_attack")
 kind = 2
@@ -49,6 +40,23 @@ cost_pool = &"ether"
 cost = 8.0
 move_mult = 0.5
 
+[sub_resource type="Resource" id="Attack_astral_burst"]
+script = ExtResource("2_attack")
+kind = 3
+display_name = "Explosão Astral"
+anims = Array[StringName]([&"Sword_Attack"])
+duration = 0.66
+hit_delay = 0.24
+active_time = 0.25
+damage = 46.0
+damage_type = 5
+poise_damage = 32.0
+break_mult = 1.6
+reach = 4.2
+cost_pool = &"ether"
+cost = 18.0
+move_mult = 0.25
+
 [sub_resource type="Resource" id="Piece_staff"]
 script = ExtResource("3_piece")
 scene = ExtResource("4_staff")
@@ -65,9 +73,10 @@ transform = Transform3D(0, 0, -0.28, 0, 0.28, 0, 0.28, 0, 0, 0.2, -0.12, 0)
 script = ExtResource("1_style")
 id = &"arcane_staff"
 display_name = "Cajado arcano"
-description = "Ataque físico de cajado (Vigor). Segure o botão direito para mirar pelo ombro com retícula e dispare dardos arcanos pelo visor (Éter)."
+description = "Mouse 1 desfere golpe físico de cajado (Vigor) e Mouse 2 dispara Dardo Arcano à distância (Éter). Apertar Mouse 1 + Mouse 2 juntos conjura o golpe especial Explosão Astral em área."
 weight = 8.0
 primary = SubResource("Attack_strike")
-secondary = SubResource("Attack_aim")
+secondary = SubResource("Attack_bolt")
+special = SubResource("Attack_astral_burst")
 aim_attack = SubResource("Attack_bolt")
 pieces = Array[ExtResource("3_piece")]([SubResource("Piece_staff"), SubResource("Piece_satchel")])

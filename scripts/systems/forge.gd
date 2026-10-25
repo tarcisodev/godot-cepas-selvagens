@@ -120,6 +120,13 @@ const RECIPES: Dictionary = {
 		"temper": [{"id": &"mel", "n": 1, "trait": &"doce_foco"}],
 		"mods": {}, "load": 0.0, "style": &"staff",
 	},
+	&"berrante_caca": {
+		"name": "Berrante de Caça", "slot": ForgedItem.Slot.MAIN_HAND, "icon": "📯", "two_hand": true,
+		"core": [{"id": &"chifre_rinolito", "n": 1, "power": 1.1}, {"id": &"chifre_galhado", "n": 2, "power": 1.0}, {"id": &"ossos", "n": 4, "power": 0.9}],
+		"coat": [{"id": &"madeira", "n": 2}, {"id": &"quartzo_lume", "n": 1}, {"id": &"couro_trotador", "n": 2}],
+		"temper": [{"id": &"mel", "n": 1, "trait": &"doce_foco"}, {"id": &"ossos", "n": 2, "trait": &"ossudo"}, {"id": &"presa_lobo", "n": 1, "trait": &"serrilhado"}],
+		"mods": {}, "load": 0.0, "style": &"hunting_horn",
+	},
 	&"escudo": {
 		"name": "Escudo", "slot": ForgedItem.Slot.OFF_HAND, "icon": "🛡",
 		"core": [{"id": &"barra_ferro", "n": 2, "power": 1.0}, {"id": &"madeira", "n": 3, "power": 0.85}],
@@ -136,7 +143,7 @@ const SMELT: Dictionary = {
 }
 
 ## Armas de treino que o Mestre de Armas dá (Q1, sem material para desmanchar)
-const TRAINING: Array[StringName] = [&"espada_ferro", &"escudo", &"mangual", &"cajado_arcano"]
+const TRAINING: Array[StringName] = [&"espada_ferro", &"escudo", &"mangual", &"cajado_arcano", &"berrante_caca"]
 
 const TRAIT_NAMES: Dictionary = {
 	&"integro": "Íntegro", &"cicatrizado": "Cicatrizado", &"iridescente": "Iridescente",
@@ -224,6 +231,63 @@ static func make_training(recipe_id: StringName) -> ForgedItem:
 	item.family = r.get("family", &"")
 	item.display_name = "%s de Treino" % r.name
 	item.traits.append(&"treino")
+	return item
+
+## Famílias (pano, couro, ferro) em que a receita pode ser forjada pelos revestimentos disponíveis
+static func recipe_families(recipe_id: StringName) -> Array[StringName]:
+	var r: Dictionary = RECIPES.get(recipe_id, {})
+	var out: Array[StringName] = []
+	if r.is_empty():
+		return out
+	var base: StringName = r.get("family", &"")
+	for o in r.get("coat", []):
+		var fam: StringName = o.get("family", base)
+		if fam != &"" and not out.has(fam):
+			out.append(fam)
+	if out.is_empty() and base != &"":
+		out.append(base)
+	return out
+
+## Monta uma peça de demonstração para qualquer derivação (mesmo sem ter os materiais na mochila)
+static func make_preview_item(recipe_id: StringName, core_id: StringName = &"", coat_id: StringName = &"", temper_id: StringName = &"", quality: int = 1, core_traits: Array = []) -> ForgedItem:
+	var r: Dictionary = RECIPES.get(recipe_id, {})
+	if r.is_empty():
+		return null
+	var core_opt: Dictionary = r.core[0] if not r.core.is_empty() else {}
+	for o in r.core:
+		if o.id == core_id:
+			core_opt = o
+			break
+	var coat_opt: Dictionary = r.coat[0] if not r.coat.is_empty() else {}
+	for o in r.coat:
+		if o.id == coat_id:
+			coat_opt = o
+			break
+	var temper_opt: Dictionary = {}
+	if temper_id != &"":
+		for o in r.temper:
+			if o.id == temper_id:
+				temper_opt = o
+				break
+	var item := ForgedItem.new()
+	item.recipe_id = recipe_id
+	item.slot = r.slot
+	item.family = coat_opt.get("family", r.get("family", &""))
+	item.quality = clampi(quality, 1, 5)
+	for t in CORE_TRAITS:
+		if core_traits.has(t):
+			item.traits.append(t)
+			break
+	if not temper_opt.is_empty() and temper_opt.has("trait"):
+		item.traits.append(temper_opt.trait)
+	if not core_opt.is_empty():
+		item.materials[core_opt.id] = int(core_opt.get("n", 1))
+	if not coat_opt.is_empty():
+		item.materials[coat_opt.id] = item.materials.get(coat_opt.id, 0) + int(coat_opt.get("n", 1))
+	if not temper_opt.is_empty():
+		item.materials[temper_opt.id] = item.materials.get(temper_opt.id, 0) + int(temper_opt.get("n", 1))
+	var other_family: bool = item.family != r.get("family", item.family)
+	item.display_name = r.name + (" de %s" % item.family_name() if other_family else "") + (" (Íntegro)" if item.traits.has(&"integro") else "")
 	return item
 
 ## Funde 1 barra: gasta o minério da melhor pilha que tenha o bastante e o combustível.

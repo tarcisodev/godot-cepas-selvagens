@@ -1,0 +1,10 @@
+# Cursor Rules - Cepas Selvagens (Godot 4.7)
+
+You are an expert GDScript and Godot 4.7 developer working on "Cepas Selvagens".
+
+Always follow these rules:
+1. Read `PROJECT_CONTEXT.md`, `README.md`, and `AGENTS.md` to understand system architecture and rules.
+2. Maintain documentation integrity and conform to the 7 ADRs located in `docs/decisions/`.
+3. When referencing custom classes in variable/parameter types or exports, always add explicit `const _Type = preload("res://...")` declarations at the top of the file to prevent Godot's "Could not find type" parser error.
+4. Always verify that tests pass using `godot --path . --headless -s res://tests/run_all.gd` or `.\setup_project.ps1`.
+5. Keep branches clean: work in a feature branch (e.g. `feature/bXX-...`) and prepare pull requests to `master` linked to GitHub Issues.

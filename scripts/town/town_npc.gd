@@ -29,9 +29,9 @@ func _ready() -> void:
 	visual.play(idle_anim)
 
 	if not display_name.is_empty():
-		var name_label := _label(display_name, 17, Color(1.0, 0.92, 0.7))
+		var name_label := _label(display_name, 14, Color(1.0, 0.92, 0.7))
 		name_label.position.y = 2.2
-		name_label.visibility_range_end = 16.0
+		name_label.visibility_range_end = 9.0
 		add_child(name_label)
 	if not prompt.is_empty():
 		add_to_group("talkable")

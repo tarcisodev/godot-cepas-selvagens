@@ -1,6 +1,10 @@
 class_name GearVisual
 extends Node
 
+const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
+const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
+const _ForgedItem = preload("res://scripts/data/forged_item.gd")
+
 ## Mostra no corpo as peças forjadas equipadas (GDD-06 §6, GDD-12): elmo com chifre, capuz de
 ## penas, gibão, couraça com manoplas, cota de ferro, botas, capa e mochila, na cor da família.
 ## As armas aparecem pelo estilo (WeaponStyle.pieces), não aqui. Cada peça é montada com primitivas e presa a um
@@ -9,6 +13,8 @@ extends Node
 
 @export var visual: CharacterVisual
 @export var inventory: InventoryComponent
+## Peça em prévia (ex.: bigorna) mostrada por cima do equipamento atual no encaixe dela
+var preview_item: ForgedItem = null
 
 var _sockets: Array[Node] = []
 var _skeleton_seen: Skeleton3D
@@ -26,13 +32,22 @@ func _process(_delta: float) -> void:
 func refresh() -> void:
 	for s in _sockets:
 		if is_instance_valid(s):
+			if s.get_parent():
+				s.get_parent().remove_child(s)
 			s.queue_free()
 	_sockets.clear()
-	if visual == null or visual.skeleton == null or inventory == null:
+	if visual == null or visual.skeleton == null or (inventory == null and preview_item == null):
 		return
 	_skeleton_seen = visual.skeleton
-	for slot in inventory.equipped_items:
-		var item: ForgedItem = inventory.equipped_items[slot]
+	var shown: Dictionary = inventory.equipped_items.duplicate() if inventory else {}
+	if preview_item != null:
+		shown[preview_item.slot] = preview_item
+	for slot in shown:
+		if slot == ForgedItem.Slot.HEAD and inventory != null and inventory.hide_helmet:
+			continue
+		var item: ForgedItem = shown[slot]
+		if item == null:
+			continue
 		match item.recipe_id:
 			&"elmo_chifre_de_pedra":
 				_helmet(item)
@@ -46,6 +61,8 @@ func refresh() -> void:
 				_bracer(item, &"lowerarm_r")
 			&"cota_ferro":
 				_vest(item)
+				_pauldron(item, &"upperarm_l")
+				_pauldron(item, &"upperarm_r")
 			&"botas_saltarelo":
 				_boot(item, &"calf_l")
 				_boot(item, &"calf_r")
@@ -60,14 +77,16 @@ func _helmet(item: ForgedItem) -> void:
 	var root := _piece(&"Head", Vector3(0, 0.1, 0))
 	if root == null:
 		return
-	var stone := _mat(Color(0.5, 0.48, 0.45) if not item.is_broken() else Color(0.35, 0.3, 0.28), 0.8)
+	var cap_mat := _family_mat(item, MaterialData.of(&"couro_trotador").color.darkened(0.15))
+	if item.family == &"ferro" and not item.materials.has(&"barra_ferro") and not item.is_broken():
+		cap_mat = _mat(Color(0.5, 0.48, 0.45), 0.8)
 	var cap := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = 0.16
 	sm.height = 0.16
 	sm.is_hemisphere = true
 	cap.mesh = sm
-	cap.material_override = stone
+	cap.material_override = cap_mat
 	root.add_child(cap)
 	var horn := MeshInstance3D.new()
 	var cm := CylinderMesh.new()
@@ -93,7 +112,10 @@ func _hood(item: ForgedItem) -> void:
 	cm.height = 0.26
 	hood.mesh = cm
 	hood.position.y = 0.06
-	hood.material_override = _mat(feather_color.darkened(0.25), 0.9)
+	if item.family == &"couro":
+		hood.material_override = _family_mat(item, MaterialData.of(&"pele_saltarelo").color.darkened(0.15))
+	else:
+		hood.material_override = _mat(feather_color.darkened(0.25) if not item.is_broken() else feather_color.darkened(0.55), 0.9)
 	root.add_child(hood)
 	for i in 5:
 		var f := MeshInstance3D.new()
@@ -119,7 +141,8 @@ func _vest(item: ForgedItem) -> void:
 	cm.height = 0.62
 	vest.mesh = cm
 	vest.scale = Vector3(1.08, 1.0, 0.8)
-	vest.material_override = _family_mat(item, MaterialData.of(&"couro_trotador").color.darkened(0.1))
+	var base_leather := MaterialData.of(&"couro_lobo" if item.materials.has(&"couro_lobo") else &"couro_trotador").color.darkened(0.1)
+	vest.material_override = _family_mat(item, base_leather)
 	root.add_child(vest)
 	# Cinto de tendão
 	var belt := MeshInstance3D.new()
@@ -131,6 +154,20 @@ func _vest(item: ForgedItem) -> void:
 	belt.scale = Vector3(1.08, 1.0, 0.82)
 	belt.material_override = _mat(Color(0.3, 0.2, 0.12), 0.8)
 	root.add_child(belt)
+	_glow_if_iridescent(item, root)
+
+func _pauldron(item: ForgedItem, bone: StringName) -> void:
+	var root := _piece(bone, Vector3(0, 0.03, 0))
+	if root == null:
+		return
+	var pad := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.095
+	sm.height = 0.11
+	sm.is_hemisphere = true
+	pad.mesh = sm
+	pad.material_override = _family_mat(item, MaterialData.of(&"couro_trotador").color.darkened(0.1))
+	root.add_child(pad)
 	_glow_if_iridescent(item, root)
 
 func _bracer(item: ForgedItem, bone: StringName) -> void:
@@ -170,6 +207,17 @@ func _boot(item: ForgedItem, bone: StringName) -> void:
 	shin.position.y = -0.08
 	shin.material_override = _family_mat(item, MaterialData.of(&"pele_saltarelo").color.darkened(0.2))
 	root.add_child(shin)
+	if item.traits.has(&"cravado"):
+		var claw := MeshInstance3D.new()
+		var sp := CylinderMesh.new()
+		sp.top_radius = 0.0
+		sp.bottom_radius = 0.016
+		sp.height = 0.08
+		claw.mesh = sp
+		claw.position = Vector3(0.0, -0.08, 0.065)
+		claw.rotation.x = 1.1
+		claw.material_override = _mat(Color(0.86, 0.8, 0.66), 0.6)
+		root.add_child(claw)
 	_glow_if_iridescent(item, root)
 
 ## Capa caída nas costas, presa nos ombros (no rig UAL a frente é +Z, as costas −Z)
@@ -177,14 +225,26 @@ func _cape(item: ForgedItem) -> void:
 	var root := _piece(&"spine_03", Vector3(0, -0.12, -0.17))
 	if root == null:
 		return
-	var color: Color = MaterialData.of(&"pena_penacho").color if item.recipe_id == &"capa_penas" else MaterialData.of(&"couro_trotador").color.darkened(0.25)
+	var base_leather := MaterialData.of(&"couro_lobo" if item.materials.has(&"couro_lobo") else &"couro_trotador").color.darkened(0.25)
+	var color: Color = MaterialData.of(&"pena_penacho").color if item.recipe_id == &"capa_penas" else base_leather
+	if item.family == &"couro" and item.recipe_id == &"capa_penas":
+		color = color.lerp(base_leather, 0.35)
+	elif item.family == &"pano" and item.recipe_id == &"capa_couro":
+		color = color.lerp(Color(0.78, 0.72, 0.56), 0.35)
 	var cloth := MeshInstance3D.new()
 	var bm := BoxMesh.new()
 	bm.size = Vector3(0.44, 0.78, 0.025)
 	cloth.mesh = bm
 	cloth.rotation.x = -0.12
-	cloth.material_override = _mat(color, 0.95)
+	cloth.material_override = _mat(color, 0.85 if item.family == &"couro" else 0.95)
 	root.add_child(cloth)
+	var clasp := MeshInstance3D.new()
+	var tm := BoxMesh.new()
+	tm.size = Vector3(0.46, 0.07, 0.04)
+	clasp.mesh = tm
+	clasp.position = Vector3(0, 0.36, 0.04)
+	clasp.material_override = _family_mat(item, base_leather.lightened(0.1))
+	root.add_child(clasp)
 	if item.recipe_id == &"capa_penas":
 		for i in 4:
 			var f := MeshInstance3D.new()

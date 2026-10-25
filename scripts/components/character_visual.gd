@@ -2,6 +2,8 @@ extends Node3D
 class_name CharacterVisual
 
 const CosmeticsCatalogClass = preload("res://scripts/systems/cosmetics_catalog.gd")
+const _CharacterDNA = preload("res://scripts/data/character_dna.gd")
+const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 
 ## Visual do personagem: modelo rigado (Quaternius) + bibliotecas de animação UAL1/UAL2.
 # O modelo e as animações compartilham o mesmo esqueleto (65 ossos, "Armature/Skeleton3D"),
@@ -146,6 +148,9 @@ func _apply_equipment() -> void:
 		socket.bone_name = piece.bone
 		skeleton.add_child(socket)
 		var node := piece.scene.instantiate() as Node3D
+		if node == null:
+			socket.queue_free()
+			continue
 		var rest_basis := skeleton.get_bone_global_rest(bone).basis.orthonormalized()
 		node.transform = Transform3D(rest_basis.inverse(), Vector3.ZERO) * piece.transform
 		socket.add_child(node)

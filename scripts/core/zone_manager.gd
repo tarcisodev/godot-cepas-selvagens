@@ -110,6 +110,9 @@ func get_zone_name_at(pos: Vector3) -> String:
 			var owner_name: String = totem.get("owner_name") if totem and "owner_name" in totem else "Andarilho"
 			return "🏕️ Território de %s" % owner_name
 		_:
+			var reg := WorldSettlements.get_settlement_or_region_at(pos)
+			if not reg.is_empty():
+				return reg
 			return "🌲 Terras Selvagens"
 
 ## Valida se é permitido construir nesta posição

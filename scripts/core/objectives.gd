@@ -19,6 +19,7 @@ const FIND_DISTANCE: float = 9.0
 
 var done: Dictionary = {}
 var _panel: CanvasLayer = null
+var panel_container: PanelContainer = null
 var _labels: Dictionary = {}
 var _title: Label
 var _check_timer: float = 0.0
@@ -102,13 +103,16 @@ func _build_panel() -> void:
 	_panel.add_child(margin)
 
 	var bg := PanelContainer.new()
+	bg.name = "QuestPanelContainer"
+	panel_container = bg
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.08, 0.07, 0.84)
-	style.border_color = Color(0.76, 0.62, 0.34, 0.78)
+	style.bg_color = Color(0.04, 0.07, 0.06, 0.62)
+	style.border_color = Color(0.82, 0.68, 0.36, 0.86)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(12)
-	style.shadow_color = Color(0, 0, 0, 0.4)
-	style.shadow_size = 6
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 8
+	style.shadow_offset = Vector2(0, 3)
 	style.content_margin_left = 16
 	style.content_margin_right = 16
 	style.content_margin_top = 12
@@ -118,26 +122,35 @@ func _build_panel() -> void:
 	margin.add_child(bg)
 
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 5)
+	box.add_theme_constant_override("separation", 6)
 	bg.add_child(box)
 
 	_title = Label.new()
-	_title.add_theme_font_size_override("font_size", 16)
-	_title.add_theme_color_override("font_color", Color(0.98, 0.86, 0.54))
+	var title_ls := LabelSettings.new()
+	title_ls.font_size = 16
+	title_ls.font_color = Color(0.98, 0.88, 0.54)
+	title_ls.outline_size = 4
+	title_ls.outline_color = Color(0.02, 0.03, 0.04, 0.96)
+	title_ls.shadow_size = 3
+	title_ls.shadow_color = Color(0, 0, 0, 0.82)
+	title_ls.shadow_offset = Vector2(1, 2)
+	_title.label_settings = title_ls
 	box.add_child(_title)
 
 	_labels.clear()
 	for step in STEPS:
 		var l := Label.new()
-		l.add_theme_font_size_override("font_size", 13)
+		var step_ls := LabelSettings.new()
+		step_ls.font_size = 12
+		step_ls.outline_size = 3
+		step_ls.outline_color = Color(0.02, 0.03, 0.04, 0.95)
+		step_ls.shadow_size = 2
+		step_ls.shadow_color = Color(0, 0, 0, 0.78)
+		step_ls.shadow_offset = Vector2(1, 1)
+		l.label_settings = step_ls
 		box.add_child(l)
 		_labels[step.id] = l
 
-	var guide_hint := Label.new()
-	guide_hint.text = "🧭 [J] Guia & Tutorial  ·  ✨ [F9] Cosméticos  ·  💬 [F8] Feedback"
-	guide_hint.add_theme_font_size_override("font_size", 12)
-	guide_hint.add_theme_color_override("font_color", Color(0.78, 0.90, 0.78, 0.9))
-	box.add_child(guide_hint)
 	_refresh()
 
 func _refresh() -> void:
@@ -148,12 +161,18 @@ func _refresh() -> void:
 		var l: Label = _labels[step.id]
 		if done.has(step.id):
 			l.text = "✔  " + step.text
-			l.add_theme_color_override("font_color", Color(0.6, 0.85, 0.6, 0.85))
+			l.visible = false
+			if l.label_settings:
+				l.label_settings.font_color = Color(0.58, 0.92, 0.62, 0.92)
 		elif not next_found:
 			next_found = true
 			l.text = "➤  " + step.text
-			l.add_theme_color_override("font_color", Color(1, 1, 1, 1))
+			l.visible = true
+			if l.label_settings:
+				l.label_settings.font_color = Color(1.0, 0.98, 0.90, 1.0)
 		else:
 			l.text = "•  " + step.text
-			l.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8, 0.5))
-	_title.text = "🏁 Caçada concluída! Explore à vontade." if done.size() == STEPS.size() else "Objetivos (%d/%d)" % [done.size(), STEPS.size()]
+			l.visible = false
+			if l.label_settings:
+				l.label_settings.font_color = Color(0.82, 0.85, 0.82, 0.68)
+	_title.text = "🏁 Caçada concluída!" if done.size() == STEPS.size() else "🎯 Objetivo (%d/%d)" % [done.size(), STEPS.size()]

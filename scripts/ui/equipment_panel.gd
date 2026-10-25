@@ -1,10 +1,16 @@
 class_name EquipmentPanel
 extends VBoxContainer
 
+const _ForgedItem = preload("res://scripts/data/forged_item.gd")
+const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
+const _GearVisual = preload("res://scripts/components/gear_visual.gd")
+const _Player = preload("res://scripts/player.gd")
+
 ## Coluna de equipamento da tela de inventário ([I], GDD-12 §1): o personagem em 3D vestido com o
 ## que está equipado (arrastar gira, roda do mouse dá zoom), os 7 encaixes com a peça de cada um
-## (clicar abre a lista do que dá para pôr ali, ou tira a peça) e um resumo de Carga, mochila e
-## habilidades. O boneco usa o mesmo DNA do jogador e o mesmo GearVisual do corpo de verdade.
+## (clicar abre a lista do que dá para pôr ali, ou tira a peça), opção de esconder o capacete no
+## visual e um resumo de Carga, mochila e habilidades. O boneco usa o mesmo DNA do jogador e o
+## mesmo GearVisual do corpo de verdade.
 
 const TEXT := Color(0.9, 0.9, 0.94)
 const TEXT_DIM := Color(0.55, 0.57, 0.64)
@@ -21,6 +27,7 @@ var _gear: GearVisual
 var _camera: Camera3D
 var _zoom: float = 3.6
 var _slot_buttons: Dictionary = {}
+var _helmet_toggle: Button
 var _summary: Label
 var _menu: PopupMenu
 var _menu_slot: int = -1
@@ -52,9 +59,41 @@ func refresh() -> void:
 		preview.play(&"Idle")
 	_dress_weapons()
 	_gear.refresh()
+	_paint_helmet_toggle()
 	for slot in _slot_buttons:
 		_paint_slot(slot)
 	_summary.text = _summary_text()
+
+func toggle_hide_helmet() -> void:
+	if player and player.inventory:
+		set_hide_helmet(not player.inventory.hide_helmet)
+
+func set_hide_helmet(hide: bool) -> void:
+	if player and player.inventory:
+		player.inventory.set_hide_helmet(hide)
+		refresh()
+
+func _paint_helmet_toggle() -> void:
+	if _helmet_toggle == null:
+		return
+	var hidden: bool = player != null and player.inventory != null and player.inventory.hide_helmet
+	_helmet_toggle.text = "🙈 Capacete: oculto" if hidden else "🪖 Esconder capacete"
+	_helmet_toggle.tooltip_text = "Clique para mostrar o capacete no personagem" if hidden else "Esconde o capacete/capuz no visual sem perder defesa nem habilidade"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.95, 0.65, 0.25, 0.22) if hidden else Color(1, 1, 1, 0.06)
+	sb.border_color = Color(0.95, 0.65, 0.25, 0.75) if hidden else Color(1, 1, 1, 0.18)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	_helmet_toggle.add_theme_stylebox_override("normal", sb)
+	var hov := sb.duplicate() as StyleBoxFlat
+	hov.bg_color = sb.bg_color.lightened(0.12)
+	_helmet_toggle.add_theme_stylebox_override("hover", hov)
+	_helmet_toggle.add_theme_stylebox_override("pressed", sb)
+	_helmet_toggle.add_theme_color_override("font_color", Color(1.0, 0.82, 0.45) if hidden else TEXT)
 
 ## Armas e ombreiras do estilo atual, como no corpo
 func _dress_weapons() -> void:
@@ -64,7 +103,8 @@ func _dress_weapons() -> void:
 func _paint_slot(slot: int) -> void:
 	var b: Button = _slot_buttons[slot]
 	var it: ForgedItem = player.inventory.equipped_in(slot) if player else null
-	var title := "%s %s" % [SLOT_ICONS[slot], ForgedItem.SLOT_NAMES[slot]]
+	var head_hidden: bool = slot == ForgedItem.Slot.HEAD and player != null and player.inventory != null and player.inventory.hide_helmet
+	var title := "%s %s%s" % [SLOT_ICONS[slot], ForgedItem.SLOT_NAMES[slot], " (oculto)" if head_hidden else ""]
 	if it == null:
 		b.text = "%s\n— vazio —" % title
 		b.modulate = Color(1, 1, 1, 0.55)
@@ -75,6 +115,8 @@ func _paint_slot(slot: int) -> void:
 	b.text = "%s\n%s %s%s" % [title, it.display_name, "★".repeat(it.quality), "  (quebrado)" if it.is_broken() else ""]
 	b.add_theme_color_override("font_color", MaterialData.rarity_color(it.quality))
 	var lines: Array[String] = ["%s%s · Durabilidade %d/%d" % [it.display_name, fam, roundi(it.durability), roundi(it.max_durability)]]
+	if head_hidden:
+		lines.append("🙈 Visual oculto (defesa e habilidade continuam ativas)")
 	var ab := it.ability_id()
 	if ab != &"":
 		var info := ArmorAbilities.info(ab)
@@ -126,6 +168,11 @@ func _open_slot_menu(slot: int) -> void:
 	if current:
 		_menu.add_separator()
 		_menu.add_item("✕ Tirar %s" % current.display_name, -1)
+		_menu.add_item("📤 Jogar %s no chão" % current.display_name, -4)
+	if slot == ForgedItem.Slot.HEAD and player and player.inventory:
+		_menu.add_separator()
+		var hidden := player.inventory.hide_helmet
+		_menu.add_item("👁 Mostrar capacete" if hidden else "🙈 Esconder capacete", -3)
 	var b: Button = _slot_buttons[slot]
 	_menu.position = Vector2i(b.get_screen_position() + Vector2(0, b.size.y))
 	_menu.popup()
@@ -133,6 +180,13 @@ func _open_slot_menu(slot: int) -> void:
 func _on_menu_pick(id: int) -> void:
 	if id == -1:
 		unequip_slot(_menu_slot)
+	elif id == -3:
+		toggle_hide_helmet()
+	elif id == -4:
+		var current: ForgedItem = player.inventory.equipped_in(_menu_slot) if player and player.inventory else null
+		if current and player:
+			player.drop_forged_item(current)
+			refresh()
 	elif id >= 0 and id < _menu_items.size():
 		equip_item(_menu_items[id])
 
@@ -147,11 +201,23 @@ func unequip_slot(slot: int) -> void:
 # ---------------------------------------------------------------- montagem
 
 func _build() -> void:
+	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 8)
+	add_child(header)
+
 	var title := Label.new()
 	title.text = "🧍  Equipamento"
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title.add_theme_font_size_override("font_size", 18)
 	title.add_theme_color_override("font_color", TEXT)
-	add_child(title)
+	header.add_child(title)
+
+	_helmet_toggle = Button.new()
+	_helmet_toggle.focus_mode = Control.FOCUS_NONE
+	_helmet_toggle.add_theme_font_size_override("font_size", 11)
+	_helmet_toggle.pressed.connect(toggle_hide_helmet)
+	header.add_child(_helmet_toggle)
+	_paint_helmet_toggle()
 
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -176,9 +242,12 @@ func _slot_column(slots: Array[int]) -> Control:
 	col.add_theme_constant_override("separation", 6)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	for slot in slots:
-		var b := Button.new()
+		var b := EquipSlotButton.new()
+		b.panel = self
+		b.slot_id = slot
 		b.custom_minimum_size = Vector2(150, 62)
 		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		b.clip_text = true
 		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		b.add_theme_font_size_override("font_size", 11)
@@ -195,13 +264,25 @@ func _slot_column(slots: Array[int]) -> Control:
 		hov.bg_color = Color(1, 1, 1, 0.1)
 		b.add_theme_stylebox_override("hover", hov)
 		b.pressed.connect(_open_slot_menu.bind(slot))
+		b.gui_input.connect(_on_slot_gui_input.bind(slot))
 		col.add_child(b)
 		_slot_buttons[slot] = b
 	return col
 
+func _on_slot_gui_input(event: InputEvent, slot: int) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		var mb := event as InputEventMouseButton
+		var current: ForgedItem = player.inventory.equipped_in(slot) if player and player.inventory else null
+		if mb.shift_pressed and current:
+			unequip_slot(slot)
+		else:
+			_open_slot_menu(slot)
+		get_viewport().set_input_as_handled()
+
 ## Prévia num mundo 3D próprio (como no editor de aparência): arrastar gira, roda dá zoom
 func _build_preview() -> Control:
-	var container := SubViewportContainer.new()
+	var container := PreviewDropContainer.new()
+	container.panel = self
 	container.stretch = true
 	container.custom_minimum_size = Vector2(170, 330)
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -286,3 +367,93 @@ func _on_preview_input(event: InputEvent) -> void:
 func zoom_by(amount: float) -> void:
 	_zoom = clampf(_zoom + amount, ZOOM_MIN, ZOOM_MAX)
 	_frame_camera()
+
+# ---------------------------------------------------------------- arrastar e soltar nos encaixes e boneco 3D
+
+class EquipSlotButton extends Button:
+	var panel: EquipmentPanel
+	var slot_id: int = 0
+
+	func _get_drag_data(_at_position: Vector2) -> Variant:
+		if panel == null or panel.player == null or panel.player.inventory == null:
+			return null
+		var item: ForgedItem = panel.player.inventory.equipped_in(slot_id)
+		if item == null:
+			return null
+		var preview_card := PanelContainer.new()
+		var sb := StyleBoxFlat.new()
+		var col := MaterialData.rarity_color(item.quality)
+		sb.bg_color = Color(0.08, 0.10, 0.12, 0.94)
+		sb.border_color = col
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(8)
+		sb.content_margin_left = 10
+		sb.content_margin_right = 10
+		sb.content_margin_top = 6
+		sb.content_margin_bottom = 6
+		preview_card.add_theme_stylebox_override("panel", sb)
+		var lbl := Label.new()
+		lbl.text = "%s %s %s\n📤 Solte fora para jogar no chão" % [EquipmentPanel.SLOT_ICONS[slot_id], item.display_name, "★".repeat(item.quality)]
+		lbl.add_theme_font_size_override("font_size", 12)
+		lbl.add_theme_color_override("font_color", col.lightened(0.2))
+		preview_card.add_child(lbl)
+		if get_viewport() and get_viewport().gui_is_dragging():
+			set_drag_preview(preview_card)
+		else:
+			preview_card.free()
+		return {
+			"type": &"forged_item",
+			"item": item,
+			"from_slot": slot_id,
+			"panel": panel,
+		}
+
+	func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+		if not (data is Dictionary):
+			return false
+		var d := data as Dictionary
+		if d.get("type") == &"forged_item":
+			var it := d.get("item") as ForgedItem
+			return it != null and it.slot == slot_id
+		return false
+
+	func _drop_data(_at_position: Vector2, data: Variant) -> void:
+		if not (data is Dictionary) or panel == null:
+			return
+		var d := data as Dictionary
+		if d.get("type") == &"forged_item":
+			var it := d.get("item") as ForgedItem
+			if it != null and it.slot == slot_id:
+				panel.equip_item(it)
+
+class PreviewDropContainer extends SubViewportContainer:
+	var panel: EquipmentPanel
+
+	func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+		if not (data is Dictionary) or panel == null or panel.player == null:
+			return false
+		var d := data as Dictionary
+		var kind := StringName(d.get("type", &""))
+		if kind == &"forged_item":
+			return d.get("item") is ForgedItem
+		if kind == &"material_stack":
+			var stack: Dictionary = d.get("stack", {})
+			if stack.is_empty():
+				return false
+			return MaterialData.of(StringName(stack.get("id", &""))).is_consumable()
+		return false
+
+	func _drop_data(_at_position: Vector2, data: Variant) -> void:
+		if not (data is Dictionary) or panel == null or panel.player == null or panel.player.inventory == null:
+			return
+		var d := data as Dictionary
+		var kind := StringName(d.get("type", &""))
+		if kind == &"forged_item":
+			var it := d.get("item") as ForgedItem
+			if it:
+				panel.equip_item(it)
+		elif kind == &"material_stack":
+			var stack: Dictionary = d.get("stack", {})
+			if not stack.is_empty() and panel.player.pools != null:
+				panel.player.inventory.use_item(stack, panel.player.pools)
+				panel.refresh()

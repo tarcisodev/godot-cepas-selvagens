@@ -13,6 +13,7 @@ var settings_menu: PauseMenu
 var _confirm_new: ConfirmationDialog
 
 func _ready() -> void:
+	CustomCursor.ensure_installed(get_tree())
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	get_tree().paused = false

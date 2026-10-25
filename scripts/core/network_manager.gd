@@ -6,6 +6,18 @@ extends Node
 ## para até 16 jogadores na mesma rede local (Wi-Fi/LAN) ou via túnel/IP direto.
 ## Sincroniza avatares 3D (CharacterVisual + DNA + Cosméticos), animações, nomes e ciclo do céu.
 
+# Preloads de tipos essenciais para registro sequencial no ScriptServer (evita "Could not find type")
+const _CharacterDNA = preload("res://scripts/data/character_dna.gd")
+const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
+const _WorldBounds = preload("res://scripts/core/world_bounds.gd")
+const _HitEvent = preload("res://scripts/data/hit_event.gd")
+const _DamageType = preload("res://scripts/data/damage_type.gd")
+const _CombatResolver = preload("res://scripts/systems/combat_resolver.gd")
+const _PoolsComponent = preload("res://scripts/components/pools_component.gd")
+const _StyleAttack = preload("res://scripts/data/style_attack.gd")
+const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
+const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
+
 const DEFAULT_PORT: int = 8787
 const DEFAULT_HOST: String = "127.0.0.1"
 const SYNC_INTERVAL: float = 0.05 # 20 Hz

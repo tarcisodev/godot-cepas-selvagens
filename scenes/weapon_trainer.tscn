@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/weapon_trainer.gd" id="1_trainer"]
 [ext_resource type="Script" path="res://scripts/components/character_visual.gd" id="2_visual"]
@@ -8,10 +8,11 @@
 [ext_resource type="Resource" path="res://resources/weapons/heavy_hammer.tres" id="6_hammer"]
 [ext_resource type="Resource" path="res://resources/weapons/arcane_staff.tres" id="7_staff"]
 [ext_resource type="Script" path="res://scripts/data/weapon_style.gd" id="8_style"]
+[ext_resource type="Resource" path="res://resources/weapons/hunting_horn.tres" id="9_horn"]
 
 [node name="WeaponTrainer" type="Node3D"]
 script = ExtResource("1_trainer")
-styles = Array[ExtResource("8_style")]([ExtResource("5_sword"), ExtResource("6_hammer"), ExtResource("7_staff")])
+styles = Array[ExtResource("8_style")]([ExtResource("5_sword"), ExtResource("6_hammer"), ExtResource("7_staff"), ExtResource("9_horn")])
 
 [node name="CharacterVisual" type="Node3D" parent="."]
 script = ExtResource("2_visual")

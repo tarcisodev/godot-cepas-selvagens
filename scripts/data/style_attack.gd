@@ -1,6 +1,8 @@
 class_name StyleAttack
 extends Resource
 
+const _DamageType = preload("res://scripts/data/damage_type.gd")
+
 ## Um dos 2 básicos de um estilo de batalha (clique esq./dir., GDD-01 §8).
 ## Preparação (hit_delay) → golpe ativo (active_time) → recuperação até `duration`.
 

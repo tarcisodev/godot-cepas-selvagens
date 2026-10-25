@@ -250,23 +250,24 @@ func _build_indicator() -> void:
 	_indicator.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	_indicator.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	_indicator.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	_indicator.position = Vector2(-24, -24)
+	_indicator.position = Vector2(-20, -76)
 	_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_indicator.add_theme_stylebox_override("panel", _box(Color(0.06, 0.06, 0.08, 0.8), Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.5), 12, 1, Vector2(12, 8)))
+	_indicator.add_theme_stylebox_override("panel", _box(Color(0.05, 0.08, 0.07, 0.62), Color(ACCENT.r, ACCENT.g, ACCENT.b, 0.45), 10, 1, Vector2(10, 5)))
 	add_child(_indicator)
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 8)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_indicator.add_child(row)
-	_ind_icon = _label("", 30, TEXT)
+	_ind_icon = _label("", 20, TEXT)
 	row.add_child(_ind_icon)
 	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(col)
-	_ind_name = _label("", 15, TEXT)
+	_ind_name = _label("", 13, TEXT)
 	_ind_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	col.add_child(_ind_name)
-	_ind_qty = _label("", 12, TEXT_DIM)
+	_ind_qty = _label("", 10, TEXT_DIM)
 	_ind_qty.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	col.add_child(_ind_qty)
 
@@ -279,13 +280,13 @@ func _refresh_indicator() -> void:
 		return
 	var d := MaterialData.of(selected_id)
 	_ind_icon.text = d.icon
-	_ind_name.text = "%s  ×%d" % [d.display_name, player.inventory.get_material_count(selected_id)]
-	_ind_qty.text = "[G] usar · [Z]/[X] trocar · segure [F] roda"
+	_ind_name.text = "%s ×%d" % [d.display_name, player.inventory.get_material_count(selected_id)]
+	_ind_qty.text = "(G) usar · (Z/X) trocar · (F) roda"
 	if d.tool_action == &"tocha" and player.torch and player.torch.is_lit:
-		_ind_qty.text = "acesa · %d s · [T] apaga" % ceili(player.torch.burn_left)
-	# Mantém o canto inferior direito mesmo quando o texto muda de largura
+		_ind_qty.text = "acesa · %d s · (T) apaga" % ceili(player.torch.burn_left)
+	# Mantém acima da barra de ações inferior direita sem sobrepor os botões
 	_indicator.reset_size()
-	_indicator.position = get_viewport_rect().size - _indicator.size - Vector2(24, 24)
+	_indicator.position = get_viewport_rect().size - _indicator.size - Vector2(20, 76)
 
 ## Prende o controle ao centro da tela, deslocado de `offset`, com o tamanho dado
 func _center_on(c: Control, offset: Vector2, size_px: Vector2) -> void:

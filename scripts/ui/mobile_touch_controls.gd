@@ -242,6 +242,7 @@ func _build_ui() -> void:
 	_top_menu_bar.add_child(top_row)
 
 	var menu_entries := [
+		["🗺️ Mapa", "WorldMapScreen", "open_map"],
 		["🌐 Coop", "CoopMenu", "open_menu"],
 		["⛺ Central", "ActionsMenu", "toggle_menu"],
 		["🎒 Mochila", "InventoryScreen", "open"],

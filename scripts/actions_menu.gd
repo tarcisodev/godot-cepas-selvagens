@@ -127,6 +127,13 @@ func _rebuild_stylish_layout() -> void:
 	guide_btn.pressed.connect(_on_guide_pressed)
 	left_col.add_child(guide_btn)
 
+	var map_btn := Button.new()
+	map_btn.name = "WorldMapButton"
+	map_btn.text = "🗺️ Mapa Mundial & Viagem Rápida ([M])"
+	map_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	map_btn.pressed.connect(_on_world_map_pressed)
+	left_col.add_child(map_btn)
+
 	var fb_btn := Button.new()
 	fb_btn.name = "FeedbackButton"
 	fb_btn.text = "💬 Mural de Feedback dos Jogadores ([F8])"
@@ -311,6 +318,12 @@ func _on_guide_pressed() -> void:
 	var guide := get_node_or_null("../ExplorerGuide")
 	if guide and guide.has_method("open_guide"):
 		guide.open_guide(player)
+
+func _on_world_map_pressed() -> void:
+	close_menu()
+	var map_screen := get_node_or_null("../WorldMapScreen")
+	if map_screen and map_screen.has_method("open_map"):
+		map_screen.open_map(player)
 
 func _on_feedback_pressed() -> void:
 	close_menu()

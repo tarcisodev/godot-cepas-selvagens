@@ -16,6 +16,23 @@ class_name Player
 @export var rotation_speed: float = 10.0
 
 const CameraRigScript = preload("res://scripts/camera_rig.gd")
+const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
+const _StyleAttack = preload("res://scripts/data/style_attack.gd")
+const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
+const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
+const _CharacterDNA = preload("res://scripts/data/character_dna.gd")
+const _StatsComponent = preload("res://scripts/components/stats_component.gd")
+const _PoolsComponent = preload("res://scripts/components/pools_component.gd")
+const _HitboxComponent = preload("res://scripts/components/hitbox_component.gd")
+const _MasteryComponent = preload("res://scripts/components/mastery_component.gd")
+const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
+const _WalletComponent = preload("res://scripts/components/wallet_component.gd")
+const _FishingComponent = preload("res://scripts/components/fishing_component.gd")
+const _TorchComponent = preload("res://scripts/components/torch_component.gd")
+const _RestComponent = preload("res://scripts/components/rest_component.gd")
+const _ArmorAbilityComponent = preload("res://scripts/components/armor_ability_component.gd")
+const _HuntingHornComponent = preload("res://scripts/components/hunting_horn_component.gd")
+const _CardCollectionComponent = preload("res://scripts/components/card_collection_component.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -38,6 +55,8 @@ var torch: TorchComponent
 var rest: RestComponent
 ## Habilidades de armadura [4] [5] [R] e passivas da capa (GDD-12 §6)
 var armor_abilities: ArmorAbilityComponent
+## Sistema de notas e melodias do Berrante de Caça (Hunting Horn)
+var hunting_horn: HuntingHornComponent
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
@@ -46,6 +65,7 @@ const STYLE_SWORD: WeaponStyle = preload("res://resources/weapons/sword.tres")
 const STYLE_SWORD_SHIELD: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
 const STYLE_HEAVY: WeaponStyle = preload("res://resources/weapons/heavy_hammer.tres")
 const STYLE_STAFF: WeaponStyle = preload("res://resources/weapons/arcane_staff.tres")
+const STYLE_HORN: WeaponStyle = preload("res://resources/weapons/hunting_horn.tres")
 const STYLE_UNARMED: WeaponStyle = preload("res://resources/weapons/unarmed.tres")
 ## Força da arma primária equipada: qualidade × núcleo (GDD-12 §7). Multiplica o dano dos golpes.
 var weapon_power: float = 1.0
@@ -253,6 +273,13 @@ func _setup_components() -> void:
 			armor_abilities.name = "ArmorAbilityComponent"
 			armor_abilities.player = self
 			add_child(armor_abilities)
+	if hunting_horn == null:
+		hunting_horn = get_node_or_null("HuntingHornComponent") as HuntingHornComponent
+		if hunting_horn == null:
+			hunting_horn = HuntingHornComponent.new()
+			hunting_horn.name = "HuntingHornComponent"
+			hunting_horn.player = self
+			add_child(hunting_horn)
 	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
 		inventory.equipment_changed.connect(_on_equipment_changed)
 
@@ -365,7 +392,13 @@ func _physics_process(delta: float) -> void:
 	_set_aiming(wants_aim)
 
 	if can_fight and weapon_style:
-		if is_aiming:
+		var both_buttons: bool = (Input.is_action_just_pressed("attack") and Input.is_action_pressed("cast")) \
+			or (Input.is_action_just_pressed("cast") and Input.is_action_pressed("attack"))
+		if both_buttons and weapon_style.special != null:
+			if current_attack != null and current_attack != weapon_style.special and _attack_hit_pending and _attack_elapsed <= 0.12:
+				_cancel_windup_for_chord()
+			try_special_attack()
+		elif is_aiming:
 			# Mirando: clique esquerdo dispara o tiro arcano mirado
 			if Input.is_action_just_pressed("attack"):
 				if weapon_style.aim_attack:
@@ -380,10 +413,10 @@ func _physics_process(delta: float) -> void:
 				else:
 					try_attack(weapon_style.primary)
 		else:
-			# Neutro: clique esquerdo = golpe primário
+			# Mouse 1: golpe primário da arma
 			if Input.is_action_just_pressed("attack"):
 				try_attack(weapon_style.primary)
-			# Neutro: clique direito = secundário se não for BLOCK nem AIM
+			# Mouse 2: golpe secundário da arma
 			elif secondary and secondary.kind != StyleAttack.Kind.BLOCK and secondary.kind != StyleAttack.Kind.AIM and Input.is_action_just_pressed("cast"):
 				try_attack(secondary)
 
@@ -913,6 +946,52 @@ func carry_speed_factor() -> float:
 func is_overloaded() -> bool:
 	return inventory != null and inventory.carry_ratio() > OVERLOAD_HARD
 
+## Joga `amount` unidades (ou a pilha toda se `amount <= 0`) no chão à frente do personagem
+func drop_material_stack(stack: Dictionary, amount: int = -1) -> DroppedLoot:
+	if inventory == null:
+		return null
+	var dropped := inventory.drop_stack(stack, amount)
+	if dropped.is_empty():
+		return null
+	var data := MaterialData.of(StringName(dropped.id))
+	var freed_kg: float = data.unit_weight * float(dropped.amount)
+	var drop_pos := _compute_drop_position()
+	var loot: DroppedLoot = null
+	if get_parent() != null:
+		loot = DroppedLoot.spawn_for_stack(get_parent(), global_position + Vector3.UP * 1.0, drop_pos, dropped)
+	posture_changed.emit("📤 Jogou no chão: %s ×%d (−%.1f kg)" % [data.display_name, int(dropped.amount), freed_kg])
+	return loot
+
+## Joga uma peça forjada no chão à frente do personagem
+func drop_forged_item(item: ForgedItem) -> DroppedLoot:
+	if inventory == null or item == null:
+		return null
+	if not inventory.drop_forged_item(item):
+		return null
+	var drop_pos := _compute_drop_position()
+	var loot: DroppedLoot = null
+	if get_parent() != null:
+		loot = DroppedLoot.spawn_for_item(get_parent(), global_position + Vector3.UP * 1.0, drop_pos, item)
+	posture_changed.emit("📤 Jogou no chão: %s" % item.display_name)
+	return loot
+
+func _compute_drop_position() -> Vector3:
+	var forward := -visual_mesh.global_basis.z if visual_mesh else Vector3.FORWARD
+	forward.y = 0.0
+	if forward.length_squared() < 0.01:
+		forward = Vector3.FORWARD
+	else:
+		forward = forward.normalized()
+	var right := Vector3(-forward.z, 0.0, forward.x)
+	var offset: Vector3 = forward * randf_range(0.95, 1.45) + right * randf_range(-0.45, 0.45)
+	var target: Vector3 = global_position + offset
+	var g_y: float = _ground_at(target.x, target.z)
+	if g_y < 900.0:
+		target.y = maxf(g_y, global_position.y - 1.5)
+	else:
+		target.y = global_position.y
+	return target
+
 ## Dá espada e escudo de treino (GDD-12 §7) a quem não tem arma primária nenhuma, e equipa
 func ensure_starter_weapons() -> void:
 	if inventory == null or inventory.items.any(func(it): return it.slot == ForgedItem.Slot.MAIN_HAND):
@@ -952,24 +1031,46 @@ func refresh_weapon_style() -> void:
 				style = STYLE_HEAVY
 			&"staff":
 				style = STYLE_STAFF
+			&"hunting_horn":
+				style = STYLE_HORN
 	weapon_power = (main.weapon_power() * (0.5 if main.is_broken() else 1.0)) if main else 1.0
 	if style != weapon_style:
 		equip_style(style)
 
-## Golpe com a força da arma e os bônus de dano do momento (Faro); o recurso original não muda
+## Golpe com a força da arma e os bônus de dano do momento (Faro / Hino da Fúria); o recurso original não muda
 func _scaled_attack(attack: StyleAttack) -> StyleAttack:
 	var bonus: float = stats.get_stat(&"damage_bonus") if stats else 0.0
 	var mult: float = weapon_power * (1.0 + bonus)
-	if is_equal_approx(mult, 1.0):
+	var poise_m: float = hunting_horn.poise_mult() if hunting_horn else 1.0
+	if is_equal_approx(mult, 1.0) and is_equal_approx(poise_m, 1.0):
 		return attack
 	var a := attack.duplicate() as StyleAttack
 	a.damage *= mult
-	a.poise_damage *= lerpf(1.0, mult, 0.5)
+	a.poise_damage *= lerpf(1.0, mult, 0.5) * poise_m
+	a.break_mult *= poise_m
 	return a
 
 ## Golpe que não vem da arma (habilidade de armadura: Investida, Pisão). Mesma regra do básico.
 func cast_attack(attack: StyleAttack) -> bool:
 	return try_attack(attack)
+
+## Executa o golpe especial da arma atual (Mouse 1 + Mouse 2 juntos)
+func try_special_attack() -> bool:
+	if weapon_style == null or weapon_style.special == null:
+		return false
+	return try_attack(weapon_style.special)
+
+func _cancel_windup_for_chord() -> void:
+	if current_attack == null:
+		return
+	if pools:
+		if current_attack.cost_pool == &"ether":
+			pools.current_ether = minf(pools.current_ether + current_attack.cost, stats.get_stat(&"max_ether") if stats else 100.0)
+		else:
+			pools.current_vigor = minf(pools.current_vigor + current_attack.cost, stats.get_stat(&"max_vigor") if stats else 100.0)
+	if weapon_style == STYLE_HORN and hunting_horn and (current_attack == weapon_style.primary or current_attack == weapon_style.secondary):
+		hunting_horn.pop_last_note()
+	_end_attack()
 
 ## Começa um básico se o estado permitir e o recurso pagar; retorna se começou.
 func try_attack(attack: StyleAttack) -> bool:
@@ -999,10 +1100,17 @@ func try_attack(attack: StyleAttack) -> bool:
 	_attack_dir = -visual_mesh.global_basis.z
 	_attack_dir.y = 0.0
 	_attack_dir = _attack_dir.normalized()
+	if weapon_style == STYLE_HORN and hunting_horn and attack == weapon_style.primary:
+		var note := hunting_horn.on_primary_attack(combo_step, is_crouching)
+		posture_changed.emit("%s · %s %s" % [attack.display_name, HuntingHornComponent.NOTE_ICONS[note], HuntingHornComponent.NOTE_NAMES[note]])
+	elif weapon_style == STYLE_HORN and hunting_horn and attack == weapon_style.secondary:
+		var note2 := hunting_horn.on_secondary_attack(combo_step, is_crouching)
+		posture_changed.emit("%s · %s %s" % [attack.display_name, HuntingHornComponent.NOTE_ICONS[note2], HuntingHornComponent.NOTE_NAMES[note2]])
+	else:
+		posture_changed.emit(attack.display_name)
 	if attack_whoosh_player and is_inside_tree() and attack_whoosh_player.is_inside_tree():
 		attack_whoosh_player.pitch_scale = 0.75 if is_casting else randf_range(0.96, 1.12)
 		attack_whoosh_player.play()
-	posture_changed.emit(attack.display_name)
 	return true
 
 func _process_attack(delta: float) -> void:
@@ -1040,9 +1148,12 @@ func _release_attack(base_attack: StyleAttack) -> void:
 				aim = -camera_rig.global_basis.z
 			ArcaneBolt.spawn(get_parent(), self, spawn_pos, aim, attack)
 		StyleAttack.Kind.AREA:
-			# O Pisão (habilidade de bota) estoura em volta do corpo; magias de área, à frente
-			var ahead: float = 0.0 if attack.display_name == "Pisão" else attack.reach * 0.6
+			# Golpes físicos em área ao redor do corpo; magias arcanas de área estouram à frente
+			var centered: bool = attack.cost_pool != &"ether"
+			var ahead: float = 0.0 if centered else attack.reach * 0.6
 			EarthBurst.spawn(get_parent(), self, global_position + _attack_dir * ahead, attack)
+			if weapon_style == STYLE_HORN and hunting_horn and (base_attack == weapon_style.special or attack.display_name == "Recital Ressonante"):
+				hunting_horn.perform_recital()
 
 func _end_attack() -> void:
 	current_attack = null

@@ -1,0 +1,140 @@
+[gd_scene load_steps=16 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_wood"]
+albedo_color = Color(0.32, 0.2, 0.12, 1)
+roughness = 0.78
+
+[sub_resource type="CylinderMesh" id="Mesh_shaft"]
+material = SubResource("Mat_wood")
+top_radius = 0.042
+bottom_radius = 0.034
+height = 1.55
+radial_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="Mat_leather"]
+albedo_color = Color(0.48, 0.28, 0.15, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="Mesh_grip"]
+material = SubResource("Mat_leather")
+top_radius = 0.048
+bottom_radius = 0.046
+height = 0.42
+radial_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="Mat_horn_bone"]
+albedo_color = Color(0.86, 0.8, 0.66, 1)
+metallic = 0.15
+roughness = 0.52
+
+[sub_resource type="CylinderMesh" id="Mesh_mouthpiece"]
+material = SubResource("Mat_horn_bone")
+top_radius = 0.032
+bottom_radius = 0.055
+height = 0.18
+radial_segments = 12
+
+[sub_resource type="StandardMaterial3D" id="Mat_carapace"]
+albedo_color = Color(0.26, 0.24, 0.22, 1)
+metallic = 0.45
+roughness = 0.48
+
+[sub_resource type="SphereMesh" id="Mesh_chamber"]
+material = SubResource("Mat_carapace")
+radius = 0.19
+height = 0.42
+radial_segments = 16
+rings = 8
+
+[sub_resource type="CylinderMesh" id="Mesh_bell_neck"]
+material = SubResource("Mat_horn_bone")
+top_radius = 0.17
+bottom_radius = 0.09
+height = 0.36
+radial_segments = 16
+
+[sub_resource type="CylinderMesh" id="Mesh_bell_flare"]
+material = SubResource("Mat_horn_bone")
+top_radius = 0.28
+bottom_radius = 0.16
+height = 0.28
+radial_segments = 18
+
+[sub_resource type="StandardMaterial3D" id="Mat_cavity"]
+albedo_color = Color(0.06, 0.05, 0.05, 1)
+roughness = 0.95
+
+[sub_resource type="CylinderMesh" id="Mesh_cavity"]
+material = SubResource("Mat_cavity")
+top_radius = 0.23
+bottom_radius = 0.12
+height = 0.06
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="Mat_bronze"]
+albedo_color = Color(0.85, 0.64, 0.28, 1)
+metallic = 0.82
+roughness = 0.32
+
+[sub_resource type="TorusMesh" id="Mesh_ring"]
+material = SubResource("Mat_bronze")
+inner_radius = 0.16
+outer_radius = 0.205
+rings = 16
+ring_segments = 8
+
+[sub_resource type="StandardMaterial3D" id="Mat_lume"]
+albedo_color = Color(0.35, 0.92, 0.88, 1)
+emission_enabled = true
+emission = Color(0.25, 0.88, 0.85, 1)
+emission_energy_multiplier = 1.6
+roughness = 0.2
+
+[sub_resource type="SphereMesh" id="Mesh_lume"]
+material = SubResource("Mat_lume")
+radius = 0.065
+height = 0.16
+radial_segments = 10
+rings = 6
+
+[node name="HuntingHorn" type="Node3D"]
+
+[node name="Shaft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.32, 0)
+mesh = SubResource("Mesh_shaft")
+
+[node name="Grip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+mesh = SubResource("Mesh_grip")
+
+[node name="Mouthpiece" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.48, 0)
+mesh = SubResource("Mesh_mouthpiece")
+
+[node name="ResonanceChamber" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.1, 0, 0, 0, 1, 0, 0, 0, 0.9, 0, 1.08, 0)
+mesh = SubResource("Mesh_chamber")
+
+[node name="HornNeck" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.866025, -0.5, 0, 0.5, 0.866025, 0, 1.24, 0.14)
+mesh = SubResource("Mesh_bell_neck")
+
+[node name="HornBell" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.5, -0.866025, 0, 0.866025, 0.5, 0, 1.38, 0.34)
+mesh = SubResource("Mesh_bell_flare")
+
+[node name="BellCavity" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.5, -0.866025, 0, 0.866025, 0.5, 0, 1.44, 0.45)
+mesh = SubResource("Mesh_cavity")
+
+[node name="BronzeBand" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 0)
+mesh = SubResource("Mesh_ring")
+
+[node name="BellBand" type="MeshInstance3D" parent="."]
+transform = Transform3D(1.25, 0, 0, 0, 0.625, -1.08253, 0, 1.08253, 0.625, 0, 1.42, 0.41)
+mesh = SubResource("Mesh_ring")
+
+[node name="LumeCore" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.08, -0.16)
+mesh = SubResource("Mesh_lume")

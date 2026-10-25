@@ -1,6 +1,8 @@
 class_name HitEvent
 extends RefCounted
 
+const _DamageType = preload("res://scripts/data/damage_type.gd")
+
 ## Evento atômico de golpe conforme ADR-0003
 ## Contém todos os dados brutos antes de passar pelo CombatResolver.
 

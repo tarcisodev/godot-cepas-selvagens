@@ -47,10 +47,10 @@ func _ready() -> void:
 	add_to_group("town_projects")
 	_sign = Label3D.new()
 	_sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_sign.font_size = 22
-	_sign.outline_size = 6
+	_sign.font_size = 15
+	_sign.outline_size = 4
 	_sign.outline_modulate = Color(0, 0, 0, 0.85)
-	_sign.visibility_range_end = 22.0
+	_sign.visibility_range_end = 9.0
 	add_child(_sign)
 	_snap_to_ground()
 	rebuild()
