@@ -43,6 +43,16 @@ Implementar uma arquitetura de **streaming de terreno em chunks com MultiMesh** 
 - O servidor atua como fonte da verdade para inventário, equipamentos, posição e montarias.
 - Módulo de persistência que salva o estado dos jogadores em arquivos individuais no servidor ao desconectar e recarrega na reconexão.
 
+### 5. Blindagem para Playtest Fechado, Segurança e Desempenho
+- **Conexão Padrão Sem Digitação:** Client conecta diretamente em `jogar.tarciso.dev:8787` por padrão, mantendo gaveta `🔧 Servidor Avançado (Dev)` oculta para desenvolvedores.
+- **Versionamento Semver (`GAME_VERSION`):** Validação estrita entre client e servidor no handshake de autenticação; rejeição amigável com mensagem de atualização obrigatória.
+- **Proteção e Rate Limiting no Servidor:**
+  - Limite de 5 tentativas de login por minuto por IP com log de recusa.
+  - Limite de conexões simultâneas por IP (máx. 3).
+  - Capacidade máxima ampliada para 32 jogadores simultâneos.
+- **Otimização de CPU Ociosa:** Ativação de `OS.low_processor_usage_mode = true` no boot headless e substituição de `_process` por timers na cena `server_world.tscn` (`SunUpdateTimer`, `ChunkUpdateTimer`, `AutosaveTimer`).
+- **Arquitetura Web-Ready (ADR-0008):** Isolamento do transporte no `NetworkManager`, preparando suporte futuro a `WebSocketMultiplayerPeer` (WSS via Traefik).
+
 ## Critérios de Pronto
 - [x] Documento do Bloco B24 registrado no repositório.
 - [x] `TerrainChunkManager` funcional gerando relevo contínuo sem frestas entre chunks adjacentes.
@@ -51,5 +61,10 @@ Implementar uma arquitetura de **streaming de terreno em chunks com MultiMesh** 
 - [x] Persistência do servidor gravando dados do jogador ao desconectar e restaurando na entrada.
 - [x] Autenticação de contas com usuário/senha (SHA-256 + salt) e suporte a WebSockets/Cloudflare Tunnel (ws://, wss://).
 - [x] Tela de Login/Registro e Criação de Personagens vinculados à conta (OnlineAuthModal).
-- [x] Suíte de testes headless validando geração de chunks, MultiMesh, contas, personagens e persistência de dados.
-- [x] 35/35 testes passando com 100% de sucesso no run_all.gd.
+- [x] Conexão padrão para `jogar.tarciso.dev:8787` com gaveta avançada dev oculta.
+- [x] Versionamento semver (`GAME_VERSION = "0.1.0"`) com recusa explicativa de versão incompatível.
+- [x] Proteção básica de servidor (rate limit 5 req/min/IP, 3 conexões/IP, limite 32 jogadores e logs de recusa).
+- [x] Otimização do modo servidor com `low_processor_usage_mode` e eliminação de `_process` em nós do `server_world`.
+- [x] Presets de export Windows Desktop e Linux Server documentados em `docs/BUILD.md`.
+- [x] Isolamento da camada de rede Web-Ready registrado em `docs/decisions/ADR-0008-cepa-camada-rede-abstrata-web-ready.md`.
+- [x] Suíte de testes headless cobrindo novas rotas de segurança e versionamento com 100% de sucesso.
