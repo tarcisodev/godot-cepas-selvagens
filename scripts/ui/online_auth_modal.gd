@@ -22,6 +22,12 @@ var _mode_btn: CheckButton
 var _submit_btn: Button
 var _cancel_btn: Button
 
+# Servidor Avançado (Dev)
+var _adv_toggle_btn: Button
+var _adv_box: VBoxContainer
+var _adv_host_input: LineEdit
+var _adv_port_input: LineEdit
+
 # Containers
 var _auth_box: VBoxContainer
 var _char_box: VBoxContainer
@@ -135,6 +141,45 @@ func _build_ui() -> void:
 	)
 	_auth_box.add_child(_mode_btn)
 
+	# Seção de Servidor Avançado (oculta por padrão, exclusiva para desenvolvedores)
+	if not is_host_mode:
+		_adv_toggle_btn = Button.new()
+		_adv_toggle_btn.text = "🔧 Servidor Avançado (Dev) ▶"
+		_adv_toggle_btn.flat = true
+		_adv_toggle_btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		_adv_toggle_btn.add_theme_font_size_override("font_size", 11)
+		_adv_toggle_btn.add_theme_color_override("font_color", Color(0.65, 0.75, 0.7, 0.75))
+		_adv_toggle_btn.pressed.connect(func():
+			_adv_box.visible = not _adv_box.visible
+			_adv_toggle_btn.text = "🔧 Servidor Avançado (Dev) ▼" if _adv_box.visible else "🔧 Servidor Avançado (Dev) ▶"
+		)
+		_auth_box.add_child(_adv_toggle_btn)
+
+		_adv_box = VBoxContainer.new()
+		_adv_box.add_theme_constant_override("separation", 6)
+		_adv_box.visible = false
+		_auth_box.add_child(_adv_box)
+
+		var adv_host_lbl := Label.new()
+		adv_host_lbl.text = "Endereço do Servidor / Host:"
+		adv_host_lbl.add_theme_font_size_override("font_size", 12)
+		_adv_box.add_child(adv_host_lbl)
+
+		_adv_host_input = LineEdit.new()
+		_adv_host_input.text = NetworkManagerAutoload.DEFAULT_HOST
+		_adv_host_input.placeholder_text = NetworkManagerAutoload.DEFAULT_HOST
+		_adv_box.add_child(_adv_host_input)
+
+		var adv_port_lbl := Label.new()
+		adv_port_lbl.text = "Porta:"
+		adv_port_lbl.add_theme_font_size_override("font_size", 12)
+		_adv_box.add_child(adv_port_lbl)
+
+		_adv_port_input = LineEdit.new()
+		_adv_port_input.text = str(NetworkManagerAutoload.DEFAULT_PORT)
+		_adv_port_input.placeholder_text = str(NetworkManagerAutoload.DEFAULT_PORT)
+		_adv_box.add_child(_adv_port_input)
+
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.add_theme_constant_override("separation", 10)
 	_auth_box.add_child(btn_hbox)
@@ -200,9 +245,9 @@ func _on_submit_pressed() -> void:
 	_is_connecting = true
 
 	if is_host_mode:
-		var port := int(_url_input.text.strip_edges()) if (_url_input and _url_input.text.is_valid_int()) else 8787
+		var port := int(_url_input.text.strip_edges()) if (_url_input and _url_input.text.is_valid_int()) else NetworkManagerAutoload.DEFAULT_PORT
 		var use_ws: bool = _ws_check.button_pressed if _ws_check else false
-		var err: int = net.start_server(port, 16, use_ws)
+		var err: int = net.start_server(port, NetworkManagerAutoload.MAX_PLAYERS, use_ws)
 		if err != OK:
 			_set_status("❌ Falha ao iniciar servidor na porta %d: %s" % [port, error_string(err)], Color(1, 0.3, 0.3))
 			_submit_btn.disabled = false
@@ -211,10 +256,18 @@ func _on_submit_pressed() -> void:
 		_set_status("Servidor ativo na porta %d! Autenticando..." % port, Color(0.6, 1, 0.6))
 		net.send_auth_request(_pending_mode, user, pass_text)
 	else:
-		# Conecta direto no servidor oficial sem pedir URL
+		# Conecta direto no servidor oficial jogar.tarciso.dev:8787 por padrão;
+		# Se a seção de dev estiver visível e configurada, usa as opções personalizadas.
 		var target_host: String = NetworkManagerAutoload.DEFAULT_HOST
 		var target_port: int = NetworkManagerAutoload.DEFAULT_PORT
-		_set_status("Conectando ao servidor oficial (%s)..." % target_host, Color(0.8, 0.9, 1))
+
+		if _adv_box != null and _adv_box.visible:
+			if _adv_host_input and not _adv_host_input.text.strip_edges().is_empty():
+				target_host = _adv_host_input.text.strip_edges()
+			if _adv_port_input and _adv_port_input.text.strip_edges().is_valid_int():
+				target_port = int(_adv_port_input.text.strip_edges())
+
+		_set_status("Conectando ao servidor (%s:%d)..." % [target_host, target_port], Color(0.8, 0.9, 1))
 
 		var err: Error = net.start_client(target_host, target_port)
 		if err != OK:
