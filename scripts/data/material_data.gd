@@ -36,10 +36,18 @@ func is_tool() -> bool:
 @export var restore_vigor: float = 0.0
 @export var restore_ether: float = 0.0
 
-func is_consumable() -> bool:
-	return restore_health > 0.0 or restore_vigor > 0.0 or restore_ether > 0.0
+@export_group("Culinária e Buffs")
+## ID do buff gastronômico aplicado ao consumir (GDD-13); vazio = sem buff duradouro
+@export var food_buff_id: StringName = &""
+## Duração em segundos reais do buff (ex: 1200.0 = 20 min)
+@export var food_buff_duration: float = 0.0
+## Nome amigável do buff gastronômico (ex: "Vigor Inabalável")
+@export var food_buff_name: String = ""
 
-## Resumo do efeito ("+40 Vida · +15 Éter"); vazio se não for consumível
+func is_consumable() -> bool:
+	return restore_health > 0.0 or restore_vigor > 0.0 or restore_ether > 0.0 or not food_buff_id.is_empty()
+
+## Resumo do efeito ("+40 Vida · +15 Éter · Vigor Inabalável (20 min)"); vazio se não for consumível
 func effect_text() -> String:
 	var parts: Array[String] = []
 	if restore_health > 0.0:
@@ -48,6 +56,10 @@ func effect_text() -> String:
 		parts.append("+%d Vigor" % roundi(restore_vigor))
 	if restore_ether > 0.0:
 		parts.append("+%d Éter" % roundi(restore_ether))
+	if not food_buff_name.is_empty() or not food_buff_id.is_empty():
+		var bname: String = food_buff_name if not food_buff_name.is_empty() else String(food_buff_id).capitalize()
+		var mins: int = roundi(food_buff_duration / 60.0)
+		parts.append("%s (%d min)" % [bname, mins] if mins > 0 else bname)
 	return " · ".join(parts)
 
 static var _cache: Dictionary = {}

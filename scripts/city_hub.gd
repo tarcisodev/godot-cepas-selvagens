@@ -12,6 +12,7 @@ const BANNER2_SCENE = preload("res://assets/models/props/fantasy/Banner_2.gltf")
 const AXE_SCENE = preload("res://assets/models/tools/axe.gltf")
 const ALCHEMIST_DNA = preload("res://resources/characters/alchemist_dna.tres")
 const BUILDER_DNA = preload("res://resources/characters/builder_dna.tres")
+const _CookingStation = preload("res://scripts/town/cooking_station.gd")
 
 ## Centro e raio da vila (o ZoneManager usa os mesmos valores)
 const CENTER: Vector2 = Vector2(1.5, 4.5)
@@ -364,6 +365,13 @@ func _build_board() -> void:
 	fire.name = "FogueiraDoAcampamento"
 	fire.position = Vector3(-0.6, _get_ground_y(-0.6, 5.6), 5.6)
 	add_child(fire)
+
+	# Caldeirão Culinário público do acampamento (GDD-13 §4)
+	var cauldron := _CookingStation.new()
+	cauldron.name = "CaldeiraoPublico"
+	cauldron.city = self
+	cauldron.position = Vector3(1.8, _get_ground_y(1.8, 5.8), 5.8)
+	add_child(cauldron)
 
 	_board_layer = CanvasLayer.new()
 	_board_layer.layer = 12

@@ -1,6 +1,8 @@
 class_name WildCreature
 extends Node3D
 
+const _VultureFlock3D = preload("res://scripts/creatures/vulture_flock_3d.gd")
+
 ## Bicho selvagem procedural (GDD-09 §4 e GDD-03 §9): corpo CreatureBody + comportamento por plano.
 ## Quadrúpede pasta e foge; ave voa em círculos; peixe nada no rio. Bichos de caça (Trotador,
 ## Planador, Saltarelo) têm Vida e hurtbox: apanham, fogem, ficam Exaustos abaixo de 20% e podem
@@ -46,6 +48,7 @@ var state: State = State.WANDER
 var stats: StatsComponent
 var pools: PoolsComponent
 var harvest_queue: Array[Dictionary] = []
+var _vultures: _VultureFlock3D
 ## Prioridade online (GDD-03 §9.2): quem prendeu tem 60 s sobre o bicho
 var trapped_by: Node = null
 ## Vida e necessidades (0–1)
@@ -232,6 +235,9 @@ func _die(careful: bool) -> void:
 	harvest_queue = _loot(careful)
 	add_to_group("harvestable")
 	_timer = CORPSE_LIFETIME
+	if dna.plan() != CreatureDNA.Plan.FISH:
+		_vultures = _VultureFlock3D.new()
+		add_child(_vultures)
 	body.rotation.z = PI * 0.5 if dna.plan() != CreatureDNA.Plan.FISH else 0.0
 	if dna.plan() == CreatureDNA.Plan.BIRD:
 		global_position.y = _ground(global_position.x, global_position.z)
@@ -289,7 +295,11 @@ func _remove() -> void:
 	if state == State.DEAD:
 		var eco := get_tree().get_first_node_in_group("ecology") if is_inside_tree() else null
 		if eco:
-			eco.deposit(global_position, 0.25)
+			if _vultures and is_instance_valid(_vultures):
+				_vultures.disperse()
+				if get_parent():
+					_vultures.reparent(get_parent())
+			eco.deposit(global_position, 0.80)
 	remove_from_group("harvestable")
 	remove_from_group("fish")
 	remove_from_group("wild_creatures")

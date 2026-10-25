@@ -1,6 +1,8 @@
 class_name BuildablePiece
 extends StaticBody3D
 
+const _CookingStation = preload("res://scripts/town/cooking_station.gd")
+
 ## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada,
 ## Fogueira, Banco e Cama — as três últimas são de descanso, GDD-10 §10.5)
 ## Possui colisão sólida, custos de materiais, abertura de portas e desmontagem.
@@ -19,7 +21,8 @@ enum PieceType {
 	BANCADA,
 	FOGUEIRA,
 	BANCO,
-	CAMA
+	CAMA,
+	CALDEIRAO
 }
 
 const PIECE_CONFIG: Dictionary = {
@@ -82,6 +85,12 @@ const PIECE_CONFIG: Dictionary = {
 		"name": "Cama",
 		"costs": { &"madeira": 4, &"fibra": 4 },
 		"size": Vector3(1.0, 0.5, 2.1)
+	},
+	PieceType.CALDEIRAO: {
+		"id": &"caldeirao",
+		"name": "Caldeirão Culinário",
+		"costs": { &"barra_ferro": 2, &"pedra": 3 },
+		"size": Vector3(1.2, 0.9, 1.2)
 	}
 }
 
@@ -138,6 +147,11 @@ func _build_piece() -> void:
 
 		PieceType.CAMA:
 			_build_bed(sz)
+
+		PieceType.CALDEIRAO:
+			var cauldron := _CookingStation.new()
+			cauldron.name = "CookingStation"
+			add_child(cauldron)
 
 func _build_box(size: Vector3, offset: Vector3, color: Color) -> void:
 	var col := CollisionShape3D.new()

@@ -629,6 +629,7 @@ func _process(_delta: float) -> void:
 
 	_update_underwater_tint()
 	_update_rest_label()
+	_update_food_buff_label()
 	_update_horn_hud()
 	_update_ability_bar()
 	_update_boss_bar()
@@ -676,6 +677,41 @@ func _update_rest_label() -> void:
 			box.move_child(_rest_label, bars.get_index() + 1)
 	_rest_label.text = text
 	_rest_label.visible = not text.is_empty()
+
+var _food_buff_label: Label
+
+## Linha abaixo das barras: buff gastronômico da refeição ativa com ícone e tempo restante (GDD-13 §4 e §5)
+func _update_food_buff_label() -> void:
+	var food_comp: Node = player.get("food_buff") if player else null
+	var has_buff: bool = food_comp != null and bool(food_comp.has_buff())
+	if _food_buff_label == null:
+		if not has_buff:
+			return
+		var box := get_node_or_null("MarginContainer/ExplorerCard/VBoxContainer")
+		if box == null:
+			box = get_node_or_null("MarginContainer/VBoxContainer")
+		if box == null:
+			return
+		_food_buff_label = Label.new()
+		_food_buff_label.name = "FoodBuffLabel"
+		_food_buff_label.custom_minimum_size = Vector2(HUD_BAR_WIDTH, 0)
+		_food_buff_label.clip_text = true
+		_food_buff_label.add_theme_font_size_override("font_size", 11)
+		_food_buff_label.add_theme_color_override("font_color", Color(0.4, 0.95, 0.55))
+		_food_buff_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+		_food_buff_label.add_theme_constant_override("outline_size", 3)
+		box.add_child(_food_buff_label)
+		var bars := box.get_node_or_null("StatusBars")
+		if bars:
+			box.move_child(_food_buff_label, bars.get_index() + 2)
+	if has_buff:
+		var bname: String = food_comp.active_buff_name
+		var time_str: String = food_comp.get_formatted_time_left()
+		var icon: String = food_comp.active_buff_icon
+		_food_buff_label.text = "%s %s (%s)" % [icon, bname, time_str]
+		_food_buff_label.visible = true
+	elif _food_buff_label:
+		_food_buff_label.visible = false
 
 var _horn_panel: PanelContainer
 var _horn_notes_label: Label

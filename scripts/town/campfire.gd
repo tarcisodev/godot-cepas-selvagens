@@ -1,9 +1,16 @@
 class_name Campfire
 extends Node3D
 
-## Fogueira de descanso (GDD-10 §10.2): a até 4 m dela, sentado, a Vida volta a 2%/s e conta
-## para o buff Descansado. Uso público: qualquer jogador descansa na fogueira de outro.
+const _Player = preload("res://scripts/player.gd")
+const _RoastSpitMinigame = preload("res://scripts/ui/roast_spit_minigame.gd")
+
+## Fogueira de descanso e assado (GDD-10 §10.2 e GDD-13 §2):
+## - A até 4 m dela, sentado, a Vida volta a 2%/s e conta para o buff Descansado.
+## - [E] abre o minigame do espeto para assar carnes cruas ou peixes.
+## Uso público: qualquer jogador descansa e assa na fogueira de outro.
 ## A mesma fogueira serve a peça construída (BuildablePiece.FOGUEIRA) e a do acampamento da vila.
+
+const USE_RANGE: float = 3.5
 
 ## Acesa (a fogueira do slice não apaga; lenha e chuva ficam para depois)
 @export var lit: bool = true
@@ -11,10 +18,14 @@ extends Node3D
 var _flames: Array[MeshInstance3D] = []
 var _light: OmniLight3D
 var _t: float = 0.0
+var _prompt: Label3D
+var _minigame: _RoastSpitMinigame
 
 func _ready() -> void:
 	add_to_group("rest_fires")
+	add_to_group("talkable")
 	_build()
+	_setup_minigame()
 
 func _build() -> void:
 	var stone := StandardMaterial3D.new()
@@ -84,14 +95,39 @@ func _build() -> void:
 	add_child(body)
 	_set_lit_visuals()
 
+func _setup_minigame() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 12
+	add_child(layer)
+	_minigame = _RoastSpitMinigame.new()
+	layer.add_child(_minigame)
+
+	_prompt = Label3D.new()
+	_prompt.text = "🔥 [E] Assar Carne (Espeto)"
+	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_prompt.font_size = 14
+	_prompt.outline_size = 4
+	_prompt.modulate = Color(1.0, 0.75, 0.35)
+	_prompt.position.y = 1.1
+	_prompt.visible = false
+	add_child(_prompt)
+
 func _set_lit_visuals() -> void:
 	for f in _flames:
 		f.visible = lit
 	if _light:
 		_light.visible = lit
 
-## Chama tremendo (só desenho; a regra de descanso lê `lit`)
+func talk_to(player_node: Node) -> void:
+	if _minigame:
+		_minigame.open(player_node as _Player)
+
+## Chama tremendo e monitora proximidade do jogador
 func _process(delta: float) -> void:
+	var player := get_tree().get_first_node_in_group("player") as Node3D if is_inside_tree() else null
+	if _prompt:
+		_prompt.visible = lit and player != null and player.global_position.distance_to(global_position) < USE_RANGE
+
 	if not lit:
 		return
 	_t += delta

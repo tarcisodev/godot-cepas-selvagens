@@ -33,6 +33,7 @@ const _RestComponent = preload("res://scripts/components/rest_component.gd")
 const _ArmorAbilityComponent = preload("res://scripts/components/armor_ability_component.gd")
 const _HuntingHornComponent = preload("res://scripts/components/hunting_horn_component.gd")
 const _CardCollectionComponent = preload("res://scripts/components/card_collection_component.gd")
+const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -57,6 +58,8 @@ var rest: RestComponent
 var armor_abilities: ArmorAbilityComponent
 ## Sistema de notas e melodias do Berrante de Caça (Hunting Horn)
 var hunting_horn: HuntingHornComponent
+## Buffs gastronômicos e refeições completas (GDD-13 §4 e §5)
+var food_buff: _FoodBuffComponent
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
@@ -280,6 +283,14 @@ func _setup_components() -> void:
 			hunting_horn.name = "HuntingHornComponent"
 			hunting_horn.player = self
 			add_child(hunting_horn)
+	if food_buff == null:
+		food_buff = get_node_or_null("FoodBuffComponent") as _FoodBuffComponent
+		if food_buff == null:
+			food_buff = _FoodBuffComponent.new()
+			food_buff.name = "FoodBuffComponent"
+			food_buff.player = self
+			food_buff.stats = stats
+			add_child(food_buff)
 	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
 		inventory.equipment_changed.connect(_on_equipment_changed)
 

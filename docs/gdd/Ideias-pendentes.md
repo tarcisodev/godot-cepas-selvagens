@@ -41,10 +41,8 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 4. Cadeia alimentar & Carniceiros — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-10-Ciclo-natural#11-cadeia-alimentar-e-carniceiros-urubus|GDD-10 §11]]
-- ✅ **Decidido (2026-10-25):** Carnívoros caçam herbívoros por fome.
-- **Urubus como "Farol Natural":** Urubus voam em círculos no céu sobre carcaças no chão, visíveis à distância no horizonte.
-- Carcaças decompõem em 3 etapas, mineralizando a célula do solo e elevando a chance de mutação botânica para 12%.
+## 4. Cadeia alimentar & Carniceiros — Executado no [[03-Projects/Cepa-Selvagem/blocos/B25-culinaria-espeto-e-caldeirao|B25]] e [[03-Projects/Cepa-Selvagem/notas/GDD-10-Ciclo-natural#11-cadeia-alimentar-e-carniceiros-urubus|GDD-10 §11]]
+- ✅ **Implementado (Bloco B25):** Urubus voam em círculos no céu sobre carcaças no chão como farol orgânico no horizonte (`VultureFlock3D`); carcaça apodrece enriquecendo o solo com +0.80 de nutriente.
 
 ---
 
@@ -53,9 +51,8 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 6. Cozinha & Minigame Monster Hunter — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]
-- ✅ **Decidido (2026-10-25):** Espeto na fogueira com minigame de timing (crua → suculenta perfeita → queimada).
-- Caldeirão do Rancho combinando carnes, peixes, ovos, leite, mel, ervas, frutas e cogumelos para buffs duradouros.
+## 6. Cozinha & Minigame Monster Hunter — Executado no [[03-Projects/Cepa-Selvagem/blocos/B25-culinaria-espeto-e-caldeirao|B25]] e [[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]
+- ✅ **Implementado (Bloco B25):** Espeto na fogueira com minigame de timing (crua → suculenta perfeita → queimada) e buff Bem Alimentado; Caldeirão Culinário combinando bases e acompanhamentos com buffs de longa duração e qualidade derivada dos insumos.
 
 ---
 

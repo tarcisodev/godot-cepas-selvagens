@@ -186,11 +186,20 @@ func use_item(stack: Dictionary, pools: PoolsComponent) -> bool:
 	var hp_room: bool = data.restore_health > 0.0 and pools.current_health < pools.stats.get_stat(&"max_health")
 	var vigor_room: bool = data.restore_vigor > 0.0 and pools.current_vigor < pools.stats.get_stat(&"max_vigor")
 	var ether_room: bool = data.restore_ether > 0.0 and pools.current_ether < pools.stats.get_stat(&"max_ether")
-	if not (hp_room or vigor_room or ether_room):
+	var has_buff: bool = not data.food_buff_id.is_empty()
+	if not (hp_room or vigor_room or ether_room or has_buff):
 		return false
-	pools.heal(data.restore_health)
-	pools.restore_vigor(data.restore_vigor)
-	pools.restore_ether(data.restore_ether)
+	if data.restore_health > 0.0:
+		pools.heal(data.restore_health)
+	if data.restore_vigor > 0.0:
+		pools.restore_vigor(data.restore_vigor)
+	if data.restore_ether > 0.0:
+		pools.restore_ether(data.restore_ether)
+	if has_buff:
+		var target_node: Node = pools.get_parent() if pools else null
+		var food_comp: Node = target_node.get("food_buff") if target_node else null
+		if food_comp and food_comp.has_method("apply_food_buff"):
+			food_comp.apply_food_buff(data.food_buff_id, data.food_buff_duration, int(stack.get("quality", 1)), stack.get("traits", []))
 	consume_stack(stack, 1)
 	item_used.emit(stack.id, data.effect_text())
 	return true
