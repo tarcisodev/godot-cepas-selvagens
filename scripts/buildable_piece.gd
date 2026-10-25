@@ -3,6 +3,7 @@ extends StaticBody3D
 
 const _CookingStation = preload("res://scripts/town/cooking_station.gd")
 const _GuildTotem = preload("res://scripts/town/guild_totem.gd")
+const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
 
 ## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada,
 ## Fogueira, Banco e Cama — as três últimas são de descanso, GDD-10 §10.5)
@@ -24,7 +25,9 @@ enum PieceType {
 	BANCO,
 	CAMA,
 	CALDEIRAO,
-	TOTEM_GUILDA
+	TOTEM_GUILDA,
+	COMPOSTEIRA,
+	TANQUE_PEIXE
 }
 
 const PIECE_CONFIG: Dictionary = {
@@ -99,6 +102,18 @@ const PIECE_CONFIG: Dictionary = {
 		"name": "Totem da Guilda",
 		"costs": { &"madeira": 15, &"pedra": 12, &"barra_ferro": 4 },
 		"size": Vector3(1.6, 3.6, 1.6)
+	},
+	PieceType.COMPOSTEIRA: {
+		"id": &"composteira",
+		"name": "Composteira de Monstros",
+		"costs": { &"madeira": 4, &"pedra": 2, &"ossos": 2 },
+		"size": Vector3(1.4, 0.9, 1.4)
+	},
+	PieceType.TANQUE_PEIXE: {
+		"id": &"tanque_peixe",
+		"name": "Tanque de Aquicultura",
+		"costs": { &"madeira": 4, &"pedra": 4, &"quartzo_lume": 2 },
+		"size": Vector3(1.8, 1.1, 1.8)
 	}
 }
 
@@ -166,6 +181,12 @@ func _build_piece() -> void:
 			gtotem.name = "GuildTotem"
 			gtotem.owner_name = owner_name
 			add_child(gtotem)
+
+		PieceType.COMPOSTEIRA:
+			_build_composter(sz)
+
+		PieceType.TANQUE_PEIXE:
+			_build_fish_tank(sz)
 
 func _build_box(size: Vector3, offset: Vector3, color: Color) -> void:
 	var col := CollisionShape3D.new()
@@ -310,6 +331,38 @@ func _build_bed(sz: Vector3) -> void:
 	add_to_group("beds")
 	_add_prompt("[E] Deitar", sz.y + 0.5)
 
+## Composteira: caixa de madeira com adubo orgânico fumegante
+func _build_composter(sz: Vector3) -> void:
+	_build_box(sz, Vector3(0, sz.y * 0.5, 0), Color(0.42, 0.28, 0.16))
+	var soil := MeshInstance3D.new()
+	var s_box := BoxMesh.new()
+	s_box.size = Vector3(sz.x * 0.8, 0.2, sz.z * 0.8)
+	soil.mesh = s_box
+	var s_mat := StandardMaterial3D.new()
+	s_mat.albedo_color = Color(0.2, 0.14, 0.08)
+	s_mat.roughness = 0.95
+	soil.material_override = s_mat
+	soil.position = Vector3(0, sz.y * 0.85, 0)
+	add_child(soil)
+	add_to_group("composters")
+	_add_prompt("[E] Composteira (Adubar)", sz.y + 0.4)
+
+## Tanque de Aquicultura: bacia de pedra com visor de quartzo e água
+func _build_fish_tank(sz: Vector3) -> void:
+	_build_box(sz, Vector3(0, sz.y * 0.5, 0), Color(0.45, 0.45, 0.48))
+	var water := MeshInstance3D.new()
+	var w_box := BoxMesh.new()
+	w_box.size = Vector3(sz.x * 0.85, 0.1, sz.z * 0.85)
+	water.mesh = w_box
+	var w_mat := StandardMaterial3D.new()
+	w_mat.albedo_color = Color(0.25, 0.65, 0.85, 0.8)
+	w_mat.roughness = 0.1
+	water.material_override = w_mat
+	water.position = Vector3(0, sz.y * 0.8, 0)
+	add_child(water)
+	add_to_group("fish_tanks")
+	_add_prompt("[E] Tanque de Peixes (Aquicultura)", sz.y + 0.4)
+
 func _add_prompt(text: String, height: float) -> void:
 	add_to_group("talkable")
 	label_prompt = Label3D.new()
@@ -321,7 +374,7 @@ func _add_prompt(text: String, height: float) -> void:
 	label_prompt.visibility_range_end = 3.0
 	add_child(label_prompt)
 
-## Interação com porta (abrir / fechar), banco (sentar) e cama (deitar, só o dono)
+## Interação com porta (abrir / fechar), banco (sentar), cama, composteira e tanque
 func talk_to(player: Node) -> void:
 	if piece_type == PieceType.BANCO and player.has_method("toggle_sit"):
 		if not player.get("is_sitting"):
@@ -345,6 +398,92 @@ func talk_to(player: Node) -> void:
 			label_prompt.text = "[E] Fechar Porta" if is_door_open else "[E] Abrir Porta"
 		if player and player.has_signal("posture_changed"):
 			player.posture_changed.emit("🚪 Porta %s" % ("Aberta" if is_door_open else "Fechada"))
+		return
+	if piece_type == PieceType.COMPOSTEIRA:
+		_interact_composter(player)
+		return
+	if piece_type == PieceType.TANQUE_PEIXE:
+		_interact_fish_tank(player)
+		return
+
+func _interact_composter(player: Node) -> void:
+	if compost(player):
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("🌱 Composteira: 1x Adubo de Monstro produzido!")
+	else:
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("🌱 Composteira: Precisa de 2x Ossos, 4x Folhas ou 1x Carne/Víscera.")
+
+func _get_inventory(player: Node) -> _InventoryComponent:
+	if player == null:
+		return null
+	if player.has_meta("inventory") and player.get_meta("inventory") is _InventoryComponent:
+		return player.get_meta("inventory") as _InventoryComponent
+	if player.get("inventory") is _InventoryComponent:
+		return player.get("inventory") as _InventoryComponent
+	var comp = player.get_node_or_null("InventoryComponent") as _InventoryComponent
+	if comp:
+		return comp
+	for c in player.get_children():
+		if c is _InventoryComponent:
+			return c as _InventoryComponent
+	return null
+
+## Decompõe matéria orgânica/ossos em Adubo de Monstro mineralizado
+func compost(player: Node, specific_mat: StringName = &"") -> bool:
+	var inv := _get_inventory(player)
+	if inv == null:
+		return false
+	
+	if not specific_mat.is_empty():
+		var cost: int = 2 if specific_mat == &"ossos" else (4 if specific_mat == &"folha" else 1)
+		if inv.has_materials({specific_mat: cost}):
+			inv.consume_materials({specific_mat: cost})
+			inv.add_material(&"adubo_organico", 1, 3, [&"mineralizado"])
+			return true
+		return false
+	
+	var options := [
+		{ &"ossos": 2 },
+		{ &"visceras": 1 },
+		{ &"carne_pequena": 1 },
+		{ &"carne_media": 1 },
+		{ &"folha": 4 }
+	]
+	for req in options:
+		if inv.has_materials(req):
+			inv.consume_materials(req)
+			inv.add_material(&"adubo_organico", 1, 3, [&"mineralizado"])
+			return true
+	return false
+
+func _interact_fish_tank(player: Node) -> void:
+	if process_fish(player):
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("🐟 Tanque: Óleo de Peixe Purificado extraído!")
+	else:
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("🐟 Tanque de Aquicultura: Precisa de 1x Peixe (Lambari, Traíra ou Dourado).")
+
+## Processa peixes criados/depositados para extração de óleo purificado
+func process_fish(player: Node) -> bool:
+	var inv := _get_inventory(player)
+	if inv == null:
+		return false
+	
+	var fish_types := [&"peixe_dourado", &"peixe_traira", &"peixe_lambari"]
+	for fish_id in fish_types:
+		if inv.has_materials({fish_id: 1}):
+			var stacks := inv.get_stacks(fish_id)
+			var bonus_yield: int = 1
+			if not stacks.is_empty() and stacks[0].get("quality", 1) >= 3:
+				bonus_yield = 2
+			elif fish_id == &"peixe_dourado":
+				bonus_yield = 2
+			inv.consume_materials({fish_id: 1})
+			inv.add_material(&"oleo_peixe", bonus_yield, 3, [&"purificado"])
+			return true
+	return false
 
 ## Desmonta a peça e devolve material (100% na janela de 2 min, senão 50%)
 func dismantle(player: Node) -> Dictionary:

@@ -9,10 +9,11 @@ const _Player = preload("res://scripts/player.gd")
 const _WildCreature = preload("res://scripts/creatures/wild_creature.gd")
 const _CreatureDNA = preload("res://scripts/data/creature_dna.gd")
 const _MissionBoardSystem = preload("res://scripts/systems/mission_board_system.gd")
+const _EcologyKnowledgeComponent = preload("res://scripts/components/ecology_knowledge_component.gd")
 
 signal photo_taken(subject_species: String, subject_name: String, metadata: Dictionary)
 
-var player: _Player
+var player: Node
 var mission_system: _MissionBoardSystem
 var is_active: bool = false
 var zoom_level: float = 1.0
@@ -146,7 +147,21 @@ func _scan_viewfinder() -> void:
 					_CreatureDNA.LifeStage.ELDER: stage_str = "Ancião"
 			_current_species = sp_name.to_lower()
 			_current_name = "%s (%s, %s)" % [sp_name, gender_str, stage_str]
-			_subject_label.text = "🎯 Espécime: %s" % _current_name
+			var extra_info := ""
+			var eco := _get_ecology(player)
+			if eco:
+				var sp_id := StringName(_current_species)
+				if eco.has_unlocked_weaknesses(sp_id):
+					var w_list: Array = eco.get_species_weaknesses(sp_id)
+					if not w_list.is_empty():
+						extra_info += "\n⚔️ Fraquezas: %s" % ", ".join(w_list)
+				if eco.has_unlocked_genetics(sp_id) and wc.dna:
+					var p_porte: String = "".join(wc.dna.alleles.get("porte", ["?", "?"]))
+					var p_chifre: String = "".join(wc.dna.alleles.get("chifre", ["?", "?"]))
+					var p_padrao: String = "".join(wc.dna.alleles.get("padrao", ["?", "?"]))
+					var is_mut: bool = p_porte.contains("*") or p_chifre.contains("*") or p_padrao.contains("*")
+					extra_info += "\n🧬 Genótipo: [P:%s C:%s S:%s]%s" % [p_porte, p_chifre, p_padrao, " ★ MUTANTE" if is_mut else ""]
+			_subject_label.text = "🎯 Espécime: %s%s" % [_current_name, extra_info]
 			_subject_label.add_theme_color_override("font_color", Color(0.4, 0.95, 0.5))
 		else:
 			# Planta / Pinheira
@@ -156,6 +171,21 @@ func _scan_viewfinder() -> void:
 			_subject_label.add_theme_color_override("font_color", Color(0.5, 0.85, 1.0))
 	else:
 		_reticle_box.visible = false
+
+func _get_ecology(target_player: Node) -> _EcologyKnowledgeComponent:
+	if target_player == null:
+		return null
+	if target_player.has_meta("ecology") and target_player.get_meta("ecology") is _EcologyKnowledgeComponent:
+		return target_player.get_meta("ecology") as _EcologyKnowledgeComponent
+	if target_player.get("ecology") is _EcologyKnowledgeComponent:
+		return target_player.get("ecology") as _EcologyKnowledgeComponent
+	var comp = target_player.get_node_or_null("EcologyKnowledgeComponent") as _EcologyKnowledgeComponent
+	if comp:
+		return comp
+	for c in target_player.get_children():
+		if c is _EcologyKnowledgeComponent:
+			return c as _EcologyKnowledgeComponent
+	return null
 
 func take_photo() -> void:
 	# Flash do obturador
@@ -176,11 +206,18 @@ func take_photo() -> void:
 				_show_toast("🏆 Missão Concluída: %s!" % comp.title)
 
 		# Desbloqueia carta no Álbum de Cartas do Jogador se aplicável
-		if player and player.card_collection:
+		if player and "card_collection" in player and player.card_collection != null:
 			var card_id := StringName(_current_species)
 			player.card_collection.unlock_card(card_id)
 
-		_show_toast("📸 Foto Registrada: %s! Salva no Diário de Campo!" % _current_name)
+		# Concede pontos de pesquisa ecológica
+		var eco_pts_str := ""
+		var eco := _get_ecology(player)
+		if eco:
+			eco.add_research(StringName(_current_species), 15)
+			eco_pts_str = " (+15 pts Ecologia)"
+
+		_show_toast("📸 Foto Registrada: %s!%s" % [_current_name, eco_pts_str])
 	else:
 		_show_toast("📸 Paisagem do Vale fotografada!")
 

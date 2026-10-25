@@ -64,6 +64,15 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
+## 8. Composteira de Monstros, Tanque de Aquicultura & Conhecimento Ecológico — Executado no [[03-Projects/Cepa-Selvagem/blocos/B29-composteira-tanque-e-ecologia|B29]], [[03-Projects/Cepa-Selvagem/notas/GDD-04-Genetica-e-mutacao|GDD-04 §5]] e [[03-Projects/Cepa-Selvagem/notas/GDD-08-Construcao-e-propriedades|GDD-08 §5]]
+- ✅ **Implementado (Bloco B29):**
+  - **Composteira de Monstros (`PieceType.COMPOSTEIRA`):** Decompõe ossos e biomassa de monstros em `adubo_organico` (qualidade 3, mineralizado).
+  - **Tanque de Aquicultura (`PieceType.TANQUE_PEIXE`):** Processa peixes criados e capturados em `oleo_peixe` purificado (rendimento 2x para peixes dourados e alta qualidade).
+  - **Adubação de Plantas & Botânica:** `is_fertilized` acelera em +50% a velocidade de crescimento no `life_tick` e potencializa mutações genéticas.
+  - **Conhecimento Ecológico (`EcologyKnowledgeComponent`):** 3 tiers de pesquisa (Nv 1 Fraquezas e Partes Anatômicas, Nv 2 Diagnóstico em Tempo Real, Nv 3 Genética de Campo no visor do Modo Foto lendo alelos e mutações). Recompensas por foto, esfola e captura.
+
+---
+
 ## Log
 - 2026-10-23 — Ideias registradas pelo Claude a partir de mensagem do Tarciso.
 - 2026-10-23 — Item 5 resolvido no B19.

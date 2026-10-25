@@ -36,6 +36,7 @@ const _CardCollectionComponent = preload("res://scripts/components/card_collecti
 const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
 const _GuildComponent = preload("res://scripts/components/guild_component.gd")
 const _FamilyComponent = preload("res://scripts/components/family_component.gd")
+const _EcologyKnowledgeComponent = preload("res://scripts/components/ecology_knowledge_component.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -86,6 +87,7 @@ var _knockback: Vector3 = Vector3.ZERO
 const KNOCKBACK_DECAY: float = 18.0
 const KNOCKBACK_MAX: float = 12.0
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
+@onready var ecology: _EcologyKnowledgeComponent = get_node_or_null("EcologyKnowledgeComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var is_first_person: bool = false
@@ -251,6 +253,12 @@ func _setup_components() -> void:
 			card_collection = CardCollectionComponent.new()
 			card_collection.name = "CardCollectionComponent"
 			add_child(card_collection)
+	if ecology == null:
+		ecology = get_node_or_null("EcologyKnowledgeComponent") as _EcologyKnowledgeComponent
+		if ecology == null:
+			ecology = _EcologyKnowledgeComponent.new()
+			ecology.name = "EcologyKnowledgeComponent"
+			add_child(ecology)
 	if fishing == null:
 		fishing = get_node_or_null("FishingComponent") as FishingComponent
 		if fishing == null:
@@ -807,11 +815,24 @@ func _handle_harvest(delta: float, input_dir: Vector2) -> void:
 
 	harvest_timer += delta
 	if harvest_timer >= get_harvest_time():
+		var target_node: Node3D = harvest_target
 		var got: String = harvest_target.harvest_next(self)
 		harvest_timer = 0.0
-		if harvest_target.is_harvestable():
-			var verb: String = harvest_target.get_harvest_verb() if harvest_target.has_method("get_harvest_verb") else "Esfolando"
-			posture_changed.emit("Coletado: %s • %s: %s" % [got, verb, harvest_target.next_harvest_label()])
+		if ecology and target_node:
+			var sp_name: String = ""
+			if "dna" in target_node and target_node.dna != null and target_node.dna.has_method("species_name"):
+				sp_name = target_node.dna.species_name().to_lower()
+			elif "species_id" in target_node:
+				sp_name = str(target_node.species_id).to_lower()
+			elif target_node.name.to_lower().contains("rinolito"):
+				sp_name = "rinolito"
+			elif target_node.name.to_lower().contains("trotador"):
+				sp_name = "trotador"
+			if not sp_name.is_empty():
+				ecology.add_research(StringName(sp_name), 10)
+		if target_node and target_node.is_harvestable():
+			var verb: String = target_node.get_harvest_verb() if target_node.has_method("get_harvest_verb") else "Esfolando"
+			posture_changed.emit("Coletado: %s • %s: %s" % [got, verb, target_node.next_harvest_label()])
 			if character_visual:
 				character_visual.play_timed(&"Farm_Harvest", get_harvest_time(), true)
 		else:

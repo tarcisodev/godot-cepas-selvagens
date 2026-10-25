@@ -280,6 +280,33 @@ func _plant(parent: PlantDNA, spot: Vector3, is_seed: bool, garden: bool = false
 	add_child(child)
 	return child
 
+## Aduba uma planta usando 1x Adubo de Monstro do inventário do jogador
+func fertilize_plant(plant: PlantBody, player: Node) -> String:
+	if plant == null or not is_instance_valid(plant):
+		return "Nenhuma planta válida selecionada"
+	if plant.is_fertilized:
+		return "Esta planta já está adubada com Adubo de Monstro"
+	var inv = null
+	if player:
+		if player.has_meta("inventory"):
+			inv = player.get_meta("inventory")
+		elif player.get("inventory") != null:
+			inv = player.get("inventory")
+		elif "inventory" in player:
+			inv = player.inventory
+		else:
+			inv = player.get_node_or_null("InventoryComponent")
+		if inv == null:
+			for c in player.get_children():
+				if c is InventoryComponent:
+					inv = c
+					break
+	if inv == null or not inv.has_materials({ &"adubo_organico": 1 }):
+		return "Falta 1x Adubo de Monstro no inventário"
+	inv.consume_materials({ &"adubo_organico": 1 })
+	plant.fertilize()
+	return "Planta adubada com sucesso! (+50% crescimento e mutação aumentada)"
+
 # ---------------------------------------------------------------- Pinheira-Lume (GDD-10 §9)
 
 ## Jogador planta um pinhão. Num canteiro (`garden`) o solo é fixo e a lotação não conta.
