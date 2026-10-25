@@ -29,6 +29,7 @@ const ACTION_SHORTCUTS: Array[Dictionary] = [
 	{"id": &"cosmetics", "key": "(F9)", "tooltip": "[F9] Cosméticos", "hover": "✨ Cosméticos (F9)", "color": Color(0.98, 0.64, 0.84)},
 	{"id": &"feedback", "key": "(F8)", "tooltip": "[F8] Feedback", "hover": "💬 Mural de Feedback (F8)", "color": Color(0.64, 0.92, 0.54)},
 	{"id": &"coop", "key": "(F7)", "tooltip": "[F7] Coop LAN", "hover": "🌐 Sala Coop LAN (F7)", "color": Color(0.48, 0.76, 0.98)},
+	{"id": &"photo", "key": "(P)", "tooltip": "[P] Modo Foto", "hover": "📷 Modo Foto & Reconhecimento (P)", "color": Color(0.95, 0.82, 0.4)},
 ]
 
 static var _icon_cache: Dictionary = {}
@@ -480,6 +481,16 @@ func _trigger_shortcut(action_id: StringName) -> void:
 				elif cp.has_method("open_menu"):
 					_close_other_hud_menus(cp)
 					cp.open_menu(player)
+		&"photo":
+			var ps := get_tree().get_first_node_in_group("photo_mode") if is_inside_tree() else null
+			if ps == null:
+				ps = get_node_or_null("PhotoModeScreen")
+			if ps:
+				if bool(ps.get("is_active")) and ps.has_method("close_photo_mode"):
+					ps.close_photo_mode()
+				elif ps.has_method("open_photo_mode"):
+					_close_other_hud_menus(ps)
+					ps.open_photo_mode(player as Player)
 
 static func _get_icon_texture(icon_id: StringName, fg: Color, highlighted: bool) -> ImageTexture:
 	var key := "%s_%s_%d" % [String(icon_id), fg.to_html(false), 1 if highlighted else 0]

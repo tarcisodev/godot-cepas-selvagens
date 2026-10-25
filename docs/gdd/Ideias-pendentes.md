@@ -22,12 +22,12 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 2. Quadro de missões na vila (GDD-05 §5 e GDD-03)
-- Na praça da vila, um quadro de contratos dinâmicos integrados à economia e ao ecossistema:
-  - **Caça Anatômica:** Abater monstros com partes específicas intactas (ligado ao GDD-03 e B23/B24).
-  - **Mineração e Forja:** Encomendas de barras de ferro e quartzo-lume para a muralha da vila.
-  - **Reconhecimento & Modo Foto:** Fotografar e catalogar mutações raras de plantas (GDD-04).
-  - **Culinária:** Fornecer pratos e assados para o estoque da taverna ([[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]).
+## 2. Quadro de missões na vila — Executado no [[03-Projects/Cepa-Selvagem/blocos/B28-quadro-de-missoes-e-modo-foto|B28]], [[03-Projects/Cepa-Selvagem/notas/GDD-05-Economia-e-mercado-negro|GDD-05 §5]] e [[03-Projects/Cepa-Selvagem/notas/GDD-03-Combate-e-caca|GDD-03]]
+- ✅ **Implementado (Bloco B28):**
+  - **Quadro de Missões 3D (`MissionBoard`)** na praça da vila com interface categorizada (`MissionBoardScreen`).
+  - **4 Categorias de Contratos Dinâmicos:** Caça Anatômica (partes íntegras), Mineração & Forja (reforço de muralhas), Culinária & Taverna (refeições no ponto de espeto e caldeirão) e Reconhecimento Ecológico (Modo Foto).
+  - **Modo Foto [P] (`PhotoModeScreen`):** Câmera com linhas de terços, zoom de 1× a 4×, identificação em tempo real de gênero/estágio da fauna e plantas, obturador fotográfico que avança contratos e desbloqueia cartões no álbum.
+  - Recompensas em $S, Reputação da Vila e XP de Maestrias de uso (Esfola, Forja, Mineração, Culinária).
 
 ---
 
