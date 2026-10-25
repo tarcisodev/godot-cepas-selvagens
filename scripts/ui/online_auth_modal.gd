@@ -97,8 +97,8 @@ func _build_ui() -> void:
 	_auth_box.add_child(net_lbl)
 
 	_url_input = LineEdit.new()
-	_url_input.text = "8787" if is_host_mode else "ws://127.0.0.1:8787"
-	_url_input.placeholder_text = "8787" if is_host_mode else "wss://jogar.seusite.com ou 127.0.0.1:8787"
+	_url_input.text = "8787" if is_host_mode else "jogar.tarciso.dev:8787"
+	_url_input.placeholder_text = "8787" if is_host_mode else "jogar.tarciso.dev:8787 ou wss://..."
 	_auth_box.add_child(_url_input)
 
 	if is_host_mode:

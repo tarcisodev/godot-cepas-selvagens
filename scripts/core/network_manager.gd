@@ -19,7 +19,8 @@ const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
 
 const DEFAULT_PORT: int = 8787
-const DEFAULT_HOST: String = "127.0.0.1"
+const DEFAULT_HOST: String = "jogar.tarciso.dev"
+const DEFAULT_LOCAL_HOST: String = "127.0.0.1"
 const SYNC_INTERVAL: float = 0.05 # 20 Hz
 
 enum NetworkState {
