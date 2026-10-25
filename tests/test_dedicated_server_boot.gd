@@ -51,6 +51,13 @@ func _test_arg_parsing() -> void:
 	assert(DedicatedServerBootClass.parse_use_websocket(args_ws), "Deve identificar flag --ws")
 	assert(not DedicatedServerBootClass.parse_use_websocket(args_default), "Sem flag --ws deve retornar false")
 
+	# Checagem de FPS máximo / taxa de tick do servidor
+	var args_fps := PackedStringArray(["--server", "--max-fps", "20"])
+	assert(DedicatedServerBootClass.parse_max_fps(args_fps, 30) == 20, "Deve ler --max-fps 20")
+	var args_fps_eq := PackedStringArray(["--server", "--fps=15"])
+	assert(DedicatedServerBootClass.parse_max_fps(args_fps_eq, 30) == 15, "Deve ler --fps=15")
+	assert(DedicatedServerBootClass.parse_max_fps(args_default, 30) == 30, "Sem flag deve retornar padrão 30 fps")
+
 	print("     ✓ Parsing de argumentos validado com sucesso")
 
 func _test_server_scene_exists() -> void:
