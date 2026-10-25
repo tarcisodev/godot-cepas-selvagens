@@ -38,6 +38,7 @@ func _ready() -> void:
 	build()
 
 func build() -> void:
+	scale = Vector3.ONE * (dna.stage_scale() if dna else 1.0)
 	for c in get_children():
 		c.free()
 	_legs.clear()

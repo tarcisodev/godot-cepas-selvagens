@@ -13,6 +13,8 @@ const AXE_SCENE = preload("res://assets/models/tools/axe.gltf")
 const ALCHEMIST_DNA = preload("res://resources/characters/alchemist_dna.tres")
 const BUILDER_DNA = preload("res://resources/characters/builder_dna.tres")
 const _CookingStation = preload("res://scripts/town/cooking_station.gd")
+const _VillageChapel = preload("res://scripts/town/village_chapel.gd")
+const _TownNursery = preload("res://scripts/town/town_nursery.gd")
 
 ## Centro e raio da vila (o ZoneManager usa os mesmos valores)
 const CENTER: Vector2 = Vector2(1.5, 4.5)
@@ -374,6 +376,20 @@ func _build_board() -> void:
 	cauldron.city = self
 	cauldron.position = Vector3(1.8, _get_ground_y(1.8, 5.8), 5.8)
 	add_child(cauldron)
+
+	# Capela da Vila da Esperança (GDD-14 §4.1)
+	var chapel := _VillageChapel.new()
+	chapel.name = "CapelaDaEsperanca"
+	chapel.city = self
+	chapel.position = Vector3(-5.2, _get_ground_y(-5.2, 2.0), 2.0)
+	add_child(chapel)
+
+	# Berçário da Cidade e Casa da Parteira (GDD-14 §4.3)
+	var nursery := _TownNursery.new()
+	nursery.name = "BercarioDaCidade"
+	nursery.city = self
+	nursery.position = Vector3(6.5, _get_ground_y(6.5, -2.5), -2.5)
+	add_child(nursery)
 
 	_board_layer = CanvasLayer.new()
 	_board_layer.layer = 12

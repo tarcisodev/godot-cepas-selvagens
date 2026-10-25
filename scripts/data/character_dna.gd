@@ -8,6 +8,8 @@ extends Resource
 ## Novos estilos entram sempre no fim: o .tres e o save guardam o número.
 enum HairStyle { BALD, BUZZ, SHORT, PONYTAIL, LONG, MOHAWK, TOPKNOT, MANE }
 enum Beard { NONE, MUSTACHE, GOATEE, FULL }
+enum Gender { MALE, FEMALE }
+enum LifeStage { BABY, JUVENILE, ADULT, ELDER }
 
 const SKIN_TONES: Array[Color] = [
 	Color("#f6d7c3"), Color("#eac0a0"), Color("#d9a77f"), Color("#c68a62"),
@@ -31,6 +33,8 @@ const LEATHER_COLORS: Array[Color] = [
 ]
 
 @export var dna_seed: int = 0
+@export var gender: Gender = Gender.MALE
+@export var stage: LifeStage = LifeStage.ADULT
 
 @export_group("Corpo")
 ## Escala geral (1.0 = manequim UAL, ~1,8 m).
@@ -89,6 +93,23 @@ func unlock_cosmetic(id: String) -> void:
 	parts.append(id)
 	owned_cosmetics_csv = ",".join(parts)
 
+func stage_scale() -> float:
+	match stage:
+		LifeStage.BABY: return 0.45
+		LifeStage.JUVENILE: return 0.75
+		LifeStage.ADULT: return 1.00
+		LifeStage.ELDER: return 0.95
+	return 1.00
+
+func is_female() -> bool:
+	return gender == Gender.FEMALE
+
+func is_male() -> bool:
+	return gender == Gender.MALE
+
+func is_fertile() -> bool:
+	return stage == LifeStage.ADULT
+
 ## Sorteia um personagem completo e coerente a partir da seed.
 static func randomized(p_seed: int) -> CharacterDNA:
 	var rng := RandomNumberGenerator.new()
@@ -97,6 +118,8 @@ static func randomized(p_seed: int) -> CharacterDNA:
 	dna.dna_seed = p_seed
 
 	var feminine := rng.randf() < 0.5
+	dna.gender = Gender.FEMALE if feminine else Gender.MALE
+	dna.stage = LifeStage.ADULT
 	dna.femininity = clampf((0.85 if feminine else 0.1) + rng.randfn(0.0, 0.1), 0.0, 1.0)
 	dna.stature = clampf(rng.randfn(1.0 - 0.05 * dna.femininity, 0.04), 0.86, 1.11)
 	dna.mass = clampf(rng.randfn(0.35, 0.22), 0.0, 1.0)
@@ -134,6 +157,32 @@ static func randomized(p_seed: int) -> CharacterDNA:
 	dna.hair_length = rng.randf()
 	dna.beard_length = rng.randf() * 0.7 if dna.beard == Beard.FULL or dna.beard == Beard.GOATEE else 0.0
 	return dna
+
+## Cruza dois DNAs humanoides para gerar um bebê (GDD-14)
+static func cross(father: CharacterDNA, mother: CharacterDNA, p_seed: int) -> CharacterDNA:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = p_seed
+	var child := CharacterDNA.new()
+	child.dna_seed = p_seed
+	child.stage = LifeStage.BABY
+	var is_fem := rng.randf() < 0.5
+	child.gender = Gender.FEMALE if is_fem else Gender.MALE
+	child.femininity = clampf((0.85 if is_fem else 0.1) + rng.randfn(0.0, 0.08), 0.0, 1.0)
+	child.skin_color = father.skin_color.lerp(mother.skin_color, rng.randf_range(0.3, 0.7))
+	child.eye_color = father.eye_color if rng.randf() < 0.5 else mother.eye_color
+	child.hair_color = father.hair_color.lerp(mother.hair_color, rng.randf())
+	child.stature = lerpf(father.stature, mother.stature, 0.5) + rng.randf_range(-0.02, 0.02)
+	child.head_size = lerpf(father.head_size, mother.head_size, 0.5)
+	child.nose_size = lerpf(father.nose_size, mother.nose_size, 0.5)
+	child.jaw_width = lerpf(father.jaw_width, mother.jaw_width, 0.5)
+	child.shirt_color = CLOTH_COLORS[8]
+	child.pants_color = CLOTH_COLORS[0]
+	child.boots_color = LEATHER_COLORS[0]
+	child.belt_color = LEATHER_COLORS[0]
+	child.hair_style = HairStyle.SHORT if not is_fem else HairStyle.PONYTAIL
+	child.beard = Beard.NONE
+	child.beard_length = 0.0
+	return child
 
 ## Dicionário compacto (cores em hex) para rede e save.
 func to_dict() -> Dictionary:

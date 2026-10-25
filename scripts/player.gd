@@ -35,6 +35,7 @@ const _HuntingHornComponent = preload("res://scripts/components/hunting_horn_com
 const _CardCollectionComponent = preload("res://scripts/components/card_collection_component.gd")
 const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
 const _GuildComponent = preload("res://scripts/components/guild_component.gd")
+const _FamilyComponent = preload("res://scripts/components/family_component.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -63,6 +64,7 @@ var hunting_horn: HuntingHornComponent
 var food_buff: _FoodBuffComponent
 ## Filiação a guilda, estandarte e uniformes de clã (GDD-15)
 var guild: _GuildComponent
+var family: _FamilyComponent
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
@@ -301,6 +303,12 @@ func _setup_components() -> void:
 			guild.name = "GuildComponent"
 			guild.player = self
 			add_child(guild)
+	if family == null:
+		family = get_node_or_null("FamilyComponent") as _FamilyComponent
+		if family == null:
+			family = _FamilyComponent.new()
+			family.name = "FamilyComponent"
+			add_child(family)
 	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
 		inventory.equipment_changed.connect(_on_equipment_changed)
 

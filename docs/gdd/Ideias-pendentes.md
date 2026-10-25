@@ -53,14 +53,14 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 7. Gênero, Ciclo de Vida, Casamento & Creche — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-14-Reproducao-ciclo-de-vida-e-familia|GDD-14]]
-- ✅ **Decidido (2026-10-25):**
-  - Macho e fêmea para animais e jogadores.
-  - 4 estágios: filhote/criança, jovem, adulto e idoso.
-  - Capela da Vila: casamento e divórcio entre jogadores.
-  - Gravidez de 9 meses do jogo; parto gratuito com a parteira da cidade.
-  - Berçário da cidade acolhe o bebê na Fase 1, crescendo e trabalhando como aprendiz da comunidade com sexo definido e capacidade de continuar a linhagem.
-  - Migração de assets estáticos legados para modelos procedurais originais.
+## 7. Gênero, Ciclo de Vida, Casamento & Creche — Executado no [[03-Projects/Cepa-Selvagem/blocos/B27-genero-ciclo-de-vida-e-familia|B27]] e [[03-Projects/Cepa-Selvagem/notas/GDD-14-Reproducao-ciclo-de-vida-e-familia|GDD-14]]
+- ✅ **Implementado (Bloco B27):**
+  - Macho e fêmea com dimorfismo biológico para todos os animais e personagens (`CreatureDNA`, `CharacterDNA`).
+  - 4 estágios de vida: filhote/criança (0.45×), jovem (0.75×), adulto (1.00× fértil) e idoso (0.95×).
+  - Capela da Vila da Esperança (`VillageChapel`) com Altar de Votos para casamentos, divórcios e Aliança de Votos com buff *Laço de Votos* (+10% regen ao casal).
+  - Gravidez canônica de 9 meses (27 dias de sol) para a jogadora, sem impedir explorações.
+  - Casa da Parteira (`Mestra Clara`) com atendimento 100% gratuito.
+  - Berçário da Cidade (`TownNursery`) acolhendo o recém-nascido, que cresce seguro e aprende ofícios de aprendiz pela comunidade.
 
 ---
 

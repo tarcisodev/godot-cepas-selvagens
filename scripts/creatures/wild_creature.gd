@@ -57,6 +57,10 @@ var thirst: float = 0.2
 var age_days: float = 4.0
 var lifespan_days: float = 15.0
 var breed_cooldown: float = 0.0
+var is_pregnant: bool = false
+var pregnancy_days: float = 0.0
+const GESTATION_DAYS: float = 0.8
+var mate_dna: CreatureDNA = null
 var _starving: float = 0.0
 ## Ação de necessidade em curso: "", "drink", "eat", "graze"
 var _need: String = ""
@@ -391,7 +395,20 @@ func _live(delta: float) -> bool:
 	hunger = minf(1.0, hunger + days * HUNGER_RATE)
 	thirst = minf(1.0, thirst + days * THIRST_RATE)
 	breed_cooldown = maxf(0.0, breed_cooldown - days)
-	body.scale = Vector3.ONE * clampf(0.55 + 0.45 * age_days / ADULT_AGE, 0.55, 1.0)
+	if age_days < 0.6:
+		dna.stage = CreatureDNA.LifeStage.BABY
+	elif age_days < ADULT_AGE:
+		dna.stage = CreatureDNA.LifeStage.JUVENILE
+	elif age_days < lifespan_days * 0.8:
+		dna.stage = CreatureDNA.LifeStage.ADULT
+	else:
+		dna.stage = CreatureDNA.LifeStage.ELDER
+	body.scale = Vector3.ONE * clampf(0.55 + 0.45 * age_days / ADULT_AGE, 0.45, 1.0) * (0.95 if dna.stage == CreatureDNA.LifeStage.ELDER else 1.0)
+
+	if is_pregnant:
+		pregnancy_days += days
+		if pregnancy_days >= GESTATION_DAYS:
+			give_birth()
 	_starving = _starving + days if hunger >= 1.0 or thirst >= 1.0 else 0.0
 	if age_days > lifespan_days or _starving > 1.0:
 		_die(false)
@@ -553,11 +570,33 @@ func _forage(delta: float) -> bool:
 	return true
 
 ## Adulto, alimentado, sem filhote recente, com um par da mesma espécie por perto
+func start_pregnancy(p_mate_dna: CreatureDNA) -> void:
+	if not dna.is_female() or is_pregnant:
+		return
+	is_pregnant = true
+	pregnancy_days = 0.0
+	mate_dna = p_mate_dna
+
+func give_birth() -> WildCreature:
+	if not is_pregnant:
+		return null
+	is_pregnant = false
+	pregnancy_days = 0.0
+	breed_cooldown = BREED_COOLDOWN
+	var spawner := get_parent()
+	var child: WildCreature = null
+	if spawner and spawner.has_method("spawn_from_dna"):
+		child = spawner.spawn_from_dna(dna, mate_dna if mate_dna else dna, global_position, roam_radius)
+	elif spawner and spawner.has_method("spawn_offspring"):
+		spawner.spawn_offspring(self, self)
+	mate_dna = null
+	return child
+
 func _try_breed() -> void:
-	if age_days < ADULT_AGE or breed_cooldown > 0.0 or hunger > 0.4 or thirst > 0.4:
+	if age_days < ADULT_AGE or breed_cooldown > 0.0 or hunger > 0.4 or thirst > 0.4 or is_pregnant:
 		return
 	var spawner := get_parent()
-	if spawner == null or not spawner.has_method("spawn_offspring"):
+	if spawner == null:
 		return
 	for n in get_tree().get_nodes_in_group("wild_creatures"):
 		var other := n as WildCreature
@@ -565,11 +604,16 @@ func _try_breed() -> void:
 			continue
 		if other.age_days < ADULT_AGE or other.breed_cooldown > 0.0 or other.global_position.distance_to(global_position) > 8.0:
 			continue
-		if spawner.spawn_offspring(self, other):
-			breed_cooldown = BREED_COOLDOWN
-			other.breed_cooldown = BREED_COOLDOWN
-			hunger += 0.2
-		return
+		if (dna.is_female() and other.dna.is_male()) or (dna.is_male() and other.dna.is_female()):
+			var female: WildCreature = self if dna.is_female() else other
+			var male: WildCreature = other if dna.is_female() else self
+			if not female.is_pregnant:
+				female.start_pregnancy(male.dna)
+				breed_cooldown = BREED_COOLDOWN
+				other.breed_cooldown = BREED_COOLDOWN
+				hunger += 0.15
+				other.hunger += 0.15
+				return
 
 func _exhausted_walk(delta: float) -> void:
 	# Exausto: arrasta-se devagar (a ave pousa), não foge mais
