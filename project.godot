@@ -24,6 +24,7 @@ NetworkManager="*res://scripts/core/network_manager.gd"
 Objectives="*res://scripts/core/objectives.gd"
 SaveGame="*res://scripts/core/save_game.gd"
 ServerPersistence="*res://scripts/core/server_persistence.gd"
+DedicatedServerBoot="*res://scripts/net/dedicated_server_boot.gd"
 
 [display]
 

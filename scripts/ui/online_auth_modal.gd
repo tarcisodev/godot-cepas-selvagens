@@ -202,7 +202,7 @@ func _on_submit_pressed() -> void:
 	if is_host_mode:
 		var port := int(_url_input.text.strip_edges()) if (_url_input and _url_input.text.is_valid_int()) else 8787
 		var use_ws: bool = _ws_check.button_pressed if _ws_check else false
-		var err := net.start_server(port, 16, use_ws)
+		var err: int = net.start_server(port, 16, use_ws)
 		if err != OK:
 			_set_status("❌ Falha ao iniciar servidor na porta %d: %s" % [port, error_string(err)], Color(1, 0.3, 0.3))
 			_submit_btn.disabled = false
