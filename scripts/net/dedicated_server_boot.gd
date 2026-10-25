@@ -3,17 +3,20 @@ extends Node
 
 ## Autoload de Inicialização para Servidor Dedicado Headless (B24).
 ## Lê argumentos de linha de comando: se encontrar '--server', inicia o servidor
-## na porta informada por '--port' (padrão 8787), limita o FPS (padrão 30) para poupar CPU
-## e troca para a cena mínima de servidor.
-## Exemplo: godot --headless --path . -- --server --port 8787 --max-fps 30
+## na porta informada por '--port' (padrão 8787), limita o FPS (padrão 20) e
+## a taxa de física physics_ticks_per_second (padrão 20 Hz) para manter o consumo
+## de CPU ocioso no mínimo possível (~1-5% de 1 core), e troca para a cena mínima de servidor.
+## Exemplo: godot --headless --path . -- --server --port 8787 --max-fps 20 --ticks 20
 
 const SERVER_WORLD_SCENE: String = "res://scenes/server_world.tscn"
 const DEFAULT_PORT: int = 8787
-const DEFAULT_SERVER_FPS: int = 30
+const DEFAULT_SERVER_FPS: int = 20
+const DEFAULT_PHYSICS_TICKS: int = 20
 
 var is_dedicated: bool = false
 var server_port: int = DEFAULT_PORT
 var server_max_fps: int = DEFAULT_SERVER_FPS
+var server_physics_ticks: int = DEFAULT_PHYSICS_TICKS
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -22,8 +25,9 @@ func _ready() -> void:
 		is_dedicated = true
 		server_port = parse_port(args, DEFAULT_PORT)
 		server_max_fps = parse_max_fps(args, DEFAULT_SERVER_FPS)
+		server_physics_ticks = parse_physics_ticks(args, DEFAULT_PHYSICS_TICKS)
 		var use_ws := parse_use_websocket(args)
-		boot_server(server_port, use_ws, server_max_fps)
+		boot_server(server_port, use_ws, server_max_fps, server_physics_ticks)
 
 ## Retorna todos os argumentos disponíveis (usuário após '--' ou diretos da linha de comando)
 static func get_combined_args() -> PackedStringArray:
@@ -53,7 +57,7 @@ static func parse_port(args: PackedStringArray, default_port: int = DEFAULT_PORT
 				return val.to_int()
 	return default_port
 
-## Lê o limite de FPS/ticks para o loop headless (padrão 30 fps para evitar consumo de CPU ocioso)
+## Lê o limite de FPS para o loop headless (padrão 20 fps para evitar consumo de CPU ocioso)
 static func parse_max_fps(args: PackedStringArray, default_fps: int = DEFAULT_SERVER_FPS) -> int:
 	for i in range(args.size()):
 		var a := args[i]
@@ -71,6 +75,24 @@ static func parse_max_fps(args: PackedStringArray, default_fps: int = DEFAULT_SE
 				return val.to_int()
 	return default_fps
 
+## Lê o limite de ticks de física por segundo (padrão 20 Hz, alinhado ao tick de rede)
+static func parse_physics_ticks(args: PackedStringArray, default_ticks: int = DEFAULT_PHYSICS_TICKS) -> int:
+	for i in range(args.size()):
+		var a := args[i]
+		if (a == "--physics-ticks" or a == "--ticks" or a == "-ticks") and (i + 1) < args.size():
+			var val := args[i + 1].strip_edges()
+			if val.is_valid_int() and val.to_int() > 0:
+				return val.to_int()
+		elif a.begins_with("--physics-ticks="):
+			var val := a.substr(16).strip_edges()
+			if val.is_valid_int() and val.to_int() > 0:
+				return val.to_int()
+		elif a.begins_with("--ticks="):
+			var val := a.substr(8).strip_edges()
+			if val.is_valid_int() and val.to_int() > 0:
+				return val.to_int()
+	return default_ticks
+
 ## Verifica se o protocolo WebSocket foi requisitado
 static func parse_use_websocket(args: PackedStringArray) -> bool:
 	for a in args:
@@ -78,12 +100,18 @@ static func parse_use_websocket(args: PackedStringArray) -> bool:
 			return true
 	return false
 
-## Inicializa o NetworkManager no modo servidor, limita o FPS do loop da Engine e troca de cena
-func boot_server(port: int, use_ws: bool = false, max_fps: int = DEFAULT_SERVER_FPS) -> void:
+## Inicializa o NetworkManager no modo servidor, limita FPS e taxa de física da Engine e troca de cena
+func boot_server(port: int, use_ws: bool = false, max_fps: int = DEFAULT_SERVER_FPS, physics_ticks: int = DEFAULT_PHYSICS_TICKS) -> void:
 	Engine.max_fps = max_fps
+	Engine.physics_ticks_per_second = physics_ticks
 	print("========================================================")
 	print("🚀 [DedicatedServerBoot] MODO SERVIDOR DEDICADO ATIVO")
-	print("   Porta: %d | Protocolo: %s | Max FPS: %d" % [port, "WebSocket" if use_ws else "ENet (UDP)", max_fps])
+	print("   Porta: %d | Protocolo: %s | Max FPS: %d | Physics: %d Hz" % [
+		port,
+		"WebSocket" if use_ws else "ENet (UDP)",
+		max_fps,
+		physics_ticks
+	])
 	print("========================================================")
 
 	var net: Node = get_node_or_null("/root/NetworkManager")

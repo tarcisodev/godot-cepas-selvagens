@@ -51,12 +51,19 @@ func _test_arg_parsing() -> void:
 	assert(DedicatedServerBootClass.parse_use_websocket(args_ws), "Deve identificar flag --ws")
 	assert(not DedicatedServerBootClass.parse_use_websocket(args_default), "Sem flag --ws deve retornar false")
 
-	# Checagem de FPS máximo / taxa de tick do servidor
-	var args_fps := PackedStringArray(["--server", "--max-fps", "20"])
-	assert(DedicatedServerBootClass.parse_max_fps(args_fps, 30) == 20, "Deve ler --max-fps 20")
+	# Checagem de FPS máximo do servidor (padrão 20)
+	var args_fps := PackedStringArray(["--server", "--max-fps", "25"])
+	assert(DedicatedServerBootClass.parse_max_fps(args_fps, 20) == 25, "Deve ler --max-fps 25")
 	var args_fps_eq := PackedStringArray(["--server", "--fps=15"])
-	assert(DedicatedServerBootClass.parse_max_fps(args_fps_eq, 30) == 15, "Deve ler --fps=15")
-	assert(DedicatedServerBootClass.parse_max_fps(args_default, 30) == 30, "Sem flag deve retornar padrão 30 fps")
+	assert(DedicatedServerBootClass.parse_max_fps(args_fps_eq, 20) == 15, "Deve ler --fps=15")
+	assert(DedicatedServerBootClass.parse_max_fps(args_default, 20) == 20, "Sem flag deve retornar padrão 20 fps")
+
+	# Checagem de ticks de física por segundo (padrão 20 Hz)
+	var args_ticks := PackedStringArray(["--server", "--physics-ticks", "30"])
+	assert(DedicatedServerBootClass.parse_physics_ticks(args_ticks, 20) == 30, "Deve ler --physics-ticks 30")
+	var args_ticks_eq := PackedStringArray(["--server", "--ticks=24"])
+	assert(DedicatedServerBootClass.parse_physics_ticks(args_ticks_eq, 20) == 24, "Deve ler --ticks=24")
+	assert(DedicatedServerBootClass.parse_physics_ticks(args_default, 20) == 20, "Sem flag deve retornar padrão 20 ticks")
 
 	print("     ✓ Parsing de argumentos validado com sucesso")
 
