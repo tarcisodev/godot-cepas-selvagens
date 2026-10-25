@@ -2,6 +2,7 @@ class_name BuildablePiece
 extends StaticBody3D
 
 const _CookingStation = preload("res://scripts/town/cooking_station.gd")
+const _GuildTotem = preload("res://scripts/town/guild_totem.gd")
 
 ## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada,
 ## Fogueira, Banco e Cama — as três últimas são de descanso, GDD-10 §10.5)
@@ -22,7 +23,8 @@ enum PieceType {
 	FOGUEIRA,
 	BANCO,
 	CAMA,
-	CALDEIRAO
+	CALDEIRAO,
+	TOTEM_GUILDA
 }
 
 const PIECE_CONFIG: Dictionary = {
@@ -91,6 +93,12 @@ const PIECE_CONFIG: Dictionary = {
 		"name": "Caldeirão Culinário",
 		"costs": { &"barra_ferro": 2, &"pedra": 3 },
 		"size": Vector3(1.2, 0.9, 1.2)
+	},
+	PieceType.TOTEM_GUILDA: {
+		"id": &"totem_guilda",
+		"name": "Totem da Guilda",
+		"costs": { &"madeira": 15, &"pedra": 12, &"barra_ferro": 4 },
+		"size": Vector3(1.6, 3.6, 1.6)
 	}
 }
 
@@ -152,6 +160,12 @@ func _build_piece() -> void:
 			var cauldron := _CookingStation.new()
 			cauldron.name = "CookingStation"
 			add_child(cauldron)
+
+		PieceType.TOTEM_GUILDA:
+			var gtotem := _GuildTotem.new()
+			gtotem.name = "GuildTotem"
+			gtotem.owner_name = owner_name
+			add_child(gtotem)
 
 func _build_box(size: Vector3, offset: Vector3, color: Color) -> void:
 	var col := CollisionShape3D.new()

@@ -34,6 +34,7 @@ const _ArmorAbilityComponent = preload("res://scripts/components/armor_ability_c
 const _HuntingHornComponent = preload("res://scripts/components/hunting_horn_component.gd")
 const _CardCollectionComponent = preload("res://scripts/components/card_collection_component.gd")
 const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
+const _GuildComponent = preload("res://scripts/components/guild_component.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -60,6 +61,8 @@ var armor_abilities: ArmorAbilityComponent
 var hunting_horn: HuntingHornComponent
 ## Buffs gastronômicos e refeições completas (GDD-13 §4 e §5)
 var food_buff: _FoodBuffComponent
+## Filiação a guilda, estandarte e uniformes de clã (GDD-15)
+var guild: _GuildComponent
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
@@ -291,6 +294,13 @@ func _setup_components() -> void:
 			food_buff.player = self
 			food_buff.stats = stats
 			add_child(food_buff)
+	if guild == null:
+		guild = get_node_or_null("GuildComponent") as _GuildComponent
+		if guild == null:
+			guild = _GuildComponent.new()
+			guild.name = "GuildComponent"
+			guild.player = self
+			add_child(guild)
 	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
 		inventory.equipment_changed.connect(_on_equipment_changed)
 

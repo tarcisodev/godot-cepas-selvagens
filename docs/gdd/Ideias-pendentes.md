@@ -17,11 +17,8 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 1. Guilda construída pelos jogadores — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-15-Guildas-territorio-e-uniformes|GDD-15]]
-- ✅ **Decidido (2026-10-25):** A guilda não é menu; é território conquistado e marcado com **Totem de Guilda** (raio de 40 a 80 m).
-- **Construção Comunitária:** Níveis 1 a 3 construídos com doação de materiais (Quadro de Contribuição).
-- **Heráldica:** Escolha de cores e emblema/brasão da guilda.
-- **Sets Personalizados por Ocasião:** Set de Gala/Social (eventos e casamentos na capela), Set de Guerra (brasão bordado na capa e escudo) e equipamento pessoal livre.
+## 1. Guilda construída pelos jogadores — Executado no [[03-Projects/Cepa-Selvagem/blocos/B26-guildas-territorio-e-heraldica|B26]] e [[03-Projects/Cepa-Selvagem/notas/GDD-15-Guildas-territorio-e-uniformes|GDD-15]]
+- ✅ **Implementado (Bloco B26):** Totem de Guilda (`GuildTotem`) com raio de 40 a 80m; construção comunitária da sede Níveis 1 a 3; heráldica (cores e brasão); armário de uniformes por ocasião (Set de Gala, Set de Guerra e Equipamento Pessoal livre) com overlay de brasão na Capa (`GearVisual`); interface `GuildScreen`.
 
 ---
 

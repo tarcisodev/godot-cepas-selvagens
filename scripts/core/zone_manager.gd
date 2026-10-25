@@ -160,14 +160,22 @@ func can_build_at(pos: Vector3, piece_type: StringName = &"piece", player_name: 
 			"zone": zone
 		}
 	
-	# Validação de posse do Totem (se houver dono)
-	var owner_of_claim: String = claim.get("owner_name") if "owner_name" in claim else ""
-	if not owner_of_claim.is_empty() and not player_name.is_empty() and owner_of_claim != player_name:
-		return {
-			"allowed": false,
-			"reason": "Propriedade Privada: Território pertence a %s." % owner_of_claim,
-			"zone": zone
-		}
+	# Validação de posse do Totem (se for guilda ou dono individual)
+	if claim.has_method("can_member_build"):
+		if not claim.can_member_build(player_name):
+			return {
+				"allowed": false,
+				"reason": "Território de Guilda: Apenas membros autorizados podem construir aqui.",
+				"zone": zone
+			}
+	else:
+		var owner_of_claim: String = claim.get("owner_name") if "owner_name" in claim else ""
+		if not owner_of_claim.is_empty() and not player_name.is_empty() and owner_of_claim != player_name:
+			return {
+				"allowed": false,
+				"reason": "Propriedade Privada: Território pertence a %s." % owner_of_claim,
+				"zone": zone
+			}
 	
 	return { "allowed": true, "reason": "Construção permitida dentro do território!", "zone": zone }
 
