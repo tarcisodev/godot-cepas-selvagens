@@ -5,6 +5,8 @@ extends Node3D
 ## MOUNT_TIME parado e levar dano cancela (sem "moleza" que não existiria no online).
 ## Montado, a montaria anda pela câmera (WASD), Shift corre gastando fôlego, e [E] desmonta.
 ## Golpe que quebra a Postura do cavaleiro derruba da montaria.
+## A terrestre atravessa rio nadando: na água funda boia com o dorso na linha d'água, devagar,
+## sem corrida nem pulo, gastando fôlego; sem fôlego nada mais devagar ainda.
 
 enum Kind { LAND, AIR, WATER }
 
@@ -14,6 +16,11 @@ const STAMINA_DRAIN: float = 18.0
 const STAMINA_REGEN: float = 12.0
 const AIR_CEILING: float = 40.0
 const GRAVITY: float = 18.0
+## Nado da montaria terrestre: água mais funda que isto boia; velocidade e gasto de fôlego
+const LAND_SWIM_DEPTH: float = 0.9
+const LAND_SWIM_SPEED: float = 0.45
+const LAND_SWIM_TIRED: float = 0.25
+const LAND_SWIM_DRAIN: float = 6.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -28,6 +35,8 @@ var body: CreatureBody
 var rider: Player
 var stamina: float = STAMINA_MAX
 var airborne: bool = false
+## Montaria terrestre nadando (rio fundo)
+var swimming: bool = false
 ## Alcance do [E] conta a partir da borda do corpo (Player.talk_distance); a Raia é larga e baixa
 var talk_radius: float = 0.0
 
@@ -146,13 +155,17 @@ func _physics_process(delta: float) -> void:
 	var dir := (Basis(Vector3.UP, cam_yaw) * Vector3(input.x, 0, input.y))
 	dir.y = 0.0
 	var moving := dir.length() > 0.1
-	var wants_run := Input.is_action_pressed("sprint") and moving and stamina > 1.0 and not menus_open
+	var wants_run := Input.is_action_pressed("sprint") and moving and stamina > 1.0 and not menus_open and not swimming
 	if wants_run:
 		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
+	elif swimming and moving:
+		stamina = maxf(0.0, stamina - LAND_SWIM_DRAIN * delta)
 	else:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
 	var speeds: Vector2 = SPEEDS[kind] * (body.dna.mount_speed_factor() if owned else 1.0)
 	var target_speed := (speeds.y if wants_run else speeds.x) if moving else 0.0
+	if swimming:
+		target_speed *= LAND_SWIM_SPEED if stamina > 1.0 else LAND_SWIM_TIRED
 	_speed = move_toward(_speed, target_speed, delta * 14.0)
 	var step := (dir.normalized() if moving else -global_transform.basis.z) * _speed * delta
 	if moving:
@@ -174,16 +187,25 @@ func _physics_process(delta: float) -> void:
 	_hud_timer -= delta
 	if _hud_timer <= 0.0:
 		_hud_timer = 0.3
-		rider.posture_changed.emit("🐾 %s · Fôlego %d%% · [E] desmontar" % [display_name, roundi(stamina)])
+		rider.posture_changed.emit("%s %s · Fôlego %d%% · [E] desmontar" % ["🌊" if swimming else "🐾", display_name + (" nadando" if swimming else ""), roundi(stamina)])
 
 func _move_land(step: Vector3, delta: float, menus_open: bool) -> void:
 	var next := global_position + step
 	var ground := _ground(next.x, next.z)
-	# Não entra em água funda nem sobe paredão (degrau maior que 1,2 m)
-	if RiverSystem.is_in_water(Vector3(next.x, ground, next.z)) or ground - global_position.y > 1.2:
+	# Não sobe paredão (degrau maior que 1,2 m); nadando, o degrau conta da linha d'água
+	var base_y: float = RiverSystem.get_water_height(global_position.z) if swimming else global_position.y
+	if ground - base_y > 1.2:
 		next = global_position
 		ground = _ground(next.x, next.z)
-	if Input.is_action_just_pressed("jump") and not menus_open and global_position.y <= ground + 0.05:
+	var surface := RiverSystem.get_water_height(next.z)
+	if RiverSystem.is_in_water(Vector3(next.x, ground, next.z)) and surface - ground > LAND_SWIM_DEPTH:
+		# Água funda: boia com o dorso rente à água (o cavaleiro fica com as pernas molhadas)
+		swimming = true
+		_vertical = 0.0
+		global_position = Vector3(next.x, surface - body.back_height * 0.8, next.z)
+		return
+	swimming = false
+	if Input.is_action_just_pressed("jump") and not menus_open and global_position.y <= ground + 0.05 and not swimming:
 		_vertical = 7.0
 	_vertical -= GRAVITY * delta
 	var y := global_position.y + _vertical * delta

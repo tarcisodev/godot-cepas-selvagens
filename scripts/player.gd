@@ -467,11 +467,12 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	# Atualiza última posição segura sobre o chão dentro do mapa
-	if is_on_floor() and global_position.y > -6.0 and absf(global_position.x) < 88.0 and absf(global_position.z) < 88.0:
+	if is_on_floor() and global_position.y > -6.0 and WorldBounds.inside(global_position.x, global_position.z, 4.0):
 		last_safe_position = global_position
 
-	# Resgate automático caso caia no limbo ou atravesse o chão
-	if global_position.y < -20.0 or absf(global_position.x) > 130.0 or absf(global_position.z) > 130.0:
+	# Resgate automático caso caia no limbo ou saia do mapa (os limites vêm do WorldBounds: com
+	# os números do mapa antigo, descer da montaria longe do centro mandava de volta ao estábulo)
+	if global_position.y < -20.0 or not WorldBounds.inside(global_position.x, global_position.z, -20.0):
 		_recover_from_void()
 
 	# Altura da câmera e colisão suaves
