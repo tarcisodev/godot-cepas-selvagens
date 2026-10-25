@@ -40,6 +40,8 @@ const CONTRACT_POOL: Dictionary = {
 	&"madeira": Vector2i(6, 12), &"galho": Vector2i(8, 16), &"folha": Vector2i(6, 12),
 	&"fibra": Vector2i(6, 10), &"pedra": Vector2i(6, 12), &"frutinha": Vector2i(4, 8),
 	&"besouro": Vector2i(2, 5), &"ossos": Vector2i(2, 5), &"erva": Vector2i(4, 8), &"mel": Vector2i(1, 3),
+	&"carne_crua": Vector2i(3, 6), &"carne_bem_passada": Vector2i(2, 4), &"peixe_lambari": Vector2i(3, 6),
+	&"minerio_ferro": Vector2i(3, 6), &"barra_ferro": Vector2i(2, 4), &"couro_trotador": Vector2i(2, 4),
 }
 ## Loja da Alquimista: o ralo de moeda do slice; não compra nada de volta
 const SHOP_PRICES: Dictionary = {
