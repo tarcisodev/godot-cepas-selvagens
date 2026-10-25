@@ -33,7 +33,9 @@ func test_all_ten_resource_types_config() -> void:
 	print("\n[1/6] Validando configurações dos 10 tipos de recursos...")
 	var expected_ids: Array[StringName] = [
 		&"madeira", &"galho", &"folha", &"fibra", &"pedra",
-		&"frutinha", &"besouro", &"ossos", &"erva", &"mel"
+		&"frutinha", &"besouro", &"ossos", &"erva", &"mel",
+		# Veios de minério (GDD-12 §8)
+		&"minerio_ferro", &"quartzo_lume"
 	]
 	
 	for i in range(GatherableClass.Type.size()):

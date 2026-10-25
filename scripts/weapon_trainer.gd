@@ -1,8 +1,8 @@
 class_name WeaponTrainer
 extends Node3D
 
-## Mestre de Armas do acampamento (B10): [E] abre o menu e troca o estilo de batalha
-## na hora, de graça. É só para teste; a regra real (inventário, forja, Carga) vem depois.
+## Mestre de Armas do acampamento (B10, GDD-12 §7): [E] abre o menu e dá, de graça, as armas
+## de treino (Q1) do estilo escolhido, já equipadas. As armas de verdade saem da bigorna.
 ## Conversar também cura e repõe os recursos, para voltar logo para os monstros.
 
 @export var styles: Array[WeaponStyle] = []
@@ -67,10 +67,38 @@ func _unhandled_input(event: InputEvent) -> void:
 		close_menu()
 		get_viewport().set_input_as_handled()
 
+## Armas de treino de cada estilo (GDD-12 §7): o mestre dá as que faltam e já equipa
+const TRAINING_BY_STYLE: Dictionary = {
+	&"sword_shield": [&"espada_ferro", &"escudo"],
+	&"sword": [&"espada_ferro"],
+	&"heavy_hammer": [&"mangual"],
+	&"arcane_staff": [&"cajado_arcano"],
+}
+
 func choose(style: WeaponStyle) -> void:
 	if _player:
-		_player.equip_style(style)
+		var recipes: Array = TRAINING_BY_STYLE.get(style.id, [])
+		if recipes.is_empty() or _player.inventory == null:
+			_player.equip_style(style)
+		else:
+			for id in recipes:
+				_player.inventory.equip(_training_item(id))
+			if style.id == &"sword":
+				_player.inventory.unequip(ForgedItem.Slot.OFF_HAND)
 	close_menu()
+
+## A peça de treino da receita que o jogador já tem, ou uma nova
+func _training_item(recipe_id: StringName) -> ForgedItem:
+	for it in _player.inventory.items:
+		if it.recipe_id == recipe_id and it.traits.has(&"treino"):
+			if it.is_broken():
+				it.durability = it.max_durability # o mestre troca a peça de treino gasta
+			return it
+	var item := Forge.make_training(recipe_id)
+	# Sem o sinal de forja: peça de treino não conta como item forjado
+	_player.inventory.items.append(item)
+	_player.inventory.items_changed.emit()
+	return item
 
 func _build_menu() -> void:
 	_layer = CanvasLayer.new()

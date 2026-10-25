@@ -136,8 +136,13 @@ func _input(event: InputEvent) -> void:
 	
 	# Troca de peça com as teclas numéricas (1 = totem)
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode >= KEY_1 and event.keycode < KEY_1 + catalog.size():
-			current_piece_index = event.keycode - KEY_1
+		var picked := -1
+		if event.keycode >= KEY_1 and event.keycode <= KEY_9:
+			picked = event.keycode - KEY_1
+		elif event.keycode == KEY_0:
+			picked = 9
+		if picked >= 0 and picked < catalog.size():
+			current_piece_index = picked
 			_update_ghost_mesh()
 			get_viewport().set_input_as_handled()
 			return
@@ -154,6 +159,14 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	
+	# Roda do mouse passa pelas peças (o catálogo tem mais de 10)
+	if event is InputEventMouseButton and event.pressed and (event.button_index == MOUSE_BUTTON_WHEEL_UP or event.button_index == MOUSE_BUTTON_WHEEL_DOWN):
+		var step := 1 if event.button_index == MOUSE_BUTTON_WHEEL_DOWN else -1
+		current_piece_index = posmod(current_piece_index + step, catalog.size())
+		_update_ghost_mesh()
+		get_viewport().set_input_as_handled()
+		return
+
 	# Clique esquerdo coloca a peça
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		_try_place_piece()
@@ -201,6 +214,8 @@ func _validate_and_update_hud(pos: Vector3) -> Dictionary:
 	var validation: Dictionary = { "allowed": true, "reason": "Liberado!" }
 	if zm:
 		validation = zm.can_build_at(pos, entry["id"], p_name)
+	if validation["allowed"] and entry["id"] == &"cama" and has_bed(get_tree(), p_name):
+		validation = { "allowed": false, "reason": "Uma cama por personagem: desmonte a sua para mudar de lugar" }
 	
 	# Verifica materiais no inventário
 	var has_mats: bool = true
@@ -232,7 +247,7 @@ func _validate_and_update_hud(pos: Vector3) -> Dictionary:
 		elif not has_mats:
 			msg += "❌ Faltam materiais: %s" % " · ".join(missing)
 		else:
-			msg += "✅ [Clique Esquerdo] Construir  |  [R] Girar (90°)  |  [1-%d] Trocar  |  [X] Desmontar  |  [B] Sair" % n
+			msg += "✅ [Clique Esquerdo] Construir  |  [R] Girar (90°)  |  [1-0 / roda] Trocar  |  [X] Desmontar  |  [B] Sair"
 		status_label.text = msg
 	
 	return { "allowed": can_place, "entry": entry, "pos": pos }
@@ -317,11 +332,23 @@ func _zone_manager() -> Node:
 
 ## Dono = nome do personagem (criação de personagem/save); sem nome, o do nó do player
 func _owner_name() -> String:
-	var save := get_tree().root.get_node_or_null("SaveGame") if is_inside_tree() else null
+	return owner_name_of(player)
+
+## Já existe uma cama desse dono no mundo? (GDD-10 §10.5: uma por personagem)
+static func has_bed(tree: SceneTree, owner: String) -> bool:
+	if tree == null:
+		return false
+	for b in tree.get_nodes_in_group("beds"):
+		if not b.is_queued_for_deletion() and b.get("owner_name") == owner:
+			return true
+	return false
+
+static func owner_name_of(who: Node) -> String:
+	var save := who.get_tree().root.get_node_or_null("SaveGame") if who and who.is_inside_tree() else null
 	var character: String = save.get("character_name") if save else ""
 	if not character.is_empty():
 		return character
-	return String(player.name) if player else "Andarilho"
+	return String(who.name) if who else "Andarilho"
 
 func _notify(msg: String) -> void:
 	if player and player.has_signal("posture_changed"):

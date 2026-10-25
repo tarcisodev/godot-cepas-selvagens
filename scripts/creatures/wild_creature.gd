@@ -28,7 +28,6 @@ const HUNGER_RATE: float = 1.2
 const THIRST_RATE: float = 1.6
 const ADULT_AGE: float = 1.5
 const BREED_COOLDOWN: float = 2.0
-const DAY_SECONDS: float = 300.0
 ## Peixes: velocidade de passeio (m/s) e altura preferida na água (0 = leito, 1 = superfície)
 const FISH_SPEED: Dictionary = {CreatureDNA.Species.LAMBARI: 1.3, CreatureDNA.Species.TRAIRA: 0.6, CreatureDNA.Species.DOURADO: 1.6}
 const FISH_DEPTH: Dictionary = {CreatureDNA.Species.LAMBARI: 0.75, CreatureDNA.Species.TRAIRA: 0.1, CreatureDNA.Species.DOURADO: 0.45}
@@ -377,7 +376,7 @@ func _walk(delta: float) -> void:
 
 ## Envelhece, sente fome e sede e age sobre elas. Devolve true se tratou o frame (beber/comer).
 func _live(delta: float) -> bool:
-	var days := delta / DAY_SECONDS
+	var days := delta / DayNightCycle.seconds_per_day()
 	age_days += days
 	hunger = minf(1.0, hunger + days * HUNGER_RATE)
 	thirst = minf(1.0, thirst + days * THIRST_RATE)
@@ -504,7 +503,7 @@ func _consume(food: Object) -> void:
 func _digest(delta: float) -> void:
 	if gut.is_empty():
 		return
-	var days := delta / DAY_SECONDS
+	var days := delta / DayNightCycle.seconds_per_day()
 	for i in range(gut.size() - 1, -1, -1):
 		gut[i].t -= days
 		if gut[i].t <= 0.0:

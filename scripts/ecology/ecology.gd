@@ -129,7 +129,7 @@ func _update_lume() -> void:
 			light.visible = night > 0.05
 
 func _day_length() -> float:
-	return _sun.get("day_length_seconds") if _sun and "day_length_seconds" in _sun else 300.0
+	return DayNightCycle.seconds_per_day()
 
 ## Um passo do ecossistema (`days` = dias de jogo desde o último). Público para os testes.
 func step(days: float) -> void:
@@ -141,6 +141,23 @@ func step(days: float) -> void:
 		nutrients[i] = clampf(nutrients[i] + days * 0.02, 0.0, 1.0) # intemperismo lento
 	_river_moisture()
 	_step_plants(days)
+	_rot(days)
+
+## Esterco e fruta caída somem depois de um dia de jogo, contado no mesmo relógio da natureza
+## (se a duração do dia mudar, eles acompanham). A fruta que apodrece vira nutriente.
+func _rot(days: float) -> void:
+	for group in [&"dung", &"fallen_fruit"]:
+		for n in get_tree().get_nodes_in_group(group):
+			var node := n as Node3D
+			if node == null or node.is_queued_for_deletion() or not node.has_meta("rot_days"):
+				continue
+			var left: float = node.get_meta("rot_days") - days
+			node.set_meta("rot_days", left)
+			if left > 0.0:
+				continue
+			if group == &"fallen_fruit":
+				deposit(node.global_position, 0.05)
+			node.queue_free()
 
 ## Perto do rio (e na várzea alagada) o solo nunca seca
 func _river_moisture() -> void:
@@ -372,8 +389,8 @@ func drop_dung(pos: Vector3, seed_dna: PlantDNA) -> void:
 	dung.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	dung.position = pos + Vector3(0, 0.03, 0)
 	dung.add_to_group("dung")
+	dung.set_meta("rot_days", 1.0)
 	add_child(dung)
-	get_tree().create_timer(_day_length()).timeout.connect(dung.queue_free)
 	if seed_dna and _rng.randf() < DUNG_SEED_CHANCE:
 		sow(seed_dna, pos, true)
 
@@ -383,14 +400,9 @@ func _drop_fruit(pos: Vector3) -> void:
 	fruit.respawn_enabled = false
 	fruit.position = Vector3(pos.x, _ground(pos.x, pos.z), pos.z)
 	fruit.add_to_group("fallen_fruit")
-	add_child(fruit)
 	# Fruto que ninguém pega apodrece em um dia e vira nutriente (pode ter sido comido antes)
-	var ref: WeakRef = weakref(fruit)
-	get_tree().create_timer(_day_length()).timeout.connect(func():
-		var f: Node3D = ref.get_ref()
-		if f and not f.is_queued_for_deletion():
-			deposit(f.global_position, 0.05)
-			f.queue_free())
+	fruit.set_meta("rot_days", 1.0)
+	add_child(fruit)
 
 func _ground(x: float, z: float) -> float:
 	return landscape.get_height_at(x, z) if landscape and landscape.has_method("get_height_at") else 0.0

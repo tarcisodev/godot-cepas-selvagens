@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"couro_lobo"
+display_name = "Couro de Lobo"
+description = "Couro cinza e firme do Lobo-do-Ermo. Vale como couro de Trotador; no gibão dura 10% mais."
+category = 3
+icon = "🐺"
+color = Color(0.45, 0.42, 0.4, 1)
+unit_weight = 1.2
+max_gather_quality = 5
+base_value = 10

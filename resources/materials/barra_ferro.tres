@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"barra_ferro"
+display_name = "Barra de Ferro"
+description = "Ferro fundido na bigorna. Núcleo de espada, mangual, escudo e cota; revestimento da família Ferro."
+category = 2
+icon = "🔩"
+color = Color(0.62, 0.64, 0.68, 1)
+unit_weight = 2.0
+max_gather_quality = 5
+base_value = 12

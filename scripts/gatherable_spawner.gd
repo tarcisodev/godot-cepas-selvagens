@@ -21,6 +21,9 @@ const RiverClass = preload("res://scripts/river_system.gd")
 @export var count_ossos: int = 20
 @export var count_erva: int = 40
 @export var count_mel: int = 16
+## Veios de minério (GDD-12 §8): número de grupos; cada grupo tem 3–5 nós
+@export var count_veios_ferro: int = 14
+@export var count_veios_quartzo: int = 5
 
 var _rng := RandomNumberGenerator.new()
 
@@ -57,6 +60,10 @@ func spawn_all_resources() -> void:
 	
 	# 8. Mel (em árvores e clareiras ensolaradas)
 	_spawn_scattered(GatherableResourceClass.Type.MEL, count_mel, 15.0, WorldBounds.HALF * 0.8)
+
+	# 9. Veios de minério: grupos nas encostas altas; o quartzo só nas mais altas
+	_spawn_veins(GatherableResourceClass.Type.VEIO_FERRO, count_veios_ferro, 0.45)
+	_spawn_veins(GatherableResourceClass.Type.VEIO_QUARTZO, count_veios_quartzo, 0.75)
 
 func _get_ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
@@ -126,6 +133,34 @@ func _spawn_slopes(type: GatherableResourceClass.Type, count: int) -> void:
 		
 		if _create_node(type, x, z):
 			spawned += 1
+
+## Grupos de 3–5 nós de minério nas encostas: `height_frac` = fração da altura máxima
+## amostrada a partir da qual o grupo pode nascer (0,75 = só no alto dos morros)
+func _spawn_veins(type: GatherableResourceClass.Type, groups: int, height_frac: float) -> void:
+	var max_y := 1.0
+	for i in 200:
+		max_y = maxf(max_y, _get_ground_y(_rng.randf_range(-WorldBounds.HALF, WorldBounds.HALF) * 0.85, _rng.randf_range(-WorldBounds.HALF, WorldBounds.HALF) * 0.85))
+	var min_y := max_y * height_frac
+	var spawned := 0
+	var attempts := 0
+	while spawned < groups and attempts < groups * 60:
+		attempts += 1
+		var cx := _rng.randf_range(-WorldBounds.HALF * 0.85, WorldBounds.HALF * 0.85)
+		var cz := _rng.randf_range(-WorldBounds.HALF * 0.85, WorldBounds.HALF * 0.85)
+		if landscape != null and _get_ground_y(cx, cz) < min_y:
+			continue
+		if RiverClass.get_distance_to_river(cx, cz) < RiverClass.get_water_half_width(cz) + 6.0:
+			continue
+		if CityHub.in_village(cx, cz, 12.0):
+			continue
+		var n := _rng.randi_range(3, 5)
+		for k in n:
+			var a := _rng.randf() * TAU
+			var r := _rng.randf_range(0.8, 3.2) if k > 0 else 0.0
+			var node := _create_node(type, cx + cos(a) * r, cz + sin(a) * r)
+			if node:
+				node.add_to_group("ore_veins")
+		spawned += 1
 
 ## Gera ossos perto das zonas de perigo (Arena em -27, 3 e Morro da Besta em -5, -11)
 func _spawn_hazardous(type: GatherableResourceClass.Type, count: int) -> void:

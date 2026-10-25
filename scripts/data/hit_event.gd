@@ -14,6 +14,8 @@ var part_id: StringName = &""           ## Zona ou parte anatômica atingida (ex
 var is_critical: bool = false
 var hit_position: Vector3 = Vector3.ZERO
 var hit_normal: Vector3 = Vector3.UP
+## Multiplica o empurrão do golpe (CombatFeel); golpes de boss jogam longe
+var knockback_mult: float = 1.0
 
 func _init(
 	p_attacker: Node = null,

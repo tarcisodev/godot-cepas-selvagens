@@ -155,9 +155,11 @@ func test_monster_ai_cycle() -> void:
 	player.global_position = slime.global_position + Vector3(0, 0, -1.0)
 	slime._physics_process(0.016)
 	assert(slime.state == TestMonster.State.WINDUP, "Perto: prepara o golpe")
-	assert(slime.warn_label.visible, "Aviso visível na preparação")
+	# GDD-12 §11: sem aviso na tela, nem "!" nem pisca vermelho; só a animação de preparação
+	assert(slime.find_children("*", "Label3D", false, false).all(func(l): return l.text != "!"), "Sem \"!\" na preparação")
+	assert(slime._meshes.all(func(m): return m.material_overlay == null), "Sem pisca vermelho na preparação")
 	slime._physics_process(slime.windup_time + 0.01)
-	assert(slime.state == TestMonster.State.ATTACK and slime.hitbox._is_active, "Golpe ativo depois do aviso")
+	assert(slime.state == TestMonster.State.ATTACK and slime.hitbox._is_active, "Golpe ativo depois da preparação")
 	assert(slime.hitbox.ignore_group == &"monsters", "Monstros não se acertam")
 
 	var resisted := CombatResolver.resolve_hit(HitEvent.new(player, slime, 50.0, DamageType.Type.SLASH, 0.0))

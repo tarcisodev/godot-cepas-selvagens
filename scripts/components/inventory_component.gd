@@ -29,12 +29,18 @@ var materials: Dictionary:
 			totals[s.id] = totals.get(s.id, 0) + s.amount
 		return totals
 
-## Nomes do que está equipado por encaixe (head, body, hands)
+## Nomes do que está equipado por encaixe (GDD-12 §1)
 var equipped: Dictionary = {
 	&"head": &"",
 	&"body": &"",
-	&"hands": &"",
+	&"feet": &"",
+	&"main_hand": &"",
+	&"off_hand": &"",
+	&"cape": &"",
+	&"bag": &"",
 }
+## Peso que o estoque carrega sem lentidão, sem mochila (GDD-12 §6.4)
+const BASE_CARRY: float = 20.0
 ## Peças forjadas guardadas e as equipadas (encaixe -> ForgedItem)
 var items: Array[ForgedItem] = []
 var equipped_items: Dictionary = {}
@@ -238,11 +244,35 @@ func add_item(item: ForgedItem) -> void:
 	items_changed.emit()
 
 ## Equipa no encaixe da peça (troca a que estava). A peça precisa estar em `items`.
+## Arma de duas mãos tira a secundária; secundária tira a arma de duas mãos (GDD-12 §3).
 func equip(item: ForgedItem) -> void:
 	if not items.has(item):
 		return
+	if item.slot == ForgedItem.Slot.MAIN_HAND and item.is_two_handed() and equipped_items.has(ForgedItem.Slot.OFF_HAND):
+		unequip(ForgedItem.Slot.OFF_HAND)
+	elif item.slot == ForgedItem.Slot.OFF_HAND:
+		var main: ForgedItem = equipped_items.get(ForgedItem.Slot.MAIN_HAND)
+		if main and main.is_two_handed():
+			unequip(ForgedItem.Slot.MAIN_HAND)
 	equipped_items[item.slot] = item
 	_refresh_slot(item.slot)
+
+## Família de cada peça de armadura equipada (cabeça, peito, botas): XP de armadura por família
+func armor_families() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for slot in ForgedItem.ARMOR_SLOTS:
+		var it: ForgedItem = equipped_items.get(slot)
+		if it and not it.is_broken() and ForgedItem.FAMILY.has(it.family):
+			out.append(it.family)
+	return out
+
+## Limite de peso do estoque: base + mochila (kg)
+func carry_capacity() -> float:
+	return BASE_CARRY + (stats.get_stat(&"carry_capacity") if stats else 0.0)
+
+## Peso carregado / limite (1 = no limite; acima disso fica lento, GDD-12 §6.4)
+func carry_ratio() -> float:
+	return get_total_weight() / maxf(carry_capacity(), 1.0)
 
 func unequip(slot: int) -> void:
 	equipped_items.erase(slot)

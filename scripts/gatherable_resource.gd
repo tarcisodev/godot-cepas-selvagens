@@ -16,7 +16,9 @@ enum Type {
 	BESOURO,
 	OSSOS,
 	ERVA,
-	MEL
+	MEL,
+	VEIO_FERRO,
+	VEIO_QUARTZO
 }
 
 const TYPE_CONFIG: Dictionary = {
@@ -149,6 +151,35 @@ const TYPE_CONFIG: Dictionary = {
 		"max": 1,
 		"respawn": 60.0,
 		"color": Color(0.95, 0.72, 0.15)
+	},
+	# Veios de minério (GDD-12 §8): aguentam várias batidas, encolhem a cada uma e voltam inteiros
+	Type.VEIO_FERRO: {
+		"id": &"minerio_ferro",
+		"name": "Veio de Ferro",
+		"action": "Minerar",
+		"verb": "Minerando",
+		"tag": &"mineracao",
+		"xp": 16.0,
+		"time": 1.1,
+		"min": 1,
+		"max": 2,
+		"hits": 4,
+		"respawn": 240.0,
+		"color": Color(0.55, 0.32, 0.22)
+	},
+	Type.VEIO_QUARTZO: {
+		"id": &"quartzo_lume",
+		"name": "Veio de Quartzo-Lume",
+		"action": "Minerar",
+		"verb": "Minerando",
+		"tag": &"mineracao",
+		"xp": 24.0,
+		"time": 1.4,
+		"min": 1,
+		"max": 1,
+		"hits": 3,
+		"respawn": 300.0,
+		"color": Color(0.62, 0.86, 0.95)
 	}
 }
 
@@ -182,6 +213,9 @@ var base_gather_time: float = 0.35
 var min_amount: int = 1
 var max_amount: int = 2
 var respawn_time: float = 25.0
+## Batidas que o nó aguenta antes de sumir (veios de minério); 1 = some na primeira coleta
+var max_hits: int = 1
+var hits_left: int = 1
 
 var is_collected: bool = false
 var _respawn_timer: float = 0.0
@@ -208,6 +242,8 @@ func _apply_config() -> void:
 	min_amount = custom_amount_min if custom_amount_min > 0 else cfg["min"]
 	max_amount = custom_amount_max if custom_amount_max > 0 else cfg["max"]
 	respawn_time = cfg["respawn"]
+	max_hits = int(cfg.get("hits", 1))
+	hits_left = max_hits
 
 func _build_prompt() -> void:
 	if prompt_label == null:
@@ -232,6 +268,8 @@ func _get_label_height() -> float:
 			return 0.85
 		Type.ERVA, Type.FIBRA, Type.OSSOS:
 			return 0.6
+		Type.VEIO_FERRO, Type.VEIO_QUARTZO:
+			return 1.3
 		_:
 			return 0.45
 
@@ -345,6 +383,9 @@ func _rebuild_visual() -> void:
 				m.scale = Vector3.ONE * 0.6
 				visual_container.add_child(m)
 
+		Type.VEIO_FERRO, Type.VEIO_QUARTZO:
+			_build_vein(type == Type.VEIO_QUARTZO)
+
 		Type.MEL:
 			if BEEHIVE_SCENE:
 				var m := BEEHIVE_SCENE.instantiate() as Node3D
@@ -402,13 +443,22 @@ func harvest_next(harvester: Node = null) -> String:
 		if type == Type.MEL:
 			_handle_bee_hazard(harvester)
 	
+	hits_left -= 1
+	if hits_left > 0:
+		# Veio: cada batida tira um pedaço; some só na última
+		if visual_container:
+			var s: float = 0.55 + 0.45 * float(hits_left) / float(max_hits)
+			var tw := create_tween()
+			tw.tween_property(visual_container, "scale", Vector3.ONE * s * 0.9, 0.06)
+			tw.tween_property(visual_container, "scale", Vector3.ONE * s, 0.12)
+		return "%dx %s%s" % [amount, MaterialData.of(material_id).display_name, " ★★" if quality >= 2 else ""]
 	is_collected = true
 	_set_visual_visible(false)
 	
 	if respawn_enabled and respawn_time > 0.0:
 		_respawn_timer = respawn_time
 	
-	return "%dx %s%s" % [amount, display_name, " ★★" if quality >= 2 else ""]
+	return "%dx %s%s" % [amount, MaterialData.of(material_id).display_name if max_hits > 1 else display_name, " ★★" if quality >= 2 else ""]
 
 ## Qualidade da coleta comum (GDD-08 §8): 1★; a partir do nível 25 da maestria,
 ## chance de 2★ = 10% + 0,4% por nível acima de 25. Nunca passa de `max_quality`.
@@ -440,6 +490,7 @@ func _set_visual_visible(vis: bool) -> void:
 
 func respawn() -> void:
 	is_collected = false
+	hits_left = max_hits
 	_respawn_timer = 0.0
 	_set_visual_visible(true)
 	
@@ -448,3 +499,57 @@ func respawn() -> void:
 		visual_container.scale = Vector3.ZERO
 		var tw := create_tween()
 		tw.tween_property(visual_container, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+## Rocha do veio: pedra escura com pedaços de minério à mostra (ferro enferrujado ou cristal)
+func _build_vein(crystal: bool) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(Vector2i(int(global_position.x * 10.0), int(global_position.z * 10.0))) if is_inside_tree() else randi()
+	var rock_mat := StandardMaterial3D.new()
+	rock_mat.albedo_color = Color(0.3, 0.29, 0.28)
+	rock_mat.roughness = 0.95
+	var ore_mat := StandardMaterial3D.new()
+	if crystal:
+		ore_mat.albedo_color = Color(0.62, 0.86, 0.95, 0.9)
+		ore_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		ore_mat.roughness = 0.1
+		ore_mat.emission_enabled = true
+		ore_mat.emission = Color(0.35, 0.7, 0.95)
+		ore_mat.emission_energy_multiplier = 0.9
+	else:
+		ore_mat.albedo_color = Color(0.58, 0.3, 0.16)
+		ore_mat.metallic = 0.55
+		ore_mat.roughness = 0.5
+	var rock := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.55
+	sphere.height = 0.85
+	sphere.radial_segments = 7
+	sphere.rings = 4
+	rock.mesh = sphere
+	rock.scale = Vector3(1.2, 0.85, 1.0)
+	rock.position.y = 0.25
+	rock.material_override = rock_mat
+	visual_container.add_child(rock)
+	for i in 5:
+		var chunk := MeshInstance3D.new()
+		var a: float = TAU * float(i) / 5.0 + rng.randf_range(-0.3, 0.3)
+		if crystal:
+			var prism := PrismMesh.new()
+			prism.size = Vector3(0.16, rng.randf_range(0.35, 0.6), 0.16)
+			chunk.mesh = prism
+			chunk.rotation = Vector3(rng.randf_range(-0.4, 0.4), a, rng.randf_range(-0.5, 0.5))
+		else:
+			var box := BoxMesh.new()
+			box.size = Vector3.ONE * rng.randf_range(0.14, 0.24)
+			chunk.mesh = box
+			chunk.rotation = Vector3(rng.randf(), rng.randf(), rng.randf()) * TAU
+		chunk.position = Vector3(cos(a) * 0.5, 0.3 + rng.randf_range(0.0, 0.25), sin(a) * 0.42)
+		chunk.material_override = ore_mat
+		visual_container.add_child(chunk)
+	if crystal:
+		var glow := OmniLight3D.new()
+		glow.light_color = Color(0.5, 0.8, 1.0)
+		glow.light_energy = 0.35
+		glow.omni_range = 2.5
+		glow.position.y = 0.6
+		visual_container.add_child(glow)

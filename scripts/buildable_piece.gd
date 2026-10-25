@@ -1,7 +1,8 @@
 class_name BuildablePiece
 extends StaticBody3D
 
-## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada)
+## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada,
+## Fogueira, Banco e Cama — as três últimas são de descanso, GDD-10 §10.5)
 ## Possui colisão sólida, custos de materiais, abertura de portas e desmontagem.
 ## PIECE_CONFIG é a única fonte de nome, custo e tamanho das peças (o BuildingSystem lê daqui).
 
@@ -15,7 +16,10 @@ enum PieceType {
 	TELHADO,
 	CERCA,
 	CANTEIRO,
-	BANCADA
+	BANCADA,
+	FOGUEIRA,
+	BANCO,
+	CAMA
 }
 
 const PIECE_CONFIG: Dictionary = {
@@ -60,6 +64,24 @@ const PIECE_CONFIG: Dictionary = {
 		"name": "Bancada do Rancho",
 		"costs": { &"madeira": 4, &"pedra": 2 },
 		"size": Vector3(1.6, 0.85, 0.8)
+	},
+	PieceType.FOGUEIRA: {
+		"id": &"fogueira",
+		"name": "Fogueira",
+		"costs": { &"pedra": 4, &"galho": 3 },
+		"size": Vector3(1.1, 0.5, 1.1)
+	},
+	PieceType.BANCO: {
+		"id": &"banco",
+		"name": "Banco",
+		"costs": { &"madeira": 3 },
+		"size": Vector3(1.4, 0.45, 0.45)
+	},
+	PieceType.CAMA: {
+		"id": &"cama",
+		"name": "Cama",
+		"costs": { &"madeira": 4, &"fibra": 4 },
+		"size": Vector3(1.0, 0.5, 2.1)
 	}
 }
 
@@ -105,6 +127,17 @@ func _build_piece() -> void:
 		
 		PieceType.BANCADA:
 			_build_workbench(sz)
+
+		PieceType.FOGUEIRA:
+			var fire := Campfire.new()
+			fire.name = "Campfire"
+			add_child(fire)
+
+		PieceType.BANCO:
+			_build_bench(sz)
+
+		PieceType.CAMA:
+			_build_bed(sz)
 
 func _build_box(size: Vector3, offset: Vector3, color: Color) -> void:
 	var col := CollisionShape3D.new()
@@ -232,8 +265,49 @@ func _build_garden_plot(sz: Vector3) -> void:
 func _build_workbench(sz: Vector3) -> void:
 	_build_box(sz, Vector3(0, sz.y * 0.5, 0), Color(0.45, 0.30, 0.18))
 
-## Interação com porta (abrir / fechar)
+## Banco: assento e pés; sentar nele (ou do lado) é descanso de acampamento
+func _build_bench(sz: Vector3) -> void:
+	var wood := Color(0.5, 0.34, 0.2)
+	_build_box(Vector3(sz.x, 0.08, sz.z), Vector3(0, sz.y - 0.04, 0), wood)
+	for side in [-1.0, 1.0]:
+		_build_box(Vector3(0.1, sz.y - 0.08, sz.z * 0.8), Vector3(side * (sz.x * 0.5 - 0.12), (sz.y - 0.08) * 0.5, 0), wood.darkened(0.15))
+	add_to_group("rest_benches")
+	_add_prompt("[E] Sentar no banco", sz.y + 0.5)
+
+## Cama: estrado, colchão de fibra e travesseiro; só o dono deita
+func _build_bed(sz: Vector3) -> void:
+	_build_box(Vector3(sz.x, 0.25, sz.z), Vector3(0, 0.125, 0), Color(0.42, 0.28, 0.16))
+	_build_box(Vector3(sz.x * 0.9, 0.14, sz.z * 0.95), Vector3(0, 0.32, 0), Color(0.78, 0.72, 0.55))
+	_build_box(Vector3(sz.x * 0.6, 0.1, 0.32), Vector3(0, 0.44, -sz.z * 0.5 + 0.25), Color(0.9, 0.88, 0.8))
+	add_to_group("beds")
+	_add_prompt("[E] Deitar", sz.y + 0.5)
+
+func _add_prompt(text: String, height: float) -> void:
+	add_to_group("talkable")
+	label_prompt = Label3D.new()
+	label_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label_prompt.font_size = 18
+	label_prompt.outline_size = 4
+	label_prompt.text = text
+	label_prompt.position = Vector3(0, height, 0)
+	label_prompt.visibility_range_end = 3.0
+	add_child(label_prompt)
+
+## Interação com porta (abrir / fechar), banco (sentar) e cama (deitar, só o dono)
 func talk_to(player: Node) -> void:
+	if piece_type == PieceType.BANCO and player.has_method("toggle_sit"):
+		if not player.get("is_sitting"):
+			player.global_position = global_position + Vector3.UP * 0.5
+			player.velocity = Vector3.ZERO
+			player.toggle_sit(true)
+		return
+	if piece_type == PieceType.CAMA and player.has_method("lie_in_bed"):
+		var me := BuildingSystem.owner_name_of(player)
+		if owner_name != "" and owner_name != me:
+			player.posture_changed.emit("🛏️ Essa cama é de %s" % owner_name)
+		elif not player.get("is_sitting"):
+			player.lie_in_bed(self)
+		return
 	if piece_type == PieceType.PAREDE_PORTA and door_pivot != null:
 		is_door_open = not is_door_open
 		var target_angle: float = deg_to_rad(95.0) if is_door_open else 0.0

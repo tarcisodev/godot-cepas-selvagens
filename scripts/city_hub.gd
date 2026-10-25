@@ -359,6 +359,12 @@ func _build_board() -> void:
 	anvil.position = Vector3(4.5, _get_ground_y(4.5, 4.6), 4.6)
 	add_child(anvil)
 
+	# Fogueira pública do acampamento: descanso de 2%/s e buff Descansado para todos (GDD-10 §10.2)
+	var fire := Campfire.new()
+	fire.name = "FogueiraDoAcampamento"
+	fire.position = Vector3(-0.6, _get_ground_y(-0.6, 5.6), 5.6)
+	add_child(fire)
+
 	_board_layer = CanvasLayer.new()
 	_board_layer.layer = 12
 	add_child(_board_layer)

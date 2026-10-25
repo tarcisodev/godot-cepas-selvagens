@@ -29,6 +29,11 @@ var is_aiming: bool = false
 var _current_offset: Vector3 = Vector3.ZERO
 var pitch: float = 0.0
 var yaw: float = 0.0
+## Tranco de golpe (GDD-12 §10): 0–1, cai rápido; o deslocamento é trauma² (golpe fraco quase não mexe)
+var trauma: float = 0.0
+const TRAUMA_DECAY: float = 2.6
+const SHAKE_OFFSET: float = 0.22
+var _shake_t: float = 0.0
 
 signal camera_mode_changed(is_first_person: bool)
 signal aim_mode_changed(is_aiming: bool)
@@ -94,6 +99,15 @@ func _process(delta: float) -> void:
 	spring_arm.position = _current_offset
 	if camera:
 		camera.fov = lerp(camera.fov, target_f, weight)
+		trauma = maxf(0.0, trauma - TRAUMA_DECAY * delta)
+		_shake_t += delta * 38.0
+		var amount: float = trauma * trauma * SHAKE_OFFSET
+		camera.h_offset = sin(_shake_t * 1.3) * amount
+		camera.v_offset = cos(_shake_t * 1.7) * amount
+
+## Soma tranco na câmera (no máximo 1)
+func add_trauma(amount: float) -> void:
+	trauma = clampf(trauma + amount, 0.0, 1.0)
 
 func set_aiming(aiming: bool) -> void:
 	if is_aiming != aiming:

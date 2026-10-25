@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"presa_lobo"
+display_name = "Presa de Lobo"
+description = "Presa afiada. Tempero de arma: Serrilhado (+6% de dano)."
+category = 3
+icon = "🦷"
+color = Color(0.92, 0.9, 0.82, 1)
+unit_weight = 0.2
+max_gather_quality = 5
+base_value = 12

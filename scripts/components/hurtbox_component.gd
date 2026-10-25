@@ -37,5 +37,6 @@ func receive_hit(hit: HitEvent) -> Dictionary:
 		# Feedback visual na entidade, se suportado
 		if entity.has_method("on_hit_feedback"):
 			entity.on_hit_feedback(hit, result)
+		CombatFeel.on_hit(hit, result)
 	
 	return result

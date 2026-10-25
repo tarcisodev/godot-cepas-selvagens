@@ -32,6 +32,8 @@
 [ext_resource type="Script" path="res://scripts/ecology/ecology.gd" id="31_ecology"]
 [ext_resource type="Script" path="res://scripts/ecology/moon.gd" id="32_moon"]
 [ext_resource type="Script" path="res://scripts/supply_chest.gd" id="28_chest"]
+[ext_resource type="Script" path="res://scripts/creatures/boss_lair.gd" id="40_boss_lair"]
+[ext_resource type="Script" path="res://scripts/creatures/wild_beast_spawner.gd" id="41_wild_beasts"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -128,6 +130,15 @@ spawns = Array[PackedScene]([ExtResource("19_slime"), ExtResource("20_skeleton")
 
 [node name="GatherableSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("23_gather")
+landscape = NodePath("../Landscape")
+
+[node name="BossLair" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -60, 0, 50)
+script = ExtResource("40_boss_lair")
+landscape = NodePath("../Landscape")
+
+[node name="WildBeastSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("41_wild_beasts")
 landscape = NodePath("../Landscape")
 
 [node name="WeatherSystem" type="Node3D" parent="."]
@@ -376,12 +387,7 @@ horizontal_alignment = 1
 [node name="SitButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 14
-text = "🧘 Sentar no Chão e Descansar"
-
-[node name="WaitButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 14
-text = "🌅 Aguardar (Avançar 4h)"
+text = "🔥 Descansar (sentar)"
 
 [node name="PovButton" type="Button" parent="HUD/ActionsMenu/PanelContainer/MarginContainer/VBoxContainer"]
 layout_mode = 2

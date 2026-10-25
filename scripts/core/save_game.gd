@@ -66,6 +66,8 @@ func dress_new_character(player: Node) -> void:
 	if visual and _new_character:
 		visual.rebuild(_new_character)
 	_new_character = null
+	if player.has_method("ensure_starter_weapons"):
+		player.ensure_starter_weapons()
 
 ## Nome gravado no save (vazio se não houver).
 func saved_name() -> String:
@@ -111,6 +113,14 @@ func collect(player: Node) -> Dictionary:
 	var objectives := _objectives()
 	if objectives:
 		data["objectives"] = objectives.get_state()
+	# Descanso (GDD-10 §10): buff Descansado e a cama marcada para renascer
+	var rest = player.get("rest")
+	if rest:
+		data["rest"] = rest.get_state()
+	var bed = player.get("marked_bed")
+	if bed and is_instance_valid(bed):
+		var bp: Vector3 = _get_pos(bed)
+		data["bed"] = [bp.x, bp.y, bp.z]
 	if player.is_inside_tree():
 		data["structures"] = BuildingSystemClass.collect_structures(player.get_tree())
 		var city := player.get_tree().get_first_node_in_group("city_hub")
@@ -172,6 +182,9 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		inv.load_from_save(data.get("materials", []))
 		# Peças forjadas e o que estava equipado (reaplica os efeitos)
 		inv.load_items(data.get("gear", {}))
+		# Saves de antes das armas forjadas (GDD-12 §7): ganham espada e escudo de treino
+		if player.has_method("ensure_starter_weapons"):
+			player.ensure_starter_weapons()
 
 	# Maestrias depois do elmo: a forja de restauração não pode contar XP
 	var mastery = player.get("mastery")
@@ -212,6 +225,16 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var world := player.get_parent()
 	if world and data.has("structures"):
 		BuildingSystemClass.restore_structures(world, data["structures"])
+	var rest = player.get("rest")
+	if rest and data.has("rest"):
+		rest.apply_state(data["rest"])
+	if data.has("bed") and player.is_inside_tree():
+		var saved: Array = data["bed"]
+		var at := Vector3(float(saved[0]), float(saved[1]), float(saved[2]))
+		for b in player.get_tree().get_nodes_in_group("beds"):
+			if not b.is_queued_for_deletion() and _get_pos(b).distance_to(at) < 0.5:
+				player.set("marked_bed", b)
+				break
 	# Obras da vila e Reputação (GDD-08 §6.1)
 	var city := player.get_tree().get_first_node_in_group("city_hub") if player.is_inside_tree() else null
 	if city and data.has("town"):

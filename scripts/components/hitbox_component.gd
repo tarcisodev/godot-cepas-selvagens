@@ -13,6 +13,8 @@ signal hit_landed(hurtbox: HurtboxComponent, result: Dictionary)
 @export var part_break_multiplier: float = 1.2
 ## Entidades deste grupo não são acertadas (ex.: monstros não se ferem entre si).
 @export var ignore_group: StringName = &""
+## Multiplica o empurrão do golpe no alvo (CombatFeel, GDD-12 §10)
+@export var knockback_mult: float = 1.0
 
 var _hit_entities: Array[Node] = []
 var _is_active: bool = false
@@ -82,6 +84,7 @@ func _on_area_entered(area: Area3D) -> void:
 	)
 	hit.part_break_damage = damage * part_break_multiplier
 	hit.hit_position = global_position
+	hit.knockback_mult = knockback_mult
 	
 	# Executa o acerto na hurtbox
 	var res: Dictionary = hurtbox.receive_hit(hit)

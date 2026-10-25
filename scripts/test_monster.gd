@@ -1,8 +1,9 @@
 class_name TestMonster
 extends CharacterBody3D
 
-## Monstro de teste (B10): patrulha perto de casa, persegue o jogador, ataca com aviso
-## (pisca vermelho + "!") e renasce. Usa o mesmo pipeline de dano do jogador (ADR-0003).
+## Monstro de teste (B10): patrulha perto de casa, persegue o jogador, ataca e renasce.
+## Sem aviso na tela (GDD-12 §11): quem lê o golpe é o jogador, pela animação de preparação.
+## Usa o mesmo pipeline de dano do jogador (ADR-0003) e sente o peso do golpe (hitstop, empurrão).
 ## Os modelos Quaternius trazem as animações; aqui só se escolhe qual nome é qual.
 
 enum State { WANDER, CHASE, WINDUP, ATTACK, RECOVER, STAGGER, DEAD, RETURN }
@@ -56,7 +57,6 @@ var hitbox: HitboxComponent
 var model: Node3D
 var anim_player: AnimationPlayer
 var status_label: Label3D
-var warn_label: Label3D
 
 var state: State = State.WANDER
 var home: Vector3
@@ -65,8 +65,12 @@ var _wander_target: Vector3
 var _wander_wait: float = 0.0
 var _flash_timer: float = 0.0
 var _meshes: Array[GeometryInstance3D] = []
-var _windup_mat: StandardMaterial3D
 var _hit_mat: StandardMaterial3D
+## Peso dos golpes (GDD-12 §10)
+var _hitstop: float = 0.0
+var _knockback: Vector3 = Vector3.ZERO
+## Brado (habilidade de armadura): persegue quem gritou, mesmo de longe de casa
+var _taunted_until_ms: int = 0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 var _rng := RandomNumberGenerator.new()
 
@@ -146,11 +150,9 @@ func _build_model() -> void:
 	for m in model.find_children("*", "GeometryInstance3D", true, false):
 		_meshes.append(m as GeometryInstance3D)
 
-	_windup_mat = StandardMaterial3D.new()
-	_windup_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_windup_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_windup_mat.albedo_color = Color(1.0, 0.15, 0.1, 0.45)
-	_hit_mat = _windup_mat.duplicate()
+	_hit_mat = StandardMaterial3D.new()
+	_hit_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_hit_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_hit_mat.albedo_color = Color(1, 1, 1, 0.55)
 	_play(anim_idle)
 
@@ -164,16 +166,6 @@ func _build_labels() -> void:
 	status_label.position.y = _top() + 0.35
 	add_child(status_label)
 
-	warn_label = Label3D.new()
-	warn_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	warn_label.text = "!"
-	warn_label.font_size = 48
-	warn_label.modulate = Color(1, 0.25, 0.15)
-	warn_label.outline_size = 8
-	warn_label.position.y = _top() + 0.75
-	warn_label.visible = false
-	add_child(warn_label)
-
 func _top() -> float:
 	return maxf(body_height, body_radius * 2.0)
 
@@ -186,11 +178,17 @@ func _update_label() -> void:
 		status_label.text = "%s  %d/%d" % [display_name, ceili(pools.current_health), int(stats.get_stat(&"max_health"))]
 
 func _physics_process(delta: float) -> void:
-	_state_time += delta
 	if _flash_timer > 0.0:
 		_flash_timer -= delta
-		if _flash_timer <= 0.0 and state != State.WINDUP:
+		if _flash_timer <= 0.0:
 			_set_overlay(null)
+	if _hitstop > 0.0:
+		# Hitstop: animação e relógio do estado param juntos (só este monstro)
+		_hitstop -= delta
+		if _hitstop <= 0.0 and anim_player:
+			anim_player.speed_scale = 1.0
+		return
+	_state_time += delta
 
 	var player := _target()
 	var to_player: Vector3 = (player.global_position - global_position) if player else Vector3.ZERO
@@ -216,7 +214,7 @@ func _physics_process(delta: float) -> void:
 					move_dir = to_target.normalized()
 					speed = move_speed * 0.45
 		State.CHASE:
-			if player == null or _dist_home() > leash_range:
+			if player == null or (_dist_home() > leash_range and Time.get_ticks_msec() > _taunted_until_ms):
 				_set_state(State.RETURN)
 			elif dist <= attack_range:
 				_set_state(State.WINDUP)
@@ -254,8 +252,9 @@ func _physics_process(delta: float) -> void:
 
 	if move_dir != Vector3.ZERO:
 		_face(move_dir, delta)
-	velocity.x = move_dir.x * speed
-	velocity.z = move_dir.z * speed
+	velocity.x = move_dir.x * speed + _knockback.x
+	velocity.z = move_dir.z * speed + _knockback.z
+	_knockback = _knockback.move_toward(Vector3.ZERO, 14.0 * delta)
 	if flying and state != State.DEAD:
 		velocity.y = (_ground_y() + fly_height - global_position.y) * 4.0
 	elif not is_on_floor():
@@ -292,13 +291,10 @@ func _ground_y() -> float:
 func _set_state(new_state: State) -> void:
 	state = new_state
 	_state_time = 0.0
-	warn_label.visible = new_state == State.WINDUP
 	match new_state:
 		State.WINDUP:
-			_set_overlay(_windup_mat)
 			_play_timed(anim_attack, windup_time + attack_active)
 		State.ATTACK:
-			_set_overlay(null)
 			hitbox.activate_with_params(attack_active, damage, damage_type, poise_damage, 1.0)
 		State.STAGGER:
 			_set_overlay(null)
@@ -333,13 +329,35 @@ func _on_poise_broken() -> void:
 func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 	if state == State.DEAD or result.get(&"effective_damage", 0.0) <= 0.0:
 		return
-	if state != State.WINDUP:
-		_set_overlay(_hit_mat)
-	_flash_timer = 0.1
+	_set_overlay(_hit_mat)
+	_flash_timer = 0.08
 	if state in [State.WANDER, State.RETURN]:
 		_set_state(State.CHASE)
 	elif state == State.RECOVER:
 		_play(anim_hit, 1.0, true)
+
+## Peso do golpe (CombatFeel): congela a animação e o estado por um instante
+func apply_hitstop(duration: float) -> void:
+	if state == State.DEAD or duration <= _hitstop:
+		return
+	_hitstop = duration
+	if anim_player:
+		anim_player.speed_scale = 0.0
+
+func apply_knockback(impulse: Vector3) -> void:
+	if state == State.DEAD or flying:
+		return
+	_knockback += impulse
+	if _knockback.length() > 9.0:
+		_knockback = _knockback.normalized() * 9.0
+
+## Brado: larga o que estava fazendo e vai atrás de quem gritou por 6 s
+func taunt(_who: Node3D) -> void:
+	if state == State.DEAD:
+		return
+	_taunted_until_ms = Time.get_ticks_msec() + 6000
+	if state in [State.WANDER, State.RETURN, State.RECOVER]:
+		_set_state(State.CHASE)
 
 func _set_overlay(mat: Material) -> void:
 	for m in _meshes:

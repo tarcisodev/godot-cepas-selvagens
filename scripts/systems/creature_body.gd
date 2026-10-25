@@ -20,6 +20,14 @@ var _head: Node3D
 var _torso: Node3D
 ## Cabeça baixa (bebendo ou pastando)
 var head_down: bool = false
+## Pose de ataque (bichos que lutam, GDD-12 §9): &"head_low" abaixa a cabeça, &"rear" empina,
+## &"paw" raspa a pata da frente. `pose_amount` 0–1 vai suave até o alvo.
+var pose: StringName = &""
+var pose_amount: float = 0.0
+var _pose_now: float = 0.0
+## Peças que podem quebrar e sumir na luta (cada uma num pivô próprio)
+var horn_node: Node3D
+var plates_node: Node3D
 var _phase: float = 0.0
 var _flap: float = 0.0
 var _batches: Dictionary = {}  # pivô -> MeshBatch
@@ -60,13 +68,27 @@ func animate(delta: float, speed: float, climb: float = 0.0, airborne: bool = fa
 	match dna.plan():
 		CreatureDNA.Plan.QUADRUPED:
 			var swing := clampf(speed / 6.0, 0.0, 1.0) * 0.7
+			_pose_now = move_toward(_pose_now, pose_amount if pose != &"" else 0.0, delta * 5.0)
 			for i in _legs.size():
 				var offset := 0.0 if i == 0 or i == 3 else PI
 				_legs[i].rotation.x = sin(_phase + offset) * swing
-			_torso.position.y = absf(sin(_phase)) * swing * 0.06 * f + sin(t * 1.6) * 0.008
+			if pose == &"paw" and not _legs.is_empty():
+				# Raspa a pata da frente no chão antes de investir
+				_legs[0].rotation.x = -0.25 * _pose_now + sin(t * 14.0) * 0.45 * _pose_now
+			var rear := _pose_now if pose == &"rear" else 0.0
+			_torso.rotation.x = rear * 0.42
+			_torso.position.y = absf(sin(_phase)) * swing * 0.06 * f + sin(t * 1.6) * 0.008 + rear * 0.35 * f
+			if pose == &"rear":
+				# Patas da frente no ar, as de trás seguram o peso
+				for i in [0, 1]:
+					if i < _legs.size():
+						_legs[i].rotation.x = -0.6 * rear
 			if _head:
 				var target_x := 0.95 if head_down else sin(_phase * 2.0) * swing * 0.12 + (0.25 if speed < 0.3 and fmod(t, 9.0) < 3.0 else 0.0)
-				_head.rotation.x = lerpf(_head.rotation.x, target_x, minf(1.0, delta * 6.0))
+				if pose == &"head_low" or pose == &"paw":
+					# Negativo abaixa a cabeça e põe o chifre para a frente
+					target_x = -0.6 * _pose_now
+				_head.rotation.x = lerpf(_head.rotation.x, target_x, minf(1.0, delta * 8.0))
 			if _tail:
 				_tail.rotation.y = sin(t * 2.3) * 0.35
 		CreatureDNA.Plan.BIRD:
@@ -133,6 +155,28 @@ func _build_quadruped() -> void:
 		_cone(_head, head_size * 0.12, ear, skull + Vector3(side * head_size * 0.28, head_size * 0.35 + ear * 0.4, head_size * 0.1), dna.coat_color().darkened(0.1), Basis(Vector3.BACK, side * 0.35))
 		if dna.has_horns():
 			_cone(_head, head_size * 0.1, head_size * 1.1, skull + Vector3(side * head_size * 0.2, head_size * 0.55 + head_size * 0.4, -head_size * 0.1), Color(0.86, 0.8, 0.66), Basis(Vector3.RIGHT, -0.5) * Basis(Vector3.BACK, side * 0.3))
+	# Chifre do focinho (Rinolito): pivô próprio, some quando quebra na luta
+	if info.has("nose_horn"):
+		horn_node = Node3D.new()
+		horn_node.name = "NoseHorn"
+		horn_node.position = skull + Vector3(0, head_size * 0.1, -head_size * 1.05)
+		_head.add_child(horn_node)
+		var nh: float = float(info["nose_horn"]) * f
+		_cone(horn_node, head_size * 0.3, nh, Vector3(0, nh * 0.42, -nh * 0.12), Color(0.82, 0.76, 0.62), Basis(Vector3.RIGHT, -0.35))
+		_cone(horn_node, head_size * 0.16, nh * 0.45, Vector3(0, head_size * 0.35, head_size * 0.5), Color(0.78, 0.72, 0.6), Basis(Vector3.RIGHT, -0.2))
+	# Placas de carapaça no dorso (Rinolito): pivô próprio, somem quando a carapaça quebra
+	if info.has("plates"):
+		plates_node = Node3D.new()
+		plates_node.name = "Plates"
+		_torso.add_child(plates_node)
+		var n: int = int(info["plates"])
+		var plate_color := dna.coat_color().darkened(0.3)
+		for i in n:
+			var z := lerpf(-body.z * 0.36, body.z * 0.34, float(i) / float(maxi(n - 1, 1)))
+			var k := sqrt(maxf(0.0, 1.0 - pow(z / (body.z * 0.52), 2.0)))
+			var top := body_center + Vector3(0, body.y * 0.5 * k, z)
+			_ellipsoid(plates_node, Vector3(body.x * 0.78 * k, body.y * 0.2, body.z * 0.2), top, plate_color.lightened(0.06 * (i % 2)))
+			_cone(plates_node, body.x * 0.08, body.y * 0.28 * k, top + Vector3(0, body.y * 0.14, 0), plate_color.darkened(0.2), Basis.IDENTITY)
 	# Cauda
 	_tail = Node3D.new()
 	_tail.position = body_center + Vector3(0, body.y * 0.25, body.z * 0.48)

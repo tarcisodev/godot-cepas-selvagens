@@ -1,8 +1,9 @@
 class_name GearVisual
 extends Node
 
-## Mostra no corpo as peças forjadas equipadas (GDD-06 §6): elmo com chifre, capuz de penas,
-## gibão de couro e braçadeiras de galhada. Cada peça é montada com primitivas e presa a um
+## Mostra no corpo as peças forjadas equipadas (GDD-06 §6, GDD-12): elmo com chifre, capuz de
+## penas, gibão, couraça com manoplas, cota de ferro, botas, capa e mochila, na cor da família.
+## As armas aparecem pelo estilo (WeaponStyle.pieces), não aqui. Cada peça é montada com primitivas e presa a um
 ## osso do rig UAL; a posição é calculada na pose de descanso, então serve para qualquer DNA.
 ## Reconstrói quando o equipamento muda ou quando o corpo é refeito (Barbeiro).
 
@@ -39,9 +40,19 @@ func refresh() -> void:
 				_hood(item)
 			&"gibao_andarilho":
 				_vest(item)
-			&"bracadeiras_galhada":
+			&"couraca_galhada":
+				_vest(item)
 				_bracer(item, &"lowerarm_l")
 				_bracer(item, &"lowerarm_r")
+			&"cota_ferro":
+				_vest(item)
+			&"botas_saltarelo":
+				_boot(item, &"calf_l")
+				_boot(item, &"calf_r")
+			&"capa_penas", &"capa_couro":
+				_cape(item)
+			&"mochila":
+				_bag(item)
 
 # ---------------------------------------------------------------- peças
 
@@ -108,7 +119,7 @@ func _vest(item: ForgedItem) -> void:
 	cm.height = 0.62
 	vest.mesh = cm
 	vest.scale = Vector3(1.08, 1.0, 0.8)
-	vest.material_override = _mat(MaterialData.of(&"couro_trotador").color.darkened(0.1), 0.85)
+	vest.material_override = _family_mat(item, MaterialData.of(&"couro_trotador").color.darkened(0.1))
 	root.add_child(vest)
 	# Cinto de tendão
 	var belt := MeshInstance3D.new()
@@ -132,7 +143,7 @@ func _bracer(item: ForgedItem, bone: StringName) -> void:
 	cm.bottom_radius = 0.06
 	cm.height = 0.18
 	sleeve.mesh = cm
-	sleeve.material_override = _mat(MaterialData.of(&"couro_trotador").color, 0.85)
+	sleeve.material_override = _family_mat(item, MaterialData.of(&"couro_trotador").color)
 	root.add_child(sleeve)
 	var spike := MeshInstance3D.new()
 	var sp := CylinderMesh.new()
@@ -145,6 +156,78 @@ func _bracer(item: ForgedItem, bone: StringName) -> void:
 	spike.material_override = _mat(Color(0.86, 0.8, 0.66), 0.6)
 	root.add_child(spike)
 	_glow_if_iridescent(item, root)
+
+func _boot(item: ForgedItem, bone: StringName) -> void:
+	var root := _piece(bone, Vector3.ZERO, true)
+	if root == null:
+		return
+	var shin := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 0.07
+	cm.bottom_radius = 0.06
+	cm.height = 0.22
+	shin.mesh = cm
+	shin.position.y = -0.08
+	shin.material_override = _family_mat(item, MaterialData.of(&"pele_saltarelo").color.darkened(0.2))
+	root.add_child(shin)
+	_glow_if_iridescent(item, root)
+
+## Capa caída nas costas, presa nos ombros (no rig UAL a frente é +Z, as costas −Z)
+func _cape(item: ForgedItem) -> void:
+	var root := _piece(&"spine_03", Vector3(0, -0.12, -0.17))
+	if root == null:
+		return
+	var color: Color = MaterialData.of(&"pena_penacho").color if item.recipe_id == &"capa_penas" else MaterialData.of(&"couro_trotador").color.darkened(0.25)
+	var cloth := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.44, 0.78, 0.025)
+	cloth.mesh = bm
+	cloth.rotation.x = -0.12
+	cloth.material_override = _mat(color, 0.95)
+	root.add_child(cloth)
+	if item.recipe_id == &"capa_penas":
+		for i in 4:
+			var f := MeshInstance3D.new()
+			var sm := SphereMesh.new()
+			sm.radius = 0.5
+			sm.height = 1.0
+			f.mesh = sm
+			f.scale = Vector3(0.1, 0.16, 0.02)
+			f.position = Vector3((i - 1.5) * 0.11, -0.42, -0.04)
+			f.material_override = _mat(color.lightened(0.2 * (i % 2)), 0.9)
+			root.add_child(f)
+	_glow_if_iridescent(item, root)
+
+func _bag(item: ForgedItem) -> void:
+	var root := _piece(&"spine_02", Vector3(0, 0.02, -0.2))
+	if root == null:
+		return
+	var pack := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.3, 0.34, 0.16)
+	pack.mesh = bm
+	pack.material_override = _family_mat(item, MaterialData.of(&"couro_trotador").color.darkened(0.15))
+	root.add_child(pack)
+	var flap := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(0.31, 0.1, 0.17)
+	flap.mesh = fm
+	flap.position.y = 0.15
+	flap.material_override = _mat(Color(0.28, 0.18, 0.1), 0.85)
+	root.add_child(flap)
+
+## Cor da peça pela família: pano claro e fosco, couro no tom dado, ferro cinza metálico
+func _family_mat(item: ForgedItem, leather: Color) -> StandardMaterial3D:
+	if item.is_broken():
+		return _mat(leather.darkened(0.45), 0.95)
+	match item.family:
+		&"pano":
+			return _mat(Color(0.78, 0.72, 0.56), 0.95)
+		&"ferro":
+			var m := _mat(Color(0.58, 0.6, 0.64), 0.35)
+			m.metallic = 0.75
+			return m
+	return _mat(leather, 0.85)
 
 # ---------------------------------------------------------------- encaixe no osso
 

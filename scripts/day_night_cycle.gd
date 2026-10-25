@@ -29,6 +29,22 @@ const MOON_PHASE_ICONS: Array[String] = ["🌑", "🌒", "🌓", "🌔", "🌕",
 ## Céu fechado (0–1), escrito pelo WeatherSystem: nuvens tiram luz e sombra do sol (GDD-10 §2)
 var overcast: float = 0.0
 
+## Relógio único do mundo (ADR-0006): todo sistema de natureza lê a duração do dia daqui.
+## Nenhuma ação de jogador escreve na hora; só este relógio anda e o load do save restaura.
+const DEFAULT_DAY_SECONDS: float = 300.0
+static var instance: DayNightCycle
+
+## Segundos reais de um dia de jogo; sem sol no mundo (testes), o padrão de 5 min
+static func seconds_per_day() -> float:
+	return maxf(1.0, instance.day_length_seconds) if is_instance_valid(instance) else DEFAULT_DAY_SECONDS
+
+func _enter_tree() -> void:
+	instance = self
+
+func _exit_tree() -> void:
+	if instance == self:
+		instance = null
+
 func _ready() -> void:
 	current_time_hours = start_time_hour
 	_update_sun_position_and_lighting()

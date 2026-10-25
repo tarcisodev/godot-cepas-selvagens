@@ -35,6 +35,28 @@ var wallet: WalletComponent
 ## Pesca com a vara (GDD-10 §8)
 var fishing: FishingComponent
 var torch: TorchComponent
+var rest: RestComponent
+## Habilidades de armadura [4] [5] [R] e passivas da capa (GDD-12 §6)
+var armor_abilities: ArmorAbilityComponent
+## Velocidade máxima de queda com a Capa de Penas (m/s)
+const SLOW_FALL_SPEED: float = 3.0
+## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
+const OVERLOAD_HARD: float = 1.5
+const STYLE_SWORD: WeaponStyle = preload("res://resources/weapons/sword.tres")
+const STYLE_SWORD_SHIELD: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
+const STYLE_HEAVY: WeaponStyle = preload("res://resources/weapons/heavy_hammer.tres")
+const STYLE_STAFF: WeaponStyle = preload("res://resources/weapons/arcane_staff.tres")
+const STYLE_UNARMED: WeaponStyle = preload("res://resources/weapons/unarmed.tres")
+## Força da arma primária equipada: qualidade × núcleo (GDD-12 §7). Multiplica o dano dos golpes.
+var weapon_power: float = 1.0
+## i-frames da esquiva em curso (o Esquivo alonga)
+var _dodge_iframes: float = DODGE_IFRAMES
+## Peso dos golpes (GDD-12 §10): hitstop local e empurrão
+var _hitstop: float = 0.0
+var _hitstop_saved_speed: float = 1.0
+var _knockback: Vector3 = Vector3.ZERO
+const KNOCKBACK_DECAY: float = 18.0
+const KNOCKBACK_MAX: float = 12.0
 @onready var card_collection: CardCollectionComponent = get_node_or_null("CardCollectionComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
@@ -110,6 +132,8 @@ signal oxygen_changed(current: float, max_val: float)
 var wants_move: bool = false
 var _landscape: Node
 var spawn_point: Vector3 = Vector3.ZERO
+## Cama marcada para renascer (GDD-10 §10.4); sem ela, o Caído volta ao acampamento (spawn_point)
+var marked_bed: Node3D
 var last_safe_position: Vector3 = Vector3(0.0, 1.2, 0.0)
 
 # Armeiro e outros NPCs com [E]
@@ -213,6 +237,24 @@ func _setup_components() -> void:
 			torch.name = "TorchComponent"
 			add_child(torch)
 		torch.player = self
+	if rest == null:
+		rest = get_node_or_null("RestComponent") as RestComponent
+		if rest == null:
+			rest = RestComponent.new()
+			rest.name = "RestComponent"
+			rest.player = self
+			rest.pools = pools
+			rest.stats = stats
+			add_child(rest)
+	if armor_abilities == null:
+		armor_abilities = get_node_or_null("ArmorAbilityComponent") as ArmorAbilityComponent
+		if armor_abilities == null:
+			armor_abilities = ArmorAbilityComponent.new()
+			armor_abilities.name = "ArmorAbilityComponent"
+			armor_abilities.player = self
+			add_child(armor_abilities)
+	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
+		inventory.equipment_changed.connect(_on_equipment_changed)
 
 func _setup_footsteps() -> void:
 	if footstep_player != null:
@@ -270,9 +312,11 @@ func _physics_process(delta: float) -> void:
 		_process_swimming(delta, input_dir)
 		return
 
-	# Aplicar gravidade
+	# Aplicar gravidade (a Capa de Penas segura a queda: GDD-12 §6.6)
 	if not is_on_floor():
 		velocity.y -= gravity * delta
+		if velocity.y < -SLOW_FALL_SPEED and armor_abilities and armor_abilities.cape_passive() == &"queda_lenta":
+			velocity.y = move_toward(velocity.y, -SLOW_FALL_SPEED, gravity * 1.5 * delta)
 
 	# Se estava sentado e pressionou mover, levanta automaticamente
 	if is_sitting and input_dir != Vector2.ZERO:
@@ -349,8 +393,14 @@ func _physics_process(delta: float) -> void:
 		if dodge_timer <= 0.0:
 			is_dodging = false
 			posture_changed.emit("Em Pé")
-	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting and not is_attacking and not is_stunned():
+	elif Input.is_action_just_pressed("dodge") and is_on_floor() and not is_sitting and not is_attacking and not is_stunned() \
+			and not is_overloaded():
 		var dodge_cost: float = stats.get_stat(&"dodge_cost") if stats else 25.0
+		# Esquivo (peito de couro): a próxima esquiva sai de graça e com i-frames longos
+		var free_iframes: float = armor_abilities.take_free_dodge() if armor_abilities else 0.0
+		if free_iframes > 0.0:
+			dodge_cost = 0.0
+		_dodge_iframes = free_iframes if free_iframes > 0.0 else DODGE_IFRAMES
 		if pools and pools.consume_vigor(dodge_cost):
 			is_dodging = true
 			dodge_timer = DODGE_DURATION
@@ -389,7 +439,7 @@ func _physics_process(delta: float) -> void:
 		target_speed = crouch_speed
 	elif Input.is_action_pressed("slow_walk"):
 		target_speed = slow_walk_speed
-	elif Input.is_action_pressed("sprint") and input_dir != Vector2.ZERO:
+	elif Input.is_action_pressed("sprint") and input_dir != Vector2.ZERO and not is_overloaded():
 		var sprint_vigor_cost: float = 16.0 * delta
 		if pools != null and pools.consume_vigor(sprint_vigor_cost):
 			target_speed = sprint_speed
@@ -401,7 +451,7 @@ func _physics_process(delta: float) -> void:
 		var current_load: float = stats.get_stat(&"load")
 		var load_cap: float = maxf(stats.get_stat(&"load_capacity"), 1.0)
 		var load_penalty: float = clampf(1.0 - ((current_load / load_cap) * 0.35), 0.5, 1.0)
-		target_speed *= load_penalty
+		target_speed *= load_penalty * carry_speed_factor() * (1.0 + stats.get_stat(&"move_speed_bonus"))
 
 	var target_velocity_xz: Vector3 = move_direction * target_speed
 	var current_velocity_xz: Vector3 = Vector3(velocity.x, 0, velocity.z)
@@ -410,8 +460,9 @@ func _physics_process(delta: float) -> void:
 		rate = 20.0
 	var new_velocity_xz: Vector3 = current_velocity_xz.lerp(target_velocity_xz, rate * delta)
 
-	velocity.x = new_velocity_xz.x
-	velocity.z = new_velocity_xz.z
+	velocity.x = new_velocity_xz.x + _knockback.x
+	velocity.z = new_velocity_xz.z + _knockback.z
+	_knockback = _knockback.move_toward(Vector3.ZERO, KNOCKBACK_DECAY * delta)
 
 	move_and_slide()
 
@@ -642,7 +693,8 @@ func _find_harvest_target() -> Node3D:
 	var best_dist: float = HARVEST_RANGE
 	for node in get_tree().get_nodes_in_group("harvestable"):
 		if node is Node3D and node.has_method("is_harvestable") and node.is_harvestable():
-			var d: float = global_position.distance_to((node as Node3D).global_position)
+			# Corpo grande (boss) conta da borda, não do centro
+			var d: float = talk_distance(global_position, node as Node3D)
 			if d < best_dist:
 				best = node
 				best_dist = d
@@ -750,13 +802,44 @@ func _on_camera_mode_changed(first_person: bool) -> void:
 	is_first_person = first_person
 	visual_mesh.visible = !first_person
 
-## Alterna entre sentar e levantar
+## Alterna entre sentar (descansar, GDD-10 §10.2) e levantar
 func toggle_sit(force_state = null) -> void:
-	if force_state != null:
-		is_sitting = force_state
-	else:
-		is_sitting = !is_sitting
-	posture_changed.emit("Sentado / Meditando" if is_sitting else "Em Pé")
+	var want: bool = force_state if force_state != null else not is_sitting
+	if want and not is_sitting and rest:
+		var reason := rest.block_reason()
+		if reason != "":
+			posture_changed.emit("❌ " + reason)
+			return
+	if not want and is_sitting and rest and rest.bed and is_instance_valid(rest.bed):
+		# Levanta da cama para o lado dela
+		global_position = rest.bed.global_position + rest.bed.global_basis.x.normalized() * 1.1 + Vector3.UP * 0.2
+		rest.bed = null
+	is_sitting = want
+	posture_changed.emit("🔥 Descansando" if is_sitting else "Em Pé")
+
+## Deita na própria cama: descansa com a taxa da cama e marca o lugar de renascer
+func lie_in_bed(bed: Node3D) -> bool:
+	if rest == null or is_downed or mounted_on:
+		return false
+	var reason := rest.block_reason()
+	if reason != "":
+		posture_changed.emit("❌ " + reason)
+		return false
+	global_position = bed.global_position + Vector3.UP * 0.55
+	velocity = Vector3.ZERO
+	is_sitting = true
+	rest.bed = bed
+	var first := marked_bed != bed
+	marked_bed = bed
+	posture_changed.emit("🛏️ Cama marcada: você renasce aqui" if first else "🛏️ Deitado na cama")
+	return true
+
+## Onde o Caído volta: a cama marcada, se ainda existe, ou o acampamento
+func respawn_point() -> Vector3:
+	if marked_bed and is_instance_valid(marked_bed) and not marked_bed.is_queued_for_deletion():
+		return marked_bed.global_position + marked_bed.global_basis.x.normalized() * 1.1 + Vector3.UP * 0.4
+	marked_bed = null
+	return spawn_point
 
 func _find_nearest_in_group(group: StringName, max_dist: float) -> Node3D:
 	if get_tree() == null:
@@ -795,6 +878,89 @@ func equip_style(style: WeaponStyle) -> void:
 	style_changed.emit(style)
 	posture_changed.emit("Estilo: %s" % style.display_name)
 
+## Peso do golpe (GDD-12 §10, CombatFeel): congela a animação e o relógio do golpe deste personagem
+func apply_hitstop(duration: float) -> void:
+	if duration <= _hitstop:
+		return
+	if _hitstop <= 0.0 and character_visual and character_visual.anim_player:
+		_hitstop_saved_speed = character_visual.anim_player.speed_scale
+		character_visual.anim_player.speed_scale = 0.0
+	_hitstop = duration
+
+## Empurrão de golpe; Firmeza (super armor) e a pose de carga pesada seguram o corpo
+func apply_knockback(impulse: Vector3) -> void:
+	if is_downed or (armor_abilities and armor_abilities.is_steadfast()):
+		return
+	var resist: float = clampf(stats.get_stat(&"poise_resist"), 0.0, 0.9) if stats else 0.0
+	_knockback += impulse * (1.0 - resist)
+	if _knockback.length() > KNOCKBACK_MAX:
+		_knockback = _knockback.normalized() * KNOCKBACK_MAX
+
+func shake_camera(amount: float) -> void:
+	if camera_rig and camera_rig.has_method("add_trauma"):
+		camera_rig.add_trauma(amount)
+
+## Mochila (GDD-12 §6.4): até o limite anda normal; acima, perde velocidade conforme o excesso
+## (−60% no dobro do limite)
+func carry_speed_factor() -> float:
+	if inventory == null:
+		return 1.0
+	var over: float = inventory.carry_ratio() - 1.0
+	return 1.0 if over <= 0.0 else clampf(1.0 - over * 0.6, 0.4, 1.0)
+
+## Acima de 150% do limite da mochila não corre nem esquiva
+func is_overloaded() -> bool:
+	return inventory != null and inventory.carry_ratio() > OVERLOAD_HARD
+
+## Dá espada e escudo de treino (GDD-12 §7) a quem não tem arma primária nenhuma, e equipa
+func ensure_starter_weapons() -> void:
+	if inventory == null or inventory.items.any(func(it): return it.slot == ForgedItem.Slot.MAIN_HAND):
+		return
+	for id in [&"espada_ferro", &"escudo"]:
+		var it := Forge.make_training(id)
+		inventory.items.append(it)
+		inventory.equip(it)
+	inventory.items_changed.emit()
+
+func _on_equipment_changed(slot_key: StringName, _item_name: StringName) -> void:
+	if slot_key == &"main_hand" or slot_key == &"off_hand":
+		refresh_weapon_style()
+
+## O estilo sai das armas equipadas: espada (com escudo = espada e escudo), mangual, cajado ou
+## punhos. A força da primária (qualidade × núcleo) multiplica o dano; arma quebrada bate pela metade.
+func refresh_weapon_style() -> void:
+	if inventory == null:
+		return
+	var main: ForgedItem = inventory.equipped_in(ForgedItem.Slot.MAIN_HAND)
+	var off: ForgedItem = inventory.equipped_in(ForgedItem.Slot.OFF_HAND)
+	var style: WeaponStyle = STYLE_UNARMED
+	if main:
+		match main.recipe().get("style", &""):
+			&"sword":
+				style = STYLE_SWORD_SHIELD if off and off.recipe().get("shield", false) and not off.is_broken() else STYLE_SWORD
+			&"heavy":
+				style = STYLE_HEAVY
+			&"staff":
+				style = STYLE_STAFF
+	weapon_power = (main.weapon_power() * (0.5 if main.is_broken() else 1.0)) if main else 1.0
+	if style != weapon_style:
+		equip_style(style)
+
+## Golpe com a força da arma e os bônus de dano do momento (Faro); o recurso original não muda
+func _scaled_attack(attack: StyleAttack) -> StyleAttack:
+	var bonus: float = stats.get_stat(&"damage_bonus") if stats else 0.0
+	var mult: float = weapon_power * (1.0 + bonus)
+	if is_equal_approx(mult, 1.0):
+		return attack
+	var a := attack.duplicate() as StyleAttack
+	a.damage *= mult
+	a.poise_damage *= lerpf(1.0, mult, 0.5)
+	return a
+
+## Golpe que não vem da arma (habilidade de armadura: Investida, Pisão). Mesma regra do básico.
+func cast_attack(attack: StyleAttack) -> bool:
+	return try_attack(attack)
+
 ## Começa um básico se o estado permitir e o recurso pagar; retorna se começou.
 func try_attack(attack: StyleAttack) -> bool:
 	if attack == null or attack.kind == StyleAttack.Kind.BLOCK or attack.kind == StyleAttack.Kind.AIM:
@@ -830,6 +996,12 @@ func try_attack(attack: StyleAttack) -> bool:
 	return true
 
 func _process_attack(delta: float) -> void:
+	if _hitstop > 0.0:
+		# Hitstop: o golpe e a animação param juntos por um instante (só neste personagem)
+		_hitstop -= delta
+		if _hitstop <= 0.0 and character_visual and character_visual.anim_player:
+			character_visual.anim_player.speed_scale = _hitstop_saved_speed
+		return
 	if current_attack == null:
 		return
 	_attack_elapsed += delta
@@ -840,7 +1012,8 @@ func _process_attack(delta: float) -> void:
 		_end_attack()
 		posture_changed.emit("Em Pé")
 
-func _release_attack(attack: StyleAttack) -> void:
+func _release_attack(base_attack: StyleAttack) -> void:
+	var attack := _scaled_attack(base_attack)
 	match attack.kind:
 		StyleAttack.Kind.MELEE, StyleAttack.Kind.LUNGE:
 			if attack_hitbox:
@@ -857,7 +1030,9 @@ func _release_attack(attack: StyleAttack) -> void:
 				aim = -camera_rig.global_basis.z
 			ArcaneBolt.spawn(get_parent(), self, spawn_pos, aim, attack)
 		StyleAttack.Kind.AREA:
-			EarthBurst.spawn(get_parent(), self, global_position + _attack_dir * (attack.reach * 0.6), attack)
+			# O Pisão (habilidade de bota) estoura em volta do corpo; magias de área, à frente
+			var ahead: float = 0.0 if attack.display_name == "Pisão" else attack.reach * 0.6
+			EarthBurst.spawn(get_parent(), self, global_position + _attack_dir * ahead, attack)
 
 func _end_attack() -> void:
 	current_attack = null
@@ -874,10 +1049,13 @@ func is_stunned() -> bool:
 
 ## Chamado pelo CombatResolver antes da mitigação: i-frames da esquiva e bloqueio frontal.
 func filter_incoming_hit(hit: HitEvent) -> void:
-	if is_downed or (is_dodging and dodge_timer > DODGE_DURATION - DODGE_IFRAMES):
+	if is_downed or (is_dodging and dodge_timer > DODGE_DURATION - _dodge_iframes):
 		hit.raw_damage = 0.0
 		hit.poise_damage = 0.0
 		return
+	# Véu e Firmeza (habilidades de peito) antes do bloqueio
+	if armor_abilities:
+		armor_abilities.filter_hit(hit)
 	if not is_blocking or not (hit.attacker is Node3D):
 		return
 	var to_attacker: Vector3 = (hit.attacker as Node3D).global_position - global_position
@@ -912,7 +1090,8 @@ func on_hit_feedback(_hit: HitEvent, result: Dictionary) -> void:
 			_set_aiming(false)
 		if is_harvesting:
 			_cancel_harvest("Postura quebrada!")
-	elif current_attack == null and not is_blocking and not is_dodging and character_visual:
+	elif current_attack == null and not is_blocking and not is_dodging and character_visual \
+			and not (armor_abilities and armor_abilities.is_steadfast()):
 		flinch_timer = FLINCH_TIME
 		character_visual.play_timed(&"Hit_Chest", FLINCH_TIME, true)
 
@@ -928,7 +1107,10 @@ func _on_health_depleted() -> void:
 		_set_aiming(false)
 	if is_harvesting:
 		_cancel_harvest("Caído")
-	posture_changed.emit("Caído! Voltando ao acampamento em %.0f s" % DOWNED_DURATION)
+	if rest:
+		rest.on_downed()
+	var where := "à sua cama" if marked_bed and is_instance_valid(marked_bed) else "ao acampamento"
+	posture_changed.emit("Caído! Voltando %s em %.0f s" % [where, DOWNED_DURATION])
 
 func _process_downed(delta: float) -> void:
 	if not is_on_floor():
@@ -936,11 +1118,12 @@ func _process_downed(delta: float) -> void:
 	downed_timer -= delta
 	if downed_timer <= 0.0:
 		is_downed = false
-		global_position = spawn_point
+		var to_bed := marked_bed != null and is_instance_valid(marked_bed)
+		global_position = respawn_point()
 		velocity = Vector3.ZERO
 		if pools:
 			pools.reset_all()
-		posture_changed.emit("De volta ao acampamento")
+		posture_changed.emit("De volta à sua cama" if to_bed else "De volta ao acampamento")
 
 ## Resgata o jogador se cair no vazio (limbo) ou atravessar a malha
 func _recover_from_void() -> void:

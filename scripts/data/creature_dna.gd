@@ -6,7 +6,7 @@ extends Resource
 ## O corpo é montado por CreatureBody a partir deste DNA.
 
 enum Plan { QUADRUPED, BIRD, FISH }
-enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO }
+enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO, RINOLITO, LOBO, TATU }
 
 ## Tabela das espécies do slice: plano de corpo, tamanho máximo (m), cores e proporções
 const SPECIES: Dictionary = {
@@ -48,6 +48,25 @@ const SPECIES: Dictionary = {
 		"color": Color(0.93, 0.66, 0.18), "belly": Color(0.98, 0.9, 0.6),
 		"body": Vector3(0.26, 0.36, 1.0), "tail": 0.32, "wide": false,
 		"fin": Color(0.95, 0.4, 0.12),
+	},
+	# Boss (GDD-12 §9): besta de carapaça com chifre no focinho; o Ancião é o TT velho e enorme
+	Species.RINOLITO: {
+		"name": "Rinolito", "plan": Plan.QUADRUPED, "size": 4.8,
+		"color": Color(0.43, 0.4, 0.36), "belly": Color(0.62, 0.58, 0.52),
+		"leg": 1.15, "neck": 0.3, "body": Vector3(1.75, 1.55, 3.3), "tail": 0.7, "ears": 0.22,
+		"nose_horn": 1.35, "plates": 5,
+	},
+	# Bichos que lutam (GDD-12 §12): lobo esguio de pernas longas; tatu baixo, largo e encouraçado
+	Species.LOBO: {
+		"name": "Lobo-do-Ermo", "plan": Plan.QUADRUPED, "size": 1.5,
+		"color": Color(0.42, 0.4, 0.38), "belly": Color(0.72, 0.68, 0.6),
+		"leg": 0.7, "neck": 0.2, "body": Vector3(0.42, 0.46, 1.25), "tail": 0.75, "ears": 0.3,
+	},
+	Species.TATU: {
+		"name": "Tatu-Espinho", "plan": Plan.QUADRUPED, "size": 1.4,
+		"color": Color(0.55, 0.45, 0.33), "belly": Color(0.78, 0.68, 0.55),
+		"leg": 0.26, "neck": 0.1, "body": Vector3(0.82, 0.42, 1.4), "tail": 0.5, "ears": 0.12,
+		"plates": 6,
 	},
 }
 

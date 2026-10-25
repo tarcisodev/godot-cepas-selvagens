@@ -63,9 +63,11 @@ func test_forge_and_equip(player: Player) -> void:
 	inv.add_item(item)
 	inv.equip(item)
 	var mult: float = ForgedItem.QUALITY_MULT[item.quality]
-	assert(is_equal_approx(stats.get_stat(&"resist_slash") - slash0, 0.08 * mult), "Corte +8% × qualidade")
+	# Revestimento de fibra = família Pano (GDD-12 §2.1): mitigação ×0,6 e Carga ×0,5 do couro
+	assert(item.family == &"pano" and item.display_name.contains("de Pano"), "Fibra no revestimento faz o gibão de pano")
+	assert(is_equal_approx(stats.get_stat(&"resist_slash") - slash0, 0.08 * mult * 0.6), "Corte +8% × qualidade × pano")
 	assert(stats.get_stat(&"dodge_cost") < dodge0, "Esquiva mais barata")
-	assert(is_equal_approx(stats.get_stat(&"load") - load0, 5.0), "Carga 5 (não escala com qualidade)")
+	assert(is_equal_approx(stats.get_stat(&"load") - load0, 2.5), "Carga 5 × 0,5 do pano (não escala com qualidade)")
 	assert(inv.equipped[&"body"] != &"", "Nome no encaixe do peito")
 	# Trocar a peça do mesmo encaixe tira os efeitos da anterior
 	inv.add_material(&"couro_trotador", 3)
@@ -73,7 +75,7 @@ func test_forge_and_equip(player: Player) -> void:
 	var item2 := Forge.forge(inv, &"gibao_andarilho", inv.get_stacks(&"couro_trotador")[0], inv.get_stacks(&"tendao_elastico")[0], {}, 1, false, rng)
 	inv.add_item(item2)
 	inv.equip(item2)
-	assert(is_equal_approx(stats.get_stat(&"load") - load0, 5.0), "Só uma peça por encaixe (Carga não soma)")
+	assert(item2.family == &"couro" and is_equal_approx(stats.get_stat(&"load") - load0, 5.0), "Tendão faz o gibão de couro, e só uma peça por encaixe (Carga não soma)")
 	inv.unequip(ForgedItem.Slot.BODY)
 	assert(is_equal_approx(stats.get_stat(&"resist_slash"), slash0), "Desequipar tira os efeitos")
 	inv.equip(item)
@@ -91,7 +93,7 @@ func test_wear_repair_salvage(player: Player) -> void:
 	assert(is_equal_approx(item.max_durability, 115.0 * 0.9), "Queda tira 10% do máximo")
 	inv.wear_equipped(999.0)
 	assert(item.is_broken() and stats.get_stat(&"resist_slash") < slash_on, "Quebrado não protege")
-	assert(stats.get_stat(&"load") >= 5.0, "Quebrado ainda pesa")
+	assert(stats.get_stat(&"load") >= 2.5, "Quebrado ainda pesa")
 	player.wallet.set_money(10)
 	inv.add_material(&"fibra", 1)
 	var max_before := item.max_durability

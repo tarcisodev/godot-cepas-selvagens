@@ -2,14 +2,14 @@ extends Control
 class_name ActionsMenu
 
 ## Menu de Ações do Personagem (Aba TAB)
-# Permite sentar/descansar, avançar as horas do dia, meditar e alternar visual.
+# Permite descansar (sentar), alternar a câmera, fabricar e abrir a forja e as cartas.
+# Não existe "esperar": o relógio do mundo nunca pula (ADR-0006).
 
 @export var player: Player
 @export var day_night: DirectionalLight3D
 
 @onready var panel: PanelContainer = $PanelContainer
 @onready var sit_button: Button = $PanelContainer/MarginContainer/VBoxContainer/SitButton
-@onready var wait_button: Button = $PanelContainer/MarginContainer/VBoxContainer/WaitButton
 @onready var pov_button: Button = $PanelContainer/MarginContainer/VBoxContainer/PovButton
 @onready var forge_button: Button = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/ForgeButton")
 @onready var forge_status_label: Label = get_node_or_null("PanelContainer/MarginContainer/VBoxContainer/ForgeStatusLabel")
@@ -22,7 +22,6 @@ var _craft_buttons: Dictionary = {}
 func _ready() -> void:
 	visible = false
 	sit_button.pressed.connect(_on_sit_pressed)
-	wait_button.pressed.connect(_on_wait_pressed)
 	pov_button.pressed.connect(_on_pov_pressed)
 	if forge_button:
 		forge_button.pressed.connect(_on_forge_pressed)
@@ -112,7 +111,7 @@ func _update_button_texts() -> void:
 		if player.is_sitting:
 			sit_button.text = "🚶 Levantar e Caminhar"
 		else:
-			sit_button.text = "🧘 Sentar no Chão e Descansar"
+			sit_button.text = "🔥 Descansar (sentar)"
 		
 		if forge_status_label and player.inventory != null:
 			var inv: InventoryComponent = player.inventory
@@ -138,14 +137,6 @@ func _on_sit_pressed() -> void:
 	if player:
 		player.toggle_sit()
 		_update_button_texts()
-	close_menu()
-
-func _on_wait_pressed() -> void:
-	if day_night and day_night.has_method("get_formatted_time"):
-		# Avança 4 horas no ciclo natural
-		var target_hour = fposmod(day_night.current_time_hours + 4.0, 24.0)
-		var tween = create_tween()
-		tween.tween_property(day_night, "current_time_hours", target_hour, 1.2).set_trans(Tween.TRANS_SINE)
 	close_menu()
 
 func _on_pov_pressed() -> void:

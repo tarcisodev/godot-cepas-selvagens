@@ -13,6 +13,7 @@ const SLOT_KEYS: Array[String] = ["core", "coat", "temper"]
 const STAT_NAMES: Dictionary = {
 	&"resist_slash": "Corte", &"resist_impact": "Impacto", &"poise_resist": "Postura",
 	&"dodge_cost": "Custo da esquiva", &"ether_regen": "Regen. de Éter", &"vigor_regen": "Regen. de Vigor", &"load": "Carga",
+	&"resist_pierce": "Perfuração", &"carry_capacity": "Mochila (kg)",
 }
 
 var player: Player
@@ -81,10 +82,29 @@ func refresh() -> void:
 	for box in [_recipes_box, _slots_box, _preview, _items_box]:
 		for c in box.get_children():
 			c.queue_free()
+	# Fundição (GDD-12 §8) no topo da lista
+	for out_id in Forge.SMELT:
+		var rec: Dictionary = Forge.SMELT[out_id]
+		var sb := _button("🔥  Fundir %s\n%d %s + %d %s" % [MaterialData.of(out_id).display_name, rec.ore_n, MaterialData.of(rec.ore).display_name, rec.fuel_n, MaterialData.of(rec.fuel).display_name], false)
+		sb.custom_minimum_size = Vector2(250, 44)
+		sb.pressed.connect(func():
+			var err := Forge.smelt(player.inventory, out_id)
+			if err.is_empty():
+				player.mastery.add_xp(&"forja", 6.0)
+				_status.text = "🔥 Fundiu 1 %s" % MaterialData.of(out_id).display_name
+			else:
+				_status.text = "❌ " + err
+			refresh())
+		_recipes_box.add_child(sb)
+	var last_slot := -1
 	for id in Forge.RECIPES:
 		var r: Dictionary = Forge.RECIPES[id]
-		var b := _button("%s  %s\n%s · %s" % [r.icon, r.name, ForgedItem.SLOT_NAMES[r.slot], r["class"]], id == _recipe)
-		b.custom_minimum_size = Vector2(250, 52)
+		if r.slot != last_slot:
+			last_slot = r.slot
+			_recipes_box.add_child(_label(ForgedItem.SLOT_NAMES[r.slot], 12, TEXT_DIM))
+		var kind: String = ForgedItem.FAMILY[r.family].name if r.has("family") else ("duas mãos" if r.get("two_hand", false) else "uma mão")
+		var b := _button("%s  %s · %s" % [r.icon, r.name, kind], id == _recipe)
+		b.custom_minimum_size = Vector2(250, 30)
 		b.pressed.connect(func(): _recipe = id; _pick = [0, 0, -1]; refresh())
 		_recipes_box.add_child(b)
 	for i in 3:
@@ -98,7 +118,16 @@ func _slot_row(i: int) -> Control:
 	var col := VBoxContainer.new()
 	var need: Array[String] = []
 	for o in r[key]:
-		need.append("%d %s" % [o.n, MaterialData.of(o.id).display_name] + (" → %s" % Forge.TRAIT_NAMES.get(o.trait, "") if o.has("trait") else ""))
+		var note := ""
+		if o.has("trait"):
+			note = " → %s" % Forge.TRAIT_NAMES.get(o.trait, "")
+		elif o.has("family"):
+			note = " (%s)" % ForgedItem.FAMILY[o.family].name
+		elif o.has("power") and o.power < 1.0:
+			note = " (−%d%% dano)" % roundi((1.0 - o.power) * 100.0)
+		need.append("%d %s" % [o.n, MaterialData.of(o.id).display_name] + note)
+	if r[key].is_empty():
+		need.append("—")
 	col.add_child(_label("%s%s: %s" % [SLOT_TITLES[i], " (opcional)" if i == 2 else "", " ou ".join(need)], 12, TEXT_DIM))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -147,9 +176,14 @@ func _build_preview() -> void:
 	_preview.add_child(_label("Chance de crítico (+1★): %d%%%s" % [roundi(p.crit * 100.0), " · Forja Pública +10%" if public_forge else ""], 12, TEXT_DIM))
 	var fake := ForgedItem.new()
 	fake.recipe_id = _recipe
+	fake.slot = Forge.RECIPES[_recipe].slot
+	fake.family = p.family
+	var core: Dictionary = _chosen(0)
+	if not core.is_empty():
+		fake.materials[core.id] = 1
 	fake.quality = p.quality
 	fake.traits.assign(p.traits)
-	_preview.add_child(_label(_effects_text(fake), 13, TEXT))
+	_preview.add_child(_label(_effects_text(fake), 13, TEXT, 480.0))
 	var forge_btn := _button("🔨  Forjar", true)
 	forge_btn.pressed.connect(_do_forge)
 	_preview.add_child(forge_btn)
@@ -212,10 +246,23 @@ func _build_items() -> void:
 
 func _effects_text(item: ForgedItem) -> String:
 	var parts: Array[String] = []
+	if item.family != &"":
+		parts.append("Família %s" % item.family_name())
+	if item.slot == ForgedItem.Slot.MAIN_HAND:
+		parts.append("Dano ×%.2f%s" % [item.weapon_power(), " · duas mãos" if item.is_two_handed() else ""])
+	var ab := item.ability_id()
+	if ab != &"":
+		var info := ArmorAbilities.info(ab)
+		parts.append("[%s] %s %s: %s" % [ArmorAbilities.KEY_NAMES[item.slot], info.icon, info.name, info.desc])
+	var passive: StringName = item.recipe().get("passive", &"")
+	if passive != &"":
+		parts.append("Passiva: %s" % Forge.PASSIVE_NAMES.get(passive, String(passive)))
 	var fx := item.effects()
 	for stat in fx:
 		var v: float = fx[stat]
 		var stat_label: String = STAT_NAMES.get(stat, String(stat))
+		if is_zero_approx(v):
+			continue
 		if String(stat).begins_with("resist_") or stat == &"poise_resist":
 			parts.append("%s %+d%%" % [stat_label, roundi(v * 100.0)])
 		else:
@@ -254,9 +301,13 @@ func _build_ui() -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 16)
 	root_box.add_child(body)
+	var recipes_scroll := ScrollContainer.new()
+	recipes_scroll.custom_minimum_size = Vector2(270, 0)
+	recipes_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	body.add_child(recipes_scroll)
 	_recipes_box = VBoxContainer.new()
-	_recipes_box.add_theme_constant_override("separation", 8)
-	body.add_child(_recipes_box)
+	_recipes_box.add_theme_constant_override("separation", 4)
+	recipes_scroll.add_child(_recipes_box)
 	var mid := VBoxContainer.new()
 	mid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mid.add_theme_constant_override("separation", 12)

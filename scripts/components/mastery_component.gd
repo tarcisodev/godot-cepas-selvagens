@@ -7,7 +7,7 @@ extends Node
 signal xp_gained(tag: StringName, amount: float, current_level: int, current_xp: float, needed_xp: float)
 signal level_up(tag: StringName, new_level: int)
 
-@export var initial_tags: Array[StringName] = [&"lâmina", &"canalização", &"armadura_media", &"forja", &"esfola", &"coleta", &"mineracao"]
+@export var initial_tags: Array[StringName] = [&"lâmina", &"canalização", &"armadura_leve", &"armadura_media", &"armadura_pesada", &"forja", &"esfola", &"coleta", &"mineracao"]
 
 # Estrutura: tag -> { "level": int, "xp": float }
 var _masteries: Dictionary = {}
@@ -87,4 +87,11 @@ func _on_hit_resolved(hit_event: HitEvent, effective_damage: float, is_part_brok
 	elif hit_event.target == parent:
 		var mitigated: float = hit_event.raw_damage - effective_damage
 		if mitigated > 0.0:
-			add_xp(&"armadura_media", mitigated * 0.6)
+			# Cada peça de armadura leva a parte dela para a maestria da sua família (GDD-12 §2);
+			# sem armadura nenhuma, o XP vai para a média, como antes
+			var inv: InventoryComponent = parent.get_node_or_null("InventoryComponent") as InventoryComponent
+			var families: Array[StringName] = inv.armor_families() if inv else []
+			if families.is_empty():
+				add_xp(&"armadura_media", mitigated * 0.6)
+			for f in families:
+				add_xp(ForgedItem.FAMILY[f].mastery, mitigated * 0.6 / families.size())
