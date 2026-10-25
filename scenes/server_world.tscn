@@ -11,6 +11,7 @@
 transform = Transform3D(0.819152, -0.40558, 0.40558, 0, 0.707107, 0.707107, -0.573576, -0.579228, 0.579228, 0, 10, 0)
 script = ExtResource("1_sun")
 day_length_seconds = 1200.0
+use_timer_update = true
 
 [node name="Landscape" type="MeshInstance3D" parent="."]
 script = ExtResource("2_terrain")

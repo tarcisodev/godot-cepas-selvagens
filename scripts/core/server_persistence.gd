@@ -15,6 +15,7 @@ signal player_saved(player_name: String)
 signal player_loaded(player_name: String)
 
 var _autosave_timer: float = AUTOSAVE_INTERVAL
+var _autosave_timer_node: Timer
 var _net: Node
 
 func _ready() -> void:
@@ -24,6 +25,15 @@ func _ready() -> void:
 	if _net != null:
 		if _net.has_signal("peer_left"):
 			_net.connect("peer_left", Callable(self, "_on_peer_left"))
+
+	# Desativa _process contínuo e usa Timer a cada 60s
+	set_process(false)
+	_autosave_timer_node = Timer.new()
+	_autosave_timer_node.name = "AutosaveTimer"
+	_autosave_timer_node.wait_time = AUTOSAVE_INTERVAL
+	_autosave_timer_node.autostart = true
+	_autosave_timer_node.timeout.connect(autosave_all_active_players)
+	add_child(_autosave_timer_node)
 
 func _ensure_directories() -> void:
 	var global_base := ProjectSettings.globalize_path(BASE_SAVE_DIR)
@@ -35,11 +45,8 @@ func _ensure_directories() -> void:
 	DirAccess.make_dir_recursive_absolute(global_accounts)
 	DirAccess.make_dir_recursive_absolute(global_world)
 
-func _process(delta: float) -> void:
-	_autosave_timer -= delta
-	if _autosave_timer <= 0.0:
-		_autosave_timer = AUTOSAVE_INTERVAL
-		autosave_all_active_players()
+func _process(_delta: float) -> void:
+	autosave_all_active_players()
 
 ## Salva os dados de um jogador pelo nome
 func save_player_data(player_name: String, data: Dictionary) -> bool:

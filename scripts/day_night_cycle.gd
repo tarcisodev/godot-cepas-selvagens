@@ -9,6 +9,10 @@ class_name DayNightCycle
 @export var start_time_hour: float = 8.0     # Começar às 08:00 (manhã agradável)
 @export var is_paused: bool = false
 
+## Modo otimizado para servidores dedicados: usa Timer ao invés de rodar _process a cada frame
+@export var use_timer_update: bool = false
+@export var timer_tick_interval: float = 0.5
+
 # Cores e intensidades nos diferentes momentos
 @export var dawn_color: Color = Color(1.0, 0.72, 0.45)    # Dourado suave da alvorada
 @export var noon_color: Color = Color(1.0, 0.96, 0.90)    # Luz clara do dia
@@ -48,16 +52,31 @@ func _exit_tree() -> void:
 func _ready() -> void:
 	current_time_hours = start_time_hour
 	_update_sun_position_and_lighting()
+	if use_timer_update:
+		set_process(false)
+		var timer := Timer.new()
+		timer.name = "SunUpdateTimer"
+		timer.wait_time = timer_tick_interval
+		timer.autostart = true
+		timer.timeout.connect(func():
+			if not is_paused:
+				advance_time(timer_tick_interval)
+		)
+		add_child(timer)
+
+## Avança o relógio do mundo e atualiza iluminação
+func advance_time(delta: float) -> void:
+	var hours_per_second: float = 24.0 / max(1.0, day_length_seconds)
+	var next_hours: float = current_time_hours + hours_per_second * delta
+	if next_hours >= 24.0:
+		day_count += 1
+	current_time_hours = fposmod(next_hours, 24.0)
+	if not is_inside_tree() or DisplayServer.get_name() != "headless":
+		_update_sun_position_and_lighting()
 
 func _process(delta: float) -> void:
 	if not is_paused:
-		# Avança o tempo
-		var hours_per_second: float = 24.0 / max(1.0, day_length_seconds)
-		var next_hours: float = current_time_hours + hours_per_second * delta
-		if next_hours >= 24.0:
-			day_count += 1
-		current_time_hours = fposmod(next_hours, 24.0)
-		_update_sun_position_and_lighting()
+		advance_time(delta)
 
 func _update_sun_position_and_lighting() -> void:
 	# 06:00 = 0º (nascer), 12:00 = 90º (zênite), 18:00 = 180º (pôr), 00:00 = 270º (meia-noite)

@@ -31,7 +31,7 @@ var active_chunks: Dictionary = {}
 var _grass_meshes: Array[Mesh] = []
 var _flower_meshes: Array[Mesh] = []
 var _material: StandardMaterial3D
-var _check_timer: float = 0.0
+var _chunk_timer: Timer
 
 func _ready() -> void:
 	if not enabled:
@@ -40,6 +40,20 @@ func _ready() -> void:
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape") as LandscapeGenerator
 	_init_materials_and_meshes()
+
+	# Desativa _process contínuo e usa Timer a ~3 Hz para poupar CPU
+	set_process(false)
+	_chunk_timer = Timer.new()
+	_chunk_timer.name = "ChunkUpdateTimer"
+	_chunk_timer.wait_time = 0.35
+	_chunk_timer.autostart = true
+	_chunk_timer.timeout.connect(_on_chunk_timer_timeout)
+	add_child(_chunk_timer)
+
+func _on_chunk_timer_timeout() -> void:
+	if not enabled or landscape == null:
+		return
+	update_chunks_around_players()
 
 func _init_materials_and_meshes() -> void:
 	_material = StandardMaterial3D.new()
@@ -57,13 +71,9 @@ func _init_materials_and_meshes() -> void:
 		if m:
 			_flower_meshes.append(m)
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not enabled or landscape == null:
 		return
-	_check_timer -= delta
-	if _check_timer > 0.0:
-		return
-	_check_timer = 0.35 # Atualiza chunks a ~3 Hz
 	update_chunks_around_players()
 
 func get_tracked_positions() -> Array[Vector3]:

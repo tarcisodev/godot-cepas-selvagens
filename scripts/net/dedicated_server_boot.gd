@@ -102,11 +102,12 @@ static func parse_use_websocket(args: PackedStringArray) -> bool:
 
 ## Inicializa o NetworkManager no modo servidor, limita FPS e taxa de física da Engine e troca de cena
 func boot_server(port: int, use_ws: bool = false, max_fps: int = DEFAULT_SERVER_FPS, physics_ticks: int = DEFAULT_PHYSICS_TICKS) -> void:
+	OS.low_processor_usage_mode = true
 	Engine.max_fps = max_fps
 	Engine.physics_ticks_per_second = physics_ticks
 	print("========================================================")
 	print("🚀 [DedicatedServerBoot] MODO SERVIDOR DEDICADO ATIVO")
-	print("   Porta: %d | Protocolo: %s | Max FPS: %d | Physics: %d Hz" % [
+	print("   Porta: %d | Protocolo: %s | Max FPS: %d | Physics: %d Hz | Low CPU: Ativo" % [
 		port,
 		"WebSocket" if use_ws else "ENet (UDP)",
 		max_fps,
@@ -116,11 +117,11 @@ func boot_server(port: int, use_ws: bool = false, max_fps: int = DEFAULT_SERVER_
 
 	var net: Node = get_node_or_null("/root/NetworkManager")
 	if net != null:
-		var err: int = net.start_server(port, 16, use_ws)
+		var err: int = net.start_server(port, 32, use_ws)
 		if err != OK:
 			push_error("[DedicatedServerBoot] Falha ao iniciar servidor na porta %d (erro: %d)" % [port, err])
 			return
-		print("[DedicatedServerBoot] Servidor iniciado com sucesso via NetworkManager.")
+		print("[DedicatedServerBoot] Servidor iniciado com sucesso via NetworkManager (limite 32 jogadores).")
 
 	call_deferred("_change_to_server_scene")
 
