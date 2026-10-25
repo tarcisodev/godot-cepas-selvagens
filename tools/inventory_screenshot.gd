@@ -47,6 +47,22 @@ func _initialize() -> void:
 	inv.add_material(&"tendao_elastico", 1, 4)
 	inv.add_material(&"placa_carapaca", 1, 5, [&"cicatrizado"])
 
+	# Peças forjadas equipadas (GDD-12), para a coluna de equipamento com o boneco
+	var rng := RandomNumberGenerator.new()
+	for spec in [[&"cota_ferro", &"barra_ferro", 3, &"placa_carapaca", 2], [&"elmo_chifre_de_pedra", &"chifre_rinolito", 1, &"barra_ferro", 2],
+			[&"botas_saltarelo", &"pele_saltarelo", 2, &"couro_trotador", 1], [&"capa_penas", &"pena_penacho", 4, &"fibra", 2],
+			[&"mochila", &"couro_trotador", 2, &"tendao_elastico", 1], [&"espada_ferro", &"barra_ferro", 2, &"couro_trotador", 1],
+			[&"escudo", &"barra_ferro", 2, &"placa_carapaca", 1], [&"gibao_andarilho", &"couro_trotador", 3, &"fibra", 4]]:
+		inv.add_material(spec[1], spec[2], 3)
+		inv.add_material(spec[3], spec[4], 3)
+		var core: Dictionary = inv.get_stacks(spec[1]).filter(func(st): return st.amount >= spec[2])[0]
+		var coat: Dictionary = inv.get_stacks(spec[3]).filter(func(st): return st.amount >= spec[4])[0]
+		var item := Forge.forge(inv, spec[0], core, coat, {}, 1, false, rng)
+		if item:
+			inv.add_item(item)
+			if spec[0] != &"gibao_andarilho":
+				inv.equip(item)
+
 	_screen = InventoryScreen.new()
 	_screen.player = player
 	layer.add_child(_screen)

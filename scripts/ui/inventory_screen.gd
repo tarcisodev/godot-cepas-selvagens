@@ -1,7 +1,8 @@
 class_name InventoryScreen
 extends Control
 
-## Tela de inventário ([I]): grade de pilhas de material (ADR-0005) com organizador automático
+## Tela de inventário ([I]): à esquerda o equipamento (boneco 3D e os 7 encaixes, GDD-12); à direita
+## a grade de pilhas de material (ADR-0005) com organizador automático
 ## (raridade, quantidade, peso, cor, nome), filtro por grupo e borda por raridade ou grupo.
 ## Monta a interface por código; lê o InventoryComponent do player e redesenha quando ele muda.
 
@@ -10,7 +11,7 @@ enum BorderMode { RARIDADE, GRUPO }
 
 const SORT_LABELS: Array[String] = ["★ Raridade", "# Quantidade", "⚖ Peso", "🎨 Cor", "Aa Nome"]
 const BORDER_LABELS: Array[String] = ["Raridade", "Grupo"]
-const COLUMNS: int = 6
+const COLUMNS: int = 5
 const SLOT_SIZE: Vector2 = Vector2(108, 118)
 const PANEL_BG := Color(0.07, 0.075, 0.09, 0.96)
 const TEXT := Color(0.9, 0.9, 0.94)
@@ -35,6 +36,7 @@ var _group_bar: HBoxContainer
 var _dir_button: Button
 var _detail: VBoxContainer
 var _selected_key: String = ""
+var _equipment: EquipmentPanel
 
 func _ready() -> void:
 	visible = false
@@ -59,6 +61,8 @@ func toggle() -> void:
 
 func open() -> void:
 	_bind_inventory()
+	if _equipment and player:
+		_equipment.bind(player)
 	visible = true
 	add_to_group("open_menus")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
@@ -132,7 +136,10 @@ func refresh() -> void:
 		_grid.add_child(_make_slot(s))
 	_empty_hint.visible = shown.is_empty()
 	_empty_hint.text = "Nada aqui ainda.\nColete recursos com [E] pelo vale." if all.is_empty() else "Nenhum item neste grupo."
-	_weight_label.text = "⚖ %.1f kg" % (_inventory.get_total_weight() if _inventory else 0.0)
+	# Peso contra o limite da mochila (GDD-12 §6.4)
+	_weight_label.text = "⚖ %.1f / %.0f kg" % [_inventory.get_total_weight(), _inventory.carry_capacity()] if _inventory else "⚖ 0 kg"
+	if _equipment and visible:
+		_equipment.refresh()
 	_count_label.text = "%d pilhas" % all.size()
 	_refresh_bars(all)
 	var still_there := shown.filter(func(s): return stack_key(s) == _selected_key)
@@ -152,7 +159,7 @@ func _build_ui() -> void:
 	add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(1060, 640)
+	panel.custom_minimum_size = Vector2(1540, 680)
 	panel.add_theme_stylebox_override("panel", _box(PANEL_BG, Color(1, 1, 1, 0.08), 14, 1))
 	center.add_child(panel)
 
@@ -172,6 +179,10 @@ func _build_ui() -> void:
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_theme_constant_override("separation", 16)
 	root_box.add_child(body)
+
+	_equipment = EquipmentPanel.new()
+	body.add_child(_equipment)
+	body.add_child(VSeparator.new())
 
 	var grid_frame := PanelContainer.new()
 	grid_frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -99,8 +99,22 @@ func test_weapons_and_two_hands() -> void:
 	p.inventory.equip(p.inventory.items.filter(func(it): return it.recipe_id == &"escudo")[0])
 	assert(p.inventory.equipped_in(ForgedItem.Slot.MAIN_HAND) == null and p.weapon_style == UNARMED, "Escudo tira a arma de duas mãos: punhos")
 	assert(Forge.salvage(p.inventory.items[0], p.inventory).is_empty(), "Peça de treino não devolve material")
+	# Tocha ocupa a mão secundária: com espada e escudo, acesa tira o bloqueio; apagada, devolve
+	p.inventory.equip(p.inventory.items.filter(func(it): return it.recipe_id == &"espada_ferro")[0])
+	p.inventory.equip(p.inventory.items.filter(func(it): return it.recipe_id == &"escudo")[0])
+	assert(p.weapon_style == SWORD_SHIELD, "Espada e escudo de novo")
+	p.inventory.add_material(&"tocha", 2)
+	assert(p.torch.toggle() and p.weapon_style == SWORD, "Tocha acesa: sem escudo, espada sozinha")
+	p.torch.toggle()
+	assert(p.weapon_style == SWORD_SHIELD, "Tocha apagada: o escudo volta")
+	p.inventory.equip(mangual)
+	assert(not p.torch.toggle() and not p.torch.is_lit, "Com arma de duas mãos não acende")
+	p.inventory.equip(p.inventory.items.filter(func(it): return it.recipe_id == &"espada_ferro")[0])
+	p.torch.toggle()
+	p.inventory.equip(mangual)
+	assert(not p.torch.is_lit and p.weapon_style == HAMMER, "Pegar arma de duas mãos apaga a tocha")
 	p.free()
-	print("  ✓ Kit de treino, espada/escudo, duas mãos, força da arma e punhos")
+	print("  ✓ Kit de treino, espada/escudo, duas mãos, força da arma, punhos e tocha na mão secundária")
 
 func test_armor_abilities() -> void:
 	print("\n[3/8] Habilidades de armadura [4] [5] [R]...")

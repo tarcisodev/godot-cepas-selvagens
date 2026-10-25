@@ -144,6 +144,15 @@ static func tatu_espinho() -> Dictionary:
 		],
 	}
 
+## Além disso do jogador, parado, o bicho dorme (pensa a cada FAR_TICK s)
+const FAR_RANGE: float = 60.0
+const FAR_TICK: float = 0.25
+var _far_tick: float = 0.0
+
+func _far_from_player() -> bool:
+	var p := get_tree().get_first_node_in_group("player") as Node3D if is_inside_tree() else null
+	return p == null or _flat(p.global_position - global_position).length() > FAR_RANGE
+
 ## Lugar no bando (0, 1, 2...): cada lobo cerca por um lado
 var pack_slot: int = 0
 ## Bando (toca): quando um apanha, os outros da mesma toca acordam
@@ -298,6 +307,23 @@ func _physics_process(delta: float) -> void:
 	if _hitstop > 0.0:
 		_hitstop -= delta
 		return
+	# Longe e quieto: pensa 4 vezes por segundo e não mexe o corpo (18 bichos custavam ~6 ms
+	# de física por quadro rodando inteiros no mapa todo)
+	if state in [State.IDLE, State.DEAD] and _far_from_player():
+		_far_tick += delta
+		if _far_tick < FAR_TICK:
+			return
+		delta = _far_tick
+		_far_tick = 0.0
+		if state == State.DEAD:
+			_process_dead(delta)
+			return
+		_state_time += delta
+		var p := _target()
+		if p and _flat(p.global_position - home).length() < _arena_radius() and _flat(p.global_position - global_position).length() < float(config.get("aggro_range", 12.0)) 				and not (config.get("nocturnal", false) and not is_night()):
+			_set_state(State.CHASE)
+		return
+	_far_tick = 0.0
 	_state_time += delta
 	for id in _cooldowns.keys():
 		_cooldowns[id] -= delta

@@ -929,10 +929,19 @@ func _on_equipment_changed(slot_key: StringName, _item_name: StringName) -> void
 ## O estilo sai das armas equipadas: espada (com escudo = espada e escudo), mangual, cajado ou
 ## punhos. A força da primária (qualidade × núcleo) multiplica o dano; arma quebrada bate pela metade.
 func refresh_weapon_style() -> void:
-	if inventory == null:
+	# Sem nenhuma arma forjada (bonecos de teste, cena aberta direto) fica o estilo padrão
+	if inventory == null or not inventory.items.any(func(it): return it.is_weapon()):
 		return
 	var main: ForgedItem = inventory.equipped_in(ForgedItem.Slot.MAIN_HAND)
 	var off: ForgedItem = inventory.equipped_in(ForgedItem.Slot.OFF_HAND)
+	# Tocha acesa ocupa a mão secundária (GDD-12 §3); arma de duas mãos apaga a tocha
+	var torch_lit: bool = torch != null and torch.is_lit
+	if torch_lit and main and main.is_two_handed():
+		torch.set_lit(false)
+		posture_changed.emit("🔥 %s nas duas mãos: a tocha foi apagada" % main.display_name)
+		return # set_lit já chamou de novo, com a mão livre
+	if torch_lit:
+		off = null
 	var style: WeaponStyle = STYLE_UNARMED
 	if main:
 		match main.recipe().get("style", &""):

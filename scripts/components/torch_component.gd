@@ -6,6 +6,8 @@ extends Node
 ## hora e acende. Cada tocha queima BURN_TIME segundos acesa (apagar guarda o que sobrou); quando
 ## acaba, a próxima da mochila pega sozinha. Água apaga. Fumaça acalma as abelhas do mel.
 ## Nada desacelera o tempo: acender é instantâneo, mas a luz só vale enquanto houver tocha.
+## A tocha acesa ocupa a mão secundária (GDD-12 §3): o escudo não vale enquanto ela queima, e
+## com arma de duas mãos não sobra mão para ela.
 
 signal lit_changed(lit: bool)
 
@@ -61,6 +63,10 @@ func toggle() -> bool:
 	if player.is_swimming:
 		_say("💧 Não dá para acender dentro d'água")
 		return false
+	var main: ForgedItem = player.inventory.equipped_in(ForgedItem.Slot.MAIN_HAND)
+	if main and main.is_two_handed():
+		_say("🔥 Com %s nas duas mãos não sobra mão para a tocha" % main.display_name)
+		return false
 	var inv := player.inventory
 	if inv.get_material_count(ITEM) <= 0:
 		if not inv.craft(ITEM):
@@ -82,6 +88,9 @@ func set_lit(on: bool) -> void:
 		_ensure_visual()
 	_apply_visibility()
 	lit_changed.emit(on)
+	# A mão secundária mudou: o escudo volta ou sai do estilo
+	if player and player.has_method("refresh_weapon_style"):
+		player.refresh_weapon_style()
 
 func _process(delta: float) -> void:
 	if player == null:
