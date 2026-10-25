@@ -43,7 +43,7 @@ func _init_noise() -> void:
 func get_height_at(x: float, z: float) -> float:
 	_init_noise()
 	var half_size: Vector2 = terrain_size * 0.5
-	if abs(x) > half_size.x or abs(z) > half_size.y:
+	if not WorldBounds.open_world_enabled and (abs(x) > half_size.x or abs(z) > half_size.y):
 		return 0.0
 
 	# 1. Base procedural suave
@@ -179,6 +179,9 @@ func generate_landscape() -> void:
 	_rebuild_collision()
 	_build_river_and_waterfall()
 
+func get_vertex_color_at(pos: Vector3) -> Color:
+	return _vertex_color(pos)
+
 func _vertex_color(pos: Vector3) -> Color:
 	var col: Color = grass_color
 	var dist_river: float = RiverClass.get_distance_to_river(pos.x, pos.z)
@@ -222,19 +225,20 @@ func _rebuild_collision() -> void:
 	col_shape.scale = Vector3(terrain_size.x / float(subdivisions.x), 1.0, terrain_size.y / float(subdivisions.y))
 	static_body.add_child(col_shape)
 
-	# 1. Paredes invisíveis nos 4 limites do mapa para evitar queda no abismo/limbo
-	var half_x: float = terrain_size.x * 0.5
-	var half_z: float = terrain_size.y * 0.5
-	var wall_height: float = 60.0
-	var wall_thickness: float = 6.0
-	var wall_y: float = 15.0
+	# 1. Paredes invisíveis nos 4 limites do mapa para evitar queda no abismo/limbo (modo vale fechado)
+	if not WorldBounds.open_world_enabled:
+		var half_x: float = terrain_size.x * 0.5
+		var half_z: float = terrain_size.y * 0.5
+		var wall_height: float = 60.0
+		var wall_thickness: float = 6.0
+		var wall_y: float = 15.0
 
-	# Norte (Z-) e Sul (Z+)
-	_add_wall_shape(static_body, Vector3(0.0, wall_y, -half_z - wall_thickness * 0.5), Vector3(terrain_size.x + wall_thickness * 2.0, wall_height, wall_thickness))
-	_add_wall_shape(static_body, Vector3(0.0, wall_y, half_z + wall_thickness * 0.5), Vector3(terrain_size.x + wall_thickness * 2.0, wall_height, wall_thickness))
-	# Oeste (X-) e Leste (X+)
-	_add_wall_shape(static_body, Vector3(-half_x - wall_thickness * 0.5, wall_y, 0.0), Vector3(wall_thickness, wall_height, terrain_size.y + wall_thickness * 2.0))
-	_add_wall_shape(static_body, Vector3(half_x + wall_thickness * 0.5, wall_y, 0.0), Vector3(wall_thickness, wall_height, terrain_size.y + wall_thickness * 2.0))
+		# Norte (Z-) e Sul (Z+)
+		_add_wall_shape(static_body, Vector3(0.0, wall_y, -half_z - wall_thickness * 0.5), Vector3(terrain_size.x + wall_thickness * 2.0, wall_height, wall_thickness))
+		_add_wall_shape(static_body, Vector3(0.0, wall_y, half_z + wall_thickness * 0.5), Vector3(terrain_size.x + wall_thickness * 2.0, wall_height, wall_thickness))
+		# Oeste (X-) e Leste (X+)
+		_add_wall_shape(static_body, Vector3(-half_x - wall_thickness * 0.5, wall_y, 0.0), Vector3(wall_thickness, wall_height, terrain_size.y + wall_thickness * 2.0))
+		_add_wall_shape(static_body, Vector3(half_x + wall_thickness * 0.5, wall_y, 0.0), Vector3(wall_thickness, wall_height, terrain_size.y + wall_thickness * 2.0))
 
 	# 2. Piso de segurança inferior (rede que intercepta qualquer um que atravesse a malha)
 	_add_wall_shape(static_body, Vector3(0.0, -10.0, 0.0), Vector3(terrain_size.x * 1.5, 2.0, terrain_size.y * 1.5))
