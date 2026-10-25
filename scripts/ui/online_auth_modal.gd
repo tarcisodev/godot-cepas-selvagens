@@ -1,10 +1,12 @@
 class_name OnlineAuthModal
 extends Control
 
-## Modal de Autenticação Online, Servidor por URL (Cloudflare/WS) e Seleção de Personagem (B24).
+## Modal de Autenticação Online, Hospedagem no PC e Seleção de Personagem (B24).
 
 const WORLD_SCENE: String = "res://scenes/world.tscn"
 const CHARACTER_CREATION_SCENE: String = "res://scenes/character_creation.tscn"
+
+@export var is_host_mode: bool = false
 
 var _panel: PanelContainer
 var _title_lbl: Label
@@ -12,6 +14,7 @@ var _status_lbl: Label
 
 # Campos de Auth
 var _url_input: LineEdit
+var _ws_check: CheckButton
 var _user_input: LineEdit
 var _pass_input: LineEdit
 var _mode_btn: CheckButton
@@ -44,9 +47,8 @@ func _net() -> Node:
 	return get_node_or_null("/root/NetworkManager")
 
 func _build_ui() -> void:
-	# Fundo escuro com blur / transparência
 	var overlay := ColorRect.new()
-	overlay.color = Color(0.04, 0.06, 0.05, 0.88)
+	overlay.color = Color(0.04, 0.06, 0.05, 0.90)
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
 
@@ -55,7 +57,7 @@ func _build_ui() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
-	_panel.custom_minimum_size = Vector2(460, 360)
+	_panel.custom_minimum_size = Vector2(480, 400)
 	center.add_child(_panel)
 
 	var margin := MarginContainer.new()
@@ -66,18 +68,18 @@ func _build_ui() -> void:
 	_panel.add_child(margin)
 
 	var main_vbox := VBoxContainer.new()
-	main_vbox.add_theme_constant_override("separation", 14)
+	main_vbox.add_theme_constant_override("separation", 12)
 	margin.add_child(main_vbox)
 
 	_title_lbl = Label.new()
-	_title_lbl.text = "🌐  Cepas Selvagens Online (Beta)"
+	_title_lbl.text = "🖥️  Hospedar Servidor no PC" if is_host_mode else "🌐  Conectar a Servidor Online"
 	_title_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_title_lbl.add_theme_font_size_override("font_size", 22)
 	_title_lbl.add_theme_color_override("font_color", Color(0.96, 0.9, 0.7))
 	main_vbox.add_child(_title_lbl)
 
 	_status_lbl = Label.new()
-	_status_lbl.text = "Digite o endereço do servidor para entrar."
+	_status_lbl.text = "Inicie o servidor e entre com sua conta." if is_host_mode else "Digite o endereço do servidor para entrar."
 	_status_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_lbl.add_theme_font_size_override("font_size", 13)
 	_status_lbl.add_theme_color_override("font_color", Color(0.75, 0.85, 0.75))
@@ -89,18 +91,24 @@ func _build_ui() -> void:
 	_auth_box.add_theme_constant_override("separation", 10)
 	main_vbox.add_child(_auth_box)
 
-	var url_lbl := Label.new()
-	url_lbl.text = "Endereço do Servidor (URL Cloudflare / IP):"
-	url_lbl.add_theme_font_size_override("font_size", 13)
-	_auth_box.add_child(url_lbl)
+	var net_lbl := Label.new()
+	net_lbl.text = "Porta do Servidor Local:" if is_host_mode else "Endereço do Servidor (URL Cloudflare / IP:Porta):"
+	net_lbl.add_theme_font_size_override("font_size", 13)
+	_auth_box.add_child(net_lbl)
 
 	_url_input = LineEdit.new()
-	_url_input.text = "ws://127.0.0.1:8787"
-	_url_input.placeholder_text = "wss://jogar.seusite.com ou 127.0.0.1:8787"
+	_url_input.text = "8787" if is_host_mode else "ws://127.0.0.1:8787"
+	_url_input.placeholder_text = "8787" if is_host_mode else "wss://jogar.seusite.com ou 127.0.0.1:8787"
 	_auth_box.add_child(_url_input)
 
+	if is_host_mode:
+		_ws_check = CheckButton.new()
+		_ws_check.text = "Modo WebSocket (para Cloudflare Tunnel)"
+		_ws_check.button_pressed = true
+		_auth_box.add_child(_ws_check)
+
 	var user_lbl := Label.new()
-	user_lbl.text = "Usuário:"
+	user_lbl.text = "Usuário do Administrador:" if is_host_mode else "Usuário:"
 	user_lbl.add_theme_font_size_override("font_size", 13)
 	_auth_box.add_child(user_lbl)
 
@@ -122,7 +130,7 @@ func _build_ui() -> void:
 	_mode_btn.text = "Criar nova conta (Registro)"
 	_mode_btn.toggled.connect(func(on: bool):
 		_pending_mode = "register" if on else "login"
-		_submit_btn.text = "Criar Conta e Conectar" if on else "Entrar no Servidor"
+		_submit_btn.text = ("Criar Conta e Iniciar" if is_host_mode else "Criar Conta e Conectar") if on else ("Iniciar Servidor e Jogar" if is_host_mode else "Entrar no Servidor")
 	)
 	_auth_box.add_child(_mode_btn)
 
@@ -131,15 +139,15 @@ func _build_ui() -> void:
 	_auth_box.add_child(btn_hbox)
 
 	_submit_btn = Button.new()
-	_submit_btn.text = "Entrar no Servidor"
+	_submit_btn.text = "Iniciar Servidor e Jogar" if is_host_mode else "Entrar no Servidor"
 	_submit_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_submit_btn.custom_minimum_size = Vector2(0, 38)
+	_submit_btn.custom_minimum_size = Vector2(0, 40)
 	_submit_btn.pressed.connect(_on_submit_pressed)
 	btn_hbox.add_child(_submit_btn)
 
 	_cancel_btn = Button.new()
 	_cancel_btn.text = "Voltar"
-	_cancel_btn.custom_minimum_size = Vector2(90, 38)
+	_cancel_btn.custom_minimum_size = Vector2(90, 40)
 	_cancel_btn.pressed.connect(queue_free)
 	btn_hbox.add_child(_cancel_btn)
 
@@ -165,17 +173,17 @@ func _build_ui() -> void:
 	_char_box.add_child(new_char_btn)
 
 	var disc_btn := Button.new()
-	disc_btn.text = "Desconectar"
+	disc_btn.text = "Encerrar Sessão" if is_host_mode else "Desconectar"
 	disc_btn.pressed.connect(_disconnect_and_reset)
 	_char_box.add_child(disc_btn)
 
 func _on_submit_pressed() -> void:
 	var user := _user_input.text.strip_edges()
 	var pass_text := _pass_input.text
-	var target_url := _url_input.text.strip_edges()
+	var target_text := _url_input.text.strip_edges()
 
-	if target_url.is_empty():
-		_set_status("⚠️ Digite a URL ou IP do servidor.", Color(1, 0.6, 0.4))
+	if target_text.is_empty():
+		_set_status("⚠️ Digite a porta ou URL do servidor.", Color(1, 0.6, 0.4))
 		return
 	if user.length() < 3:
 		_set_status("⚠️ O usuário precisa ter pelo menos 3 letras.", Color(1, 0.6, 0.4))
@@ -189,23 +197,34 @@ func _on_submit_pressed() -> void:
 		_set_status("❌ NetworkManager não encontrado.", Color(1, 0.3, 0.3))
 		return
 
-	_set_status("Conectando ao servidor %s..." % target_url, Color(0.8, 0.9, 1))
 	_submit_btn.disabled = true
 	_is_connecting = true
 
-	# Conecta na URL ou IP informado
-	var port: int = 8787
-	var host_str: String = target_url
-	if not target_url.begins_with("ws://") and not target_url.begins_with("wss://") and ":" in target_url:
-		var parts := target_url.split(":")
-		host_str = parts[0]
-		port = int(parts[1])
+	if is_host_mode:
+		var port := int(target_text) if target_text.is_valid_int() else 8787
+		var use_ws: bool = _ws_check.button_pressed if _ws_check else true
+		var err := net.start_server(port, 16, use_ws)
+		if err != OK:
+			_set_status("❌ Falha ao iniciar servidor na porta %d: %s" % [port, error_string(err)], Color(1, 0.3, 0.3))
+			_submit_btn.disabled = false
+			_is_connecting = false
+			return
+		_set_status("Servidor ativo na porta %d! Autenticando..." % port, Color(0.6, 1, 0.6))
+		net.send_auth_request(_pending_mode, user, pass_text)
+	else:
+		_set_status("Conectando ao servidor %s..." % target_text, Color(0.8, 0.9, 1))
+		var port: int = 8787
+		var host_str: String = target_text
+		if not target_text.begins_with("ws://") and not target_text.begins_with("wss://") and ":" in target_text:
+			var parts := target_text.split(":")
+			host_str = parts[0]
+			port = int(parts[1])
 
-	var err: Error = net.start_client(host_str, port)
-	if err != OK:
-		_set_status("❌ Falha na inicialização do cliente: %s" % error_string(err), Color(1, 0.3, 0.3))
-		_submit_btn.disabled = false
-		_is_connecting = false
+		var err: Error = net.start_client(host_str, port)
+		if err != OK:
+			_set_status("❌ Falha na inicialização do cliente: %s" % error_string(err), Color(1, 0.3, 0.3))
+			_submit_btn.disabled = false
+			_is_connecting = false
 
 func _on_connected() -> void:
 	_set_status("Conectado! Autenticando conta...", Color(0.6, 1, 0.6))
@@ -257,7 +276,6 @@ func _populate_characters(characters: Array) -> void:
 		_char_list_container.add_child(char_btn)
 
 func _on_new_character_pressed() -> void:
-	# Transita para a tela de criação de personagem
 	get_tree().change_scene_to_file(CHARACTER_CREATION_SCENE)
 
 func _on_entered_world(success: bool, _data: Dictionary) -> void:
