@@ -103,23 +103,27 @@ func _build_panel() -> void:
 
 	var bg := PanelContainer.new()
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.07, 0.06, 0.55)
-	style.set_corner_radius_all(8)
-	style.content_margin_left = 14
-	style.content_margin_right = 14
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
+	style.bg_color = Color(0.05, 0.08, 0.07, 0.84)
+	style.border_color = Color(0.76, 0.62, 0.34, 0.78)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(12)
+	style.shadow_color = Color(0, 0, 0, 0.4)
+	style.shadow_size = 6
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 12
+	style.content_margin_bottom = 12
 	bg.add_theme_stylebox_override("panel", style)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	margin.add_child(bg)
 
 	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 4)
+	box.add_theme_constant_override("separation", 5)
 	bg.add_child(box)
 
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 16)
-	_title.add_theme_color_override("font_color", Color(0.95, 0.86, 0.6))
+	_title.add_theme_color_override("font_color", Color(0.98, 0.86, 0.54))
 	box.add_child(_title)
 
 	_labels.clear()
@@ -128,6 +132,12 @@ func _build_panel() -> void:
 		l.add_theme_font_size_override("font_size", 13)
 		box.add_child(l)
 		_labels[step.id] = l
+
+	var guide_hint := Label.new()
+	guide_hint.text = "🧭 [J] Guia & Tutorial  ·  ✨ [F9] Cosméticos  ·  💬 [F8] Feedback"
+	guide_hint.add_theme_font_size_override("font_size", 12)
+	guide_hint.add_theme_color_override("font_color", Color(0.78, 0.90, 0.78, 0.9))
+	box.add_child(guide_hint)
 	_refresh()
 
 func _refresh() -> void:

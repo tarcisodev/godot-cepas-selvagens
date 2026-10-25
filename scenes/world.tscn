@@ -34,6 +34,12 @@
 [ext_resource type="Script" path="res://scripts/supply_chest.gd" id="28_chest"]
 [ext_resource type="Script" path="res://scripts/creatures/boss_lair.gd" id="40_boss_lair"]
 [ext_resource type="Script" path="res://scripts/creatures/wild_beast_spawner.gd" id="41_wild_beasts"]
+[ext_resource type="Script" path="res://scripts/ecology/celestial_sky.gd" id="42_celestial"]
+[ext_resource type="Script" path="res://scripts/ui/cosmetics_shop.gd" id="43_cosmetics"]
+[ext_resource type="Script" path="res://scripts/ui/feedback_modal.gd" id="44_feedback"]
+[ext_resource type="Script" path="res://scripts/ui/explorer_guide.gd" id="45_guide"]
+[ext_resource type="Script" path="res://scripts/ui/coop_menu.gd" id="46_coop"]
+[ext_resource type="Script" path="res://scripts/ui/mobile_touch_controls.gd" id="47_touch"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -74,6 +80,7 @@ transform = Transform3D(0.819152, -0.40558, 0.40558, 0, 0.707107, 0.707107, -0.5
 shadow_enabled = true
 directional_shadow_max_distance = 120.0
 script = ExtResource("1_sun")
+day_length_seconds = 1200.0
 
 [node name="Landscape" type="MeshInstance3D" parent="."]
 script = ExtResource("2_terrain")
@@ -146,6 +153,9 @@ script = ExtResource("30_weather")
 
 [node name="Moon" type="MeshInstance3D" parent="."]
 script = ExtResource("32_moon")
+
+[node name="CelestialSky" type="Node3D" parent="."]
+script = ExtResource("42_celestial")
 
 [node name="Ecology" type="Node3D" parent="."]
 script = ExtResource("31_ecology")
@@ -437,6 +447,61 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("27_inventory")
+player = NodePath("../../Player")
+
+[node name="CosmeticsShop" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("43_cosmetics")
+player = NodePath("../../Player")
+
+[node name="FeedbackModal" type="Control" parent="HUD"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("44_feedback")
+
+[node name="ExplorerGuide" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("45_guide")
+player = NodePath("../../Player")
+
+[node name="CoopMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("46_coop")
+player = NodePath("../../Player")
+
+[node name="MobileTouchControls" type="Control" parent="HUD" node_paths=PackedStringArray("player")]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("47_touch")
 player = NodePath("../../Player")
 
 [node name="PauseMenu" type="Control" parent="HUD"]

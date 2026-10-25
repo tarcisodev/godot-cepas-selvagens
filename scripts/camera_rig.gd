@@ -51,25 +51,15 @@ func _input(event: InputEvent) -> void:
 	# O ESC agora abre o Menu de Pausa (pause_menu.gd), que libera o mouse.
 
 	# Se clicou na tela com mouse solto (ex.: após alt-tab), recaptura,
-	# exceto quando algum menu está aberto e precisa do cursor
+	# exceto quando algum menu está aberto ou quando os controles de toque mobile estão ativos
 	if event is InputEventMouseButton and event.pressed and Input.get_mouse_mode() != Input.MOUSE_MODE_CAPTURED:
-		if get_tree().get_nodes_in_group("open_menus").is_empty():
+		if get_tree().get_nodes_in_group("open_menus").is_empty() and get_tree().get_nodes_in_group("touch_controls_active").is_empty():
 			Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 		return
 
 	# Rotação da visão pelo mouse (sensibilidade e inversão vêm das Configurações)
 	if event is InputEventMouseMotion and Input.get_mouse_mode() == Input.MOUSE_MODE_CAPTURED:
-		var gs: Node = get_node_or_null("/root/GameSettings")
-		var sens_mult: float = float(gs.get_value("controls", "mouse_sensitivity")) if gs != null and gs.has_method("get_value") else 1.0
-		var is_invert: bool = bool(gs.get_value("controls", "invert_y")) if gs != null and gs.has_method("get_value") else false
-		var sensitivity: float = mouse_sensitivity * sens_mult
-		var invert: float = -1.0 if is_invert else 1.0
-		yaw -= event.relative.x * sensitivity
-		pitch -= event.relative.y * sensitivity * invert
-		pitch = clamp(pitch, min_pitch, max_pitch)
-
-		rotation.y = yaw
-		spring_arm.rotation.x = pitch
+		rotate_by_delta(event.relative)
 
 	# Zoom suave via scroll
 	if event.is_action_pressed("zoom_in"):
@@ -86,6 +76,20 @@ func _input(event: InputEvent) -> void:
 		else:
 			target_distance = min_distance
 		_update_camera_mode()
+
+## Gira a câmera por um delta de mouse ou arraste de dedo na tela (Mobile Touch)
+func rotate_by_delta(relative: Vector2) -> void:
+	var gs: Node = get_node_or_null("/root/GameSettings") if is_inside_tree() else null
+	var sens_mult: float = float(gs.get_value("controls", "mouse_sensitivity")) if gs != null and gs.has_method("get_value") else 1.0
+	var is_invert: bool = bool(gs.get_value("controls", "invert_y")) if gs != null and gs.has_method("get_value") else false
+	var sensitivity: float = mouse_sensitivity * sens_mult
+	var invert: float = -1.0 if is_invert else 1.0
+	yaw -= relative.x * sensitivity
+	pitch -= relative.y * sensitivity * invert
+	pitch = clamp(pitch, min_pitch, max_pitch)
+	rotation.y = yaw
+	if spring_arm:
+		spring_arm.rotation.x = pitch
 
 func _process(delta: float) -> void:
 	# Interpolação suave da distância da câmera, offset do ombro e FOV

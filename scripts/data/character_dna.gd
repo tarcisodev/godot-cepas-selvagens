@@ -71,6 +71,24 @@ const LEATHER_COLORS: Array[Color] = [
 @export_range(0.0, 1.0) var boot_height: float = 0.4
 @export var gloves: bool = false
 
+@export_group("Cosméticos")
+@export var cosmetic_hat: String = ""
+@export var cosmetic_cape: String = ""
+@export var cosmetic_aura: String = ""
+@export var owned_cosmetics_csv: String = ""
+
+func has_cosmetic(id: String) -> bool:
+	if id.is_empty():
+		return true
+	return owned_cosmetics_csv.split(",", false).has(id)
+
+func unlock_cosmetic(id: String) -> void:
+	if id.is_empty() or has_cosmetic(id):
+		return
+	var parts := owned_cosmetics_csv.split(",", false)
+	parts.append(id)
+	owned_cosmetics_csv = ",".join(parts)
+
 ## Sorteia um personagem completo e coerente a partir da seed.
 static func randomized(p_seed: int) -> CharacterDNA:
 	var rng := RandomNumberGenerator.new()

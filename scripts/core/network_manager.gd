@@ -1,12 +1,14 @@
 class_name NetworkManagerAutoload
 extends Node
 
-## Gerenciador de rede autoritativo (ADR-0002).
-## Suporta modo local/offline (onde o peer local é autoridade ID 1)
-## e arquitetura de servidor dedicado / cliente via ENetMultiplayerPeer.
+## Gerenciador de rede autoritativo e Coop LAN (ADR-0002).
+## Suporta modo local/offline (ID 1) e sessões multiplayer via ENetMultiplayerPeer
+## para até 16 jogadores na mesma rede local (Wi-Fi/LAN) ou via túnel/IP direto.
+## Sincroniza avatares 3D (CharacterVisual + DNA + Cosméticos), animações, nomes e ciclo do céu.
 
 const DEFAULT_PORT: int = 8787
 const DEFAULT_HOST: String = "127.0.0.1"
+const SYNC_INTERVAL: float = 0.05 # 20 Hz
 
 enum NetworkState {
 	OFFLINE_HOST,      ## Host local (single-player com autoridade de servidor)
@@ -20,12 +22,20 @@ signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
 signal connection_established()
 signal connection_lost()
+signal players_updated()
 
 var state: NetworkState = NetworkState.OFFLINE_HOST
 var peer: ENetMultiplayerPeer = null
 
+## peer_id -> {"name": String, "dna": Dictionary}
+var players_info: Dictionary = {}
+## peer_id -> Node3D (avatar remoto instanciado no mundo)
+var remote_avatars: Dictionary = {}
+
+var _sync_timer: float = 0.0
+var _last_dna_hash: int = 0
+
 func _ready() -> void:
-	# Por padrão no slice, inicializa no modo OFFLINE_HOST (autoridade total local)
 	setup_offline_host()
 
 ## Configura o peer como host local offline (ID 1)
@@ -33,6 +43,7 @@ func setup_offline_host() -> void:
 	cleanup_peer()
 	state = NetworkState.OFFLINE_HOST
 	network_state_changed.emit(state)
+	players_updated.emit()
 
 func _get_mp() -> MultiplayerAPI:
 	if is_inside_tree() and multiplayer != null:
@@ -42,7 +53,17 @@ func _get_mp() -> MultiplayerAPI:
 		return main_loop.root.get_multiplayer()
 	return null
 
-## Inicia servidor autoritativo
+## Retorna o IP da placa de rede local (Wi-Fi / Cabo) para facilitar conexão em casa
+static func get_lan_ip() -> String:
+	var candidates: Array[String] = []
+	for ip in IP.get_local_addresses():
+		if ip.begins_with("192.168.") or ip.begins_with("10.") or ip.begins_with("172."):
+			if ip.begins_with("192.168."):
+				return ip
+			candidates.append(ip)
+	return candidates[0] if not candidates.is_empty() else "127.0.0.1"
+
+## Inicia servidor autoritativo (até max_clients jogadores)
 func start_server(port: int = DEFAULT_PORT, max_clients: int = 16) -> Error:
 	cleanup_peer()
 	peer = ENetMultiplayerPeer.new()
@@ -51,7 +72,7 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = 16) -> Error:
 		push_error("Falha ao iniciar servidor na porta %d: %s" % [port, error_string(err)])
 		setup_offline_host()
 		return err
-	
+
 	var mp := _get_mp()
 	if mp != null:
 		mp.multiplayer_peer = peer
@@ -59,23 +80,25 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = 16) -> Error:
 			mp.peer_connected.connect(_on_peer_connected)
 		if not mp.peer_disconnected.is_connected(_on_peer_disconnected):
 			mp.peer_disconnected.connect(_on_peer_disconnected)
-	
+
 	state = NetworkState.HOSTING_SERVER
+	_register_self_profile()
 	network_state_changed.emit(state)
+	players_updated.emit()
 	var peer_id := mp.get_unique_id() if mp != null else 1
-	print("[NetworkManager] Servidor autoritativo iniciado na porta %d (Peer ID: %d)" % [port, peer_id])
+	print("[NetworkManager] Servidor autoritativo iniciado na porta %d (Peer ID: %d, LAN IP: %s)" % [port, peer_id, get_lan_ip()])
 	return OK
 
 ## Conecta cliente a um servidor
 func start_client(host: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Error:
 	cleanup_peer()
 	peer = ENetMultiplayerPeer.new()
-	var err := peer.create_client(host, port)
+	var err := peer.create_client(host.strip_edges(), port)
 	if err != OK:
 		push_error("Falha ao conectar cliente em %s:%d: %s" % [host, port, error_string(err)])
 		setup_offline_host()
 		return err
-	
+
 	var mp := _get_mp()
 	if mp != null:
 		mp.multiplayer_peer = peer
@@ -85,13 +108,18 @@ func start_client(host: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Erro
 			mp.connection_failed.connect(_on_connection_failed)
 		if not mp.server_disconnected.is_connected(_on_server_disconnected):
 			mp.server_disconnected.connect(_on_server_disconnected)
-	
+
 	state = NetworkState.CONNECTED_CLIENT
 	network_state_changed.emit(state)
+	players_updated.emit()
 	print("[NetworkManager] Tentando conectar cliente em %s:%d..." % [host, port])
 	return OK
 
 func cleanup_peer() -> void:
+	for id in remote_avatars.keys():
+		_remove_remote_avatar(id)
+	remote_avatars.clear()
+	players_info.clear()
 	if peer != null:
 		peer.close()
 		peer = null
@@ -108,20 +136,181 @@ func is_server_authoritative() -> bool:
 		return mp.is_server()
 	return true
 
+func _process(delta: float) -> void:
+	# Interpola movimento suave dos avatares remotos em todos os frames
+	for id in remote_avatars:
+		var av: Node3D = remote_avatars[id]
+		if not is_instance_valid(av):
+			continue
+		if av.has_meta("target_pos"):
+			var tpos: Vector3 = av.get_meta("target_pos")
+			av.global_position = av.global_position.lerp(tpos, minf(1.0, delta * 14.0))
+		if av.has_meta("target_yaw"):
+			var tyaw: float = av.get_meta("target_yaw")
+			av.rotation.y = lerp_angle(av.rotation.y, tyaw, minf(1.0, delta * 14.0))
+
+	if state != NetworkState.HOSTING_SERVER and state != NetworkState.CONNECTED_CLIENT:
+		return
+	var mp := _get_mp()
+	if mp == null or not mp.has_multiplayer_peer():
+		return
+	if state == NetworkState.CONNECTED_CLIENT and peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+
+	_sync_timer -= delta
+	if _sync_timer > 0.0:
+		return
+	_sync_timer = SYNC_INTERVAL
+
+	var local_player := _local_player()
+	if local_player == null:
+		return
+
+	var my_id := mp.get_unique_id()
+	var visual: CharacterVisual = local_player.get("character_visual")
+	if visual and visual.dna:
+		var h := visual.dna.to_dict().hash()
+		if h != _last_dna_hash:
+			_last_dna_hash = h
+			_register_self_profile()
+			rpc_sync_profile.rpc(my_id, _local_player_name(), visual.dna.to_dict())
+
+	var cur_anim: StringName = visual.current() if visual else &"Idle"
+	var body_yaw: float = visual.rotation.y if visual else local_player.rotation.y
+	rpc_sync_transform.rpc(my_id, local_player.global_position, body_yaw, cur_anim)
+
+	# Host sincroniza hora do sol e clima para que todos vejam o mesmo céu, chuva e estrelas
+	if state == NetworkState.HOSTING_SERVER and is_inside_tree() and get_tree().current_scene:
+		var sun := get_tree().current_scene.get_node_or_null("Sun")
+		var weather := get_tree().current_scene.get_node_or_null("WeatherSystem")
+		if sun and "current_time_hours" in sun:
+			var h_val: float = float(sun.current_time_hours)
+			var d_val: int = int(sun.get("day_count"))
+			var hum: float = float(weather.get("humidity")) if weather else 0.45
+			var cld: float = float(weather.get("clouds")) if weather else 0.1
+			var rn: float = float(weather.get("rain")) if weather else 0.0
+			rpc_sync_world_environment.rpc(h_val, d_val, hum, cld, rn)
+
+func _local_player() -> Node3D:
+	if not is_inside_tree():
+		return null
+	return get_tree().get_first_node_in_group("player") as Node3D
+
+func _local_player_name() -> String:
+	var sg := get_node_or_null("/root/SaveGame") if is_inside_tree() else null
+	var n := str(sg.get("character_name")).strip_edges() if sg else ""
+	if not n.is_empty():
+		return n
+	return "Host" if state == NetworkState.HOSTING_SERVER else "Explorador(a)"
+
+func _register_self_profile() -> void:
+	var mp := _get_mp()
+	var my_id := mp.get_unique_id() if mp and mp.has_multiplayer_peer() else 1
+	var p := _local_player()
+	var visual: CharacterVisual = p.get("character_visual") if p else null
+	var dna_dict: Dictionary = visual.dna.to_dict() if (visual and visual.dna) else CharacterDNA.new().to_dict()
+	players_info[my_id] = {"name": _local_player_name(), "dna": dna_dict}
+
+# ---------------------------------------------------------------- RPCs de Coop / Rede
+
+@rpc("any_peer", "reliable")
+func rpc_sync_profile(peer_id: int, p_name: String, dna_dict: Dictionary) -> void:
+	players_info[peer_id] = {"name": p_name, "dna": dna_dict}
+	_ensure_remote_avatar(peer_id, p_name, dna_dict)
+	players_updated.emit()
+
+@rpc("any_peer", "unreliable_ordered")
+func rpc_sync_transform(peer_id: int, pos: Vector3, yaw: float, anim: StringName) -> void:
+	var mp := _get_mp()
+	if mp and peer_id == mp.get_unique_id():
+		return
+	var av := _ensure_remote_avatar(peer_id, players_info.get(peer_id, {}).get("name", "Explorador #%d" % peer_id), players_info.get(peer_id, {}).get("dna", {}))
+	if av == null:
+		return
+	if not av.has_meta("target_pos"):
+		av.global_position = pos
+	av.set_meta("target_pos", pos)
+	av.set_meta("target_yaw", yaw)
+	var vis := av.get_node_or_null("CharacterVisual") as CharacterVisual
+	if vis and anim != &"":
+		vis.play(anim)
+
+@rpc("authority", "unreliable_ordered")
+func rpc_sync_world_environment(hour: float, day: int, humidity: float, clouds: float, rain: float) -> void:
+	if is_server_authoritative() or not is_inside_tree() or get_tree().current_scene == null:
+		return
+	var sun := get_tree().current_scene.get_node_or_null("Sun")
+	if sun and sun.has_method("_update_sun_position_and_lighting"):
+		sun.set("current_time_hours", hour)
+		sun.set("day_count", day)
+		sun._update_sun_position_and_lighting()
+	var weather := get_tree().current_scene.get_node_or_null("WeatherSystem")
+	if weather:
+		weather.set("humidity", humidity)
+		weather.set("clouds", clouds)
+		weather.set("rain", rain)
+
+## Cria ou atualiza o avatar 3D de outro jogador conectado na cena
+func _ensure_remote_avatar(peer_id: int, p_name: String, dna_dict: Dictionary) -> Node3D:
+	var mp := _get_mp()
+	if mp and mp.has_multiplayer_peer() and peer_id == mp.get_unique_id():
+		return null
+	if not is_inside_tree() or get_tree().current_scene == null:
+		return null
+
+	var av: Node3D = remote_avatars.get(peer_id)
+	if av == null or not is_instance_valid(av):
+		av = Node3D.new()
+		av.name = "RemotePlayer_%d" % peer_id
+		av.add_to_group("remote_players")
+		get_tree().current_scene.add_child(av)
+
+		var vis := CharacterVisual.new()
+		vis.name = "CharacterVisual"
+		vis.dna = CharacterDNA.from_dict(dna_dict) if not dna_dict.is_empty() else CharacterDNA.randomized(peer_id)
+		av.add_child(vis)
+
+		var name_lbl := Label3D.new()
+		name_lbl.name = "NameTag"
+		name_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		name_lbl.font_size = 24
+		name_lbl.outline_size = 5
+		name_lbl.modulate = Color(0.98, 0.90, 0.58)
+		name_lbl.position = Vector3(0.0, 2.15, 0.0)
+		av.add_child(name_lbl)
+
+		remote_avatars[peer_id] = av
+
+	var tag := av.get_node_or_null("NameTag") as Label3D
+	if tag:
+		tag.text = "👤 %s" % p_name
+	if not dna_dict.is_empty():
+		var vis := av.get_node_or_null("CharacterVisual") as CharacterVisual
+		var new_hash := dna_dict.hash()
+		if vis and av.get_meta("dna_hash", 0) != new_hash:
+			av.set_meta("dna_hash", new_hash)
+			vis.rebuild(CharacterDNA.from_dict(dna_dict))
+	return av
+
+func _remove_remote_avatar(peer_id: int) -> void:
+	if remote_avatars.has(peer_id):
+		var av: Node = remote_avatars[peer_id]
+		if is_instance_valid(av):
+			av.queue_free()
+		remote_avatars.erase(peer_id)
+
 ## Solicitação de dano / combate autoritativo (RPC cliente -> servidor)
 @rpc("any_peer", "call_local", "reliable")
 func request_combat_hit(attacker_path: NodePath, target_path: NodePath, ability_name: StringName, part_id: StringName = &"") -> void:
-	# Só o servidor autoritativo resolve
 	if not is_server_authoritative():
 		return
-	
+
 	var attacker: Node = get_node_or_null(attacker_path)
 	var target: Node = get_node_or_null(target_path)
-	
+
 	if target == null:
 		return
-	
-	# Cria e resolve o HitEvent no servidor
+
 	var hit := HitEvent.new()
 	hit.attacker = attacker
 	hit.target = target
@@ -129,10 +318,8 @@ func request_combat_hit(attacker_path: NodePath, target_path: NodePath, ability_
 	hit.raw_damage = 25.0
 	hit.poise_damage = 15.0
 	hit.damage_type = DamageType.Type.SLASH
-	
+
 	var result: Dictionary = CombatResolver.resolve_hit(hit)
-	
-	# Sincroniza resultado com todos os clientes
 	sync_combat_result.rpc(target_path, result[&"effective_damage"], result[&"poise_broken"], result[&"part_broken"], part_id)
 
 @rpc("authority", "call_local", "reliable")
@@ -141,20 +328,36 @@ func sync_combat_result(target_path: NodePath, damage: float, poise_broken: bool
 	if target != null:
 		var pools: PoolsComponent = target.get_node_or_null("PoolsComponent") as PoolsComponent
 		if pools != null and not is_server_authoritative():
-			# No cliente não-host, sincroniza o dano visual
 			pools.take_damage(damage)
 
 func _on_peer_connected(id: int) -> void:
-	print("[NetworkManager] Novo peer conectado: %d" % id)
+	print("[NetworkManager] Novo jogador conectado: %d" % id)
+	_register_self_profile()
+	var mp := _get_mp()
+	var my_id := mp.get_unique_id() if mp else 1
+	if players_info.has(my_id):
+		var me: Dictionary = players_info[my_id]
+		rpc_sync_profile.rpc_id(id, my_id, me.get("name", "Host"), me.get("dna", {}))
 	peer_joined.emit(id)
+	players_updated.emit()
 
 func _on_peer_disconnected(id: int) -> void:
-	print("[NetworkManager] Peer desconectado: %d" % id)
+	print("[NetworkManager] Jogador desconectado: %d" % id)
+	_remove_remote_avatar(id)
+	players_info.erase(id)
 	peer_left.emit(id)
+	players_updated.emit()
 
 func _on_connected_to_server() -> void:
 	print("[NetworkManager] Conexão com o servidor estabelecida com sucesso!")
+	_register_self_profile()
+	var mp := _get_mp()
+	var my_id := mp.get_unique_id() if mp else 2
+	if players_info.has(my_id):
+		var me: Dictionary = players_info[my_id]
+		rpc_sync_profile.rpc(my_id, me.get("name", "Explorador(a)"), me.get("dna", {}))
 	connection_established.emit()
+	players_updated.emit()
 
 func _on_connection_failed() -> void:
 	push_error("[NetworkManager] Falha na conexão com o servidor.")

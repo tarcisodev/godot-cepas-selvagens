@@ -1,6 +1,8 @@
 extends Node3D
 class_name CharacterVisual
 
+const CosmeticsCatalogClass = preload("res://scripts/systems/cosmetics_catalog.gd")
+
 ## Visual do personagem: modelo rigado (Quaternius) + bibliotecas de animação UAL1/UAL2.
 # O modelo e as animações compartilham o mesmo esqueleto (65 ossos, "Armature/Skeleton3D"),
 # então as bibliotecas tocam direto em qualquer personagem do kit.
@@ -73,6 +75,8 @@ func _build() -> void:
 		_apply_equipment()
 	else:
 		_attach_weapon()
+	if dna:
+		CosmeticsCatalogClass.attach_to_visual(self, skeleton, dna)
 	play(&"Idle")
 
 func _load_animations() -> void:

@@ -11,6 +11,20 @@ signal cancelled()
 
 const HAIR_STYLES: Array[String] = ["Careca", "Raspado", "Curto", "Rabo de cavalo", "Longo", "Moicano", "Coque", "Juba"]
 const BEARDS: Array[String] = ["Sem barba", "Bigode", "Cavanhaque", "Cheia"]
+const EDITOR_CLOTH_COLORS: Array[Color] = [
+	Color("#6b4f2e"), Color("#4f5d2f"), Color("#7a2e22"), Color("#2f4a5a"), Color("#8a7a5a"),
+	Color("#3f3a35"), Color("#a0763a"), Color("#5a3f5f"), Color("#c9b48a"), Color("#2e3f2a"),
+	Color("#c85a7c"), Color("#8e529e"), Color("#2d7a58"), Color("#2e6694"), Color("#d49b35"), Color("#d8cfd8"),
+]
+const EDITOR_HAIR_COLORS: Array[Color] = [
+	Color("#1d1612"), Color("#3b2a1f"), Color("#5a3b26"), Color("#8a5a33"),
+	Color("#b98a4e"), Color("#d8b878"), Color("#a33b1f"), Color("#7a7a78"), Color("#d9d6cf"),
+	Color("#c4422a"), Color("#6d2b4f"), Color("#2b5878"), Color("#f0e2b6"),
+]
+const EDITOR_EYE_COLORS: Array[Color] = [
+	Color("#3d2a1c"), Color("#5b3b20"), Color("#4a6b3a"), Color("#3f5f7a"), Color("#6b6b5a"),
+	Color("#2e856e"), Color("#7a4a88"), Color("#b87c28"),
+]
 const FEMININITY_MALE := 0.1
 const FEMININITY_FEMALE := 0.88
 ## Espera entre um ajuste e a remontagem da prévia (arrastar slider não remonta a cada pixel).
@@ -68,11 +82,27 @@ func randomizedraft() -> void:
 	var female := draft.femininity >= 0.5
 	draft = CharacterDNA.randomized(randi())
 	draft.femininity = FEMININITY_FEMALE if female else FEMININITY_MALE
+	if female:
+		draft.beard = CharacterDNA.Beard.NONE
+		draft.beard_length = 0.0
+		draft.jaw_width = clampf(draft.jaw_width, 0.15, 0.42)
+		draft.muscle = minf(draft.muscle, 0.35)
+		if draft.hair_style == CharacterDNA.HairStyle.BALD or draft.hair_style == CharacterDNA.HairStyle.BUZZ:
+			draft.hair_style = CharacterDNA.HairStyle.LONG
+			draft.hair_length = maxf(draft.hair_length, 0.65)
 	_sync_controls()
 	_queue_rebuild()
 
 func set_gender(female: bool) -> void:
 	draft.femininity = FEMININITY_FEMALE if female else FEMININITY_MALE
+	if female:
+		draft.beard = CharacterDNA.Beard.NONE
+		draft.beard_length = 0.0
+		draft.jaw_width = minf(draft.jaw_width, 0.32)
+		draft.muscle = minf(draft.muscle, 0.32)
+		if draft.hair_style == CharacterDNA.HairStyle.BALD or draft.hair_style == CharacterDNA.HairStyle.BUZZ or draft.hair_style == CharacterDNA.HairStyle.SHORT:
+			draft.hair_style = CharacterDNA.HairStyle.LONG
+			draft.hair_length = maxf(draft.hair_length, 0.72)
 	_sync_controls()
 	_queue_rebuild()
 
@@ -135,7 +165,7 @@ func _build() -> void:
 
 	var face := _tab(tabs, "Rosto")
 	_swatches(face, "Pele", "skin_color", CharacterDNA.SKIN_TONES)
-	_swatches(face, "Olhos", "eye_color", CharacterDNA.EYE_COLORS)
+	_swatches(face, "Olhos", "eye_color", EDITOR_EYE_COLORS)
 	_slider(face, "Cabeça", "head_size", 0.88, 1.15)
 	_slider(face, "Mandíbula", "jaw_width", 0.0, 1.0)
 	_slider(face, "Nariz", "nose_size", 0.0, 1.0)
@@ -143,14 +173,14 @@ func _build() -> void:
 	var hair := _tab(tabs, "Cabelo e barba")
 	_choice(hair, "Cabelo", "hair_style", HAIR_STYLES)
 	_slider(hair, "Comprimento", "hair_length", 0.0, 1.0)
-	_swatches(hair, "Cor", "hair_color", CharacterDNA.HAIR_COLORS)
+	_swatches(hair, "Cor", "hair_color", EDITOR_HAIR_COLORS)
 	_choice(hair, "Barba", "beard", BEARDS)
 	_slider(hair, "Comp. da barba", "beard_length", 0.0, 1.0)
 
 	var clothes := _tab(tabs, "Roupa")
-	_swatches(clothes, "Camisa", "shirt_color", CharacterDNA.CLOTH_COLORS)
+	_swatches(clothes, "Camisa", "shirt_color", EDITOR_CLOTH_COLORS)
 	_slider(clothes, "Manga", "sleeve_length", 0.0, 1.0)
-	_swatches(clothes, "Calça", "pants_color", CharacterDNA.CLOTH_COLORS)
+	_swatches(clothes, "Calça", "pants_color", EDITOR_CLOTH_COLORS)
 	_slider(clothes, "Comp. da calça", "pants_length", 0.0, 1.0)
 	_swatches(clothes, "Bota", "boots_color", CharacterDNA.LEATHER_COLORS)
 	_slider(clothes, "Cano da bota", "boot_height", 0.0, 1.0)

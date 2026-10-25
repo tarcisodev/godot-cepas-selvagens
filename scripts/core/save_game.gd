@@ -22,6 +22,7 @@ var load_on_enter: bool = false
 var character_name: String = ""
 ## Aparência escolhida na criação de personagem, aplicada quando o mundo abre.
 var _new_character: CharacterDNA = null
+var _show_new_game_welcome: bool = false
 var _autosave_timer: float = AUTOSAVE_SECONDS
 var _applied_to: Node = null
 
@@ -41,6 +42,9 @@ func _process(delta: float) -> void:
 	if _new_character and _applied_to != player and player.is_node_ready():
 		_applied_to = player
 		dress_new_character(player)
+		if _show_new_game_welcome:
+			_show_new_game_welcome = false
+			_grant_starter_explorer_kit(player)
 		save_game()
 	_autosave_timer -= delta
 	if _autosave_timer <= 0.0:
@@ -58,7 +62,23 @@ func delete_save() -> void:
 func start_new_game(dna: CharacterDNA, p_name: String) -> void:
 	_new_character = dna
 	character_name = p_name
+	_show_new_game_welcome = true
 	enter_world(false)
+
+func _grant_starter_explorer_kit(player: Node) -> void:
+	var wallet = player.get("wallet")
+	if wallet and wallet.has_method("add"):
+		wallet.add(150)
+	var inv = player.get("inventory")
+	if inv and inv.has_method("add_material"):
+		inv.add_material(&"tocha", 1)
+		inv.add_material(&"vara_pesca", 1)
+		inv.add_material(&"laco_fibra", 2)
+		inv.add_material(&"pocao", 2)
+	if player.is_inside_tree() and player.get_tree().current_scene:
+		var guide := player.get_tree().current_scene.find_child("ExplorerGuide", true, false)
+		if guide and guide.has_method("open_guide"):
+			guide.open_guide(player)
 
 ## Veste no player o DNA vindo da criação de personagem.
 func dress_new_character(player: Node) -> void:

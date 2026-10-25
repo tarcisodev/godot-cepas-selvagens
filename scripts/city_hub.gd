@@ -412,3 +412,50 @@ func _spawn_city_npcs() -> void:
 	cards.position = Vector3(-2.6, _get_ground_y(-2.6, 7.4), 7.4)
 	cards.rotation.y = PI * 0.5
 	add_child(cards)
+
+	# Estilista Astral: Loja de Cosméticos da Vila (Chapéus, Capas, Auras e PIX)
+	var couturier_dna := CharacterDNA.randomized(777)
+	couturier_dna.femininity = 0.92
+	couturier_dna.beard = CharacterDNA.Beard.NONE
+	couturier_dna.hair_style = CharacterDNA.HairStyle.LONG
+	couturier_dna.hair_length = 0.85
+	couturier_dna.shirt_color = Color("#c85a7c")
+	couturier_dna.cosmetic_hat = "coroa_flores"
+	couturier_dna.cosmetic_cape = "manto_rosa_real"
+	var couturier := TownNPC.new()
+	couturier.name = "EstilistaAstral"
+	couturier.dna = couturier_dna
+	couturier.display_name = "✨ Estilista Astral (Cosméticos)"
+	couturier.idle_anim = &"Idle_Talking"
+	couturier.prompt = "[E] Loja de Cosméticos [F9]"
+	couturier.position = Vector3(3.6, _get_ground_y(3.6, -2.2), -2.2)
+	couturier.talked.connect(open_cosmetics_shop)
+	add_child(couturier)
+
+	# Guardião do Mural: Feedback dos Jogadores & Guia de Exploração
+	var chronicler_dna := CharacterDNA.randomized(888)
+	chronicler_dna.cosmetic_hat = "chapeu_cacador"
+	chronicler_dna.cosmetic_cape = "manto_andarilho"
+	var chronicler := TownNPC.new()
+	chronicler.name = "CronistaDoMural"
+	chronicler.dna = chronicler_dna
+	chronicler.display_name = "💬 Mural de Feedback & Guia"
+	chronicler.idle_anim = &"Idle_FoldArms"
+	chronicler.prompt = "[E] Deixar Feedback [F8] / Guia [J]"
+	chronicler.position = Vector3(-2.4, _get_ground_y(-2.4, 1.8), 1.8)
+	chronicler.talked.connect(open_feedback_modal)
+	add_child(chronicler)
+
+func open_cosmetics_shop(player: Node) -> void:
+	if not is_inside_tree() or get_tree().current_scene == null:
+		return
+	var shop := get_tree().current_scene.find_child("CosmeticsShop", true, false)
+	if shop and shop.has_method("open_shop"):
+		shop.open_shop(player as Player)
+
+func open_feedback_modal(_player: Node) -> void:
+	if not is_inside_tree() or get_tree().current_scene == null:
+		return
+	var modal := get_tree().current_scene.find_child("FeedbackModal", true, false)
+	if modal and modal.has_method("open_modal"):
+		modal.open_modal()

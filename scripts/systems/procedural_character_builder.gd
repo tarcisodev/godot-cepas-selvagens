@@ -380,16 +380,23 @@ func _head(md: MeshData) -> void:
 
 	var w := {head: 1.0}
 	var skin := dna.skin_color
+	var fem := dna.femininity
 	for sx in [1.0, -1.0]:
 		var eye := _face_point(0.36 * sx, 0.08, 0.004)
 		md.ellipsoid(eye, Vector3(0.019, 0.016, 0.01) * hs, Color("#f2ede4"), w, 8, 6)
 		md.ellipsoid(eye + Vector3(0.0, 0.0, 0.0075 * hs), Vector3(0.0105, 0.0115, 0.005) * hs, dna.eye_color.darkened(0.2), w, 8, 6)
-		md.ellipsoid(_face_point(0.37 * sx, 0.3, -0.004), Vector3(0.027, 0.0065, 0.009) * hs, dna.hair_color.darkened(0.15), w, 8, 4)
+		if fem >= 0.5:
+			# Cílios superiores sutis para expressividade feminina
+			md.ellipsoid(eye + Vector3(0.004 * sx * hs, 0.011 * hs, 0.006 * hs), Vector3(0.020, 0.0035, 0.005) * hs, Color("#181210"), w, 6, 4)
+		var brow_h := lerpf(0.0065, 0.0048, fem)
+		md.ellipsoid(_face_point(0.37 * sx, 0.3 + 0.02 * fem, -0.004), Vector3(0.027, brow_h, 0.009) * hs, dna.hair_color.darkened(0.15), w, 8, 4)
 		var ear := _head_point(PI * 0.5 * sx, PI * 0.52, 0.97)
 		md.ellipsoid(ear, Vector3(0.012, 0.029, 0.02) * hs, skin.darkened(0.04), w, 8, 6)
-	var nose := 0.8 + 0.5 * dna.nose_size
+	var nose := (0.8 + 0.5 * dna.nose_size) * lerpf(1.0, 0.88, fem)
 	md.ellipsoid(_face_point(0.0, -0.1, -0.012), Vector3(0.014, 0.027, 0.021) * nose * hs, skin.darkened(0.06), w, 8, 6)
-	md.ellipsoid(_face_point(0.0, -0.43, 0.002), Vector3(0.026, 0.0055, 0.006) * hs, skin.darkened(0.3).lerp(Color("#8a3b33"), 0.25), w, 8, 4)
+	var lip_col := skin.darkened(0.3).lerp(Color("#8a3b33"), 0.25) if fem < 0.5 else skin.darkened(0.2).lerp(Color("#bf4858"), 0.52)
+	var lip_h := lerpf(0.0055, 0.0072, fem)
+	md.ellipsoid(_face_point(0.0, -0.43, 0.002), Vector3(0.026, lip_h, 0.0065) * hs, lip_col, w, 8, 4)
 
 ## Ponto da superfície da cabeça. φ = 0 olha para a frente (+Z), φ = 90° para a esquerda (+X);
 ## θ = 0 no topo. A mandíbula afina para baixo conforme `jaw_width` e o crânio cresce para trás.
