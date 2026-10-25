@@ -7,6 +7,7 @@ extends Node
 
 const BASE_SAVE_DIR: String = "user://server_saves"
 const PLAYERS_DIR: String = "user://server_saves/players"
+const ACCOUNTS_DIR: String = "user://server_saves/accounts"
 const WORLD_FILE: String = "user://server_saves/world/world_state.json"
 const AUTOSAVE_INTERVAL: float = 60.0
 
@@ -27,9 +28,11 @@ func _ready() -> void:
 func _ensure_directories() -> void:
 	var global_base := ProjectSettings.globalize_path(BASE_SAVE_DIR)
 	var global_players := ProjectSettings.globalize_path(PLAYERS_DIR)
+	var global_accounts := ProjectSettings.globalize_path(ACCOUNTS_DIR)
 	var global_world := ProjectSettings.globalize_path("user://server_saves/world")
 	DirAccess.make_dir_recursive_absolute(global_base)
 	DirAccess.make_dir_recursive_absolute(global_players)
+	DirAccess.make_dir_recursive_absolute(global_accounts)
 	DirAccess.make_dir_recursive_absolute(global_world)
 
 func _process(delta: float) -> void:
@@ -173,3 +176,111 @@ func _on_peer_left(peer_id: int) -> void:
 				var data := serialize_player(avatar)
 				save_player_data(p_name, data)
 				print("[ServerPersistence] Progresso salvo para '%s' ao desconectar." % p_name)
+
+## Hasheia senha com salt seguro do jogo
+static func hash_password(password: String, username: String) -> String:
+	return (password + ":" + username.strip_edges().to_lower() + ":cepas_selvagens_beta_2026").sha256_text()
+
+## Registra uma nova conta no servidor
+func register_account(username: String, pass_hash_or_raw: String) -> Dictionary:
+	var clean_user := username.strip_edges()
+	if clean_user.length() < 3 or clean_user.length() > 24:
+		return {"success": false, "message": "O nome de usuário deve ter entre 3 e 24 caracteres."}
+	_ensure_directories()
+	var safe_user := clean_user.validate_filename().to_lower()
+	var file_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	if FileAccess.file_exists(file_path):
+		return {"success": false, "message": "Este nome de usuário já está em uso."}
+
+	var pass_hash: String = pass_hash_or_raw
+	if pass_hash.length() != 64:
+		pass_hash = hash_password(pass_hash, clean_user)
+
+	var payload := {
+		"username": clean_user,
+		"password_hash": pass_hash,
+		"created_at": Time.get_datetime_string_from_system(),
+		"characters": []
+	}
+	var f := FileAccess.open(file_path, FileAccess.WRITE)
+	if f == null:
+		return {"success": false, "message": "Erro ao criar arquivo de conta no servidor."}
+	f.store_string(JSON.stringify(payload, "\t"))
+	f.close()
+	return {"success": true, "message": "Conta criada com sucesso!", "characters": []}
+
+## Autentica uma conta existente
+func login_account(username: String, pass_hash_or_raw: String) -> Dictionary:
+	var clean_user := username.strip_edges()
+	var safe_user := clean_user.validate_filename().to_lower()
+	var file_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	if not FileAccess.file_exists(file_path):
+		return {"success": false, "message": "Conta não encontrada."}
+
+	var f := FileAccess.open(file_path, FileAccess.READ)
+	if f == null:
+		return {"success": false, "message": "Erro ao ler dados da conta."}
+	var text := f.get_as_text()
+	f.close()
+
+	var json := JSON.new()
+	if json.parse(text) != OK:
+		return {"success": false, "message": "Dados de conta corrompidos."}
+	var data: Dictionary = json.data as Dictionary
+
+	var expected_hash: String = data.get("password_hash", "")
+	var provided_hash: String = pass_hash_or_raw
+	if provided_hash.length() != 64:
+		provided_hash = hash_password(provided_hash, clean_user)
+
+	if expected_hash != provided_hash:
+		return {"success": false, "message": "Senha incorreta."}
+
+	var chars: Array = data.get("characters", [])
+	return {"success": true, "message": "Login efetuado com sucesso!", "characters": chars}
+
+## Vincula um personagem à conta
+func create_character_for_account(username: String, char_name: String, dna_dict: Dictionary) -> Dictionary:
+	var clean_char := char_name.strip_edges()
+	if clean_char.length() < 2 or clean_char.length() > 20:
+		return {"success": false, "message": "Nome do personagem inválido (2 a 20 caracteres)."}
+
+	var clean_user := username.strip_edges()
+	var safe_user := clean_user.validate_filename().to_lower()
+	var acct_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	if not FileAccess.file_exists(acct_path):
+		return {"success": false, "message": "Conta inexistente."}
+
+	if has_player_save(clean_char):
+		return {"success": false, "message": "Já existe um personagem com este nome no mundo."}
+
+	var initial_player_data := {
+		"name": clean_char,
+		"account": clean_user,
+		"position": [0.0, 1.0, 0.0],
+		"rotation_y": 0.0,
+		"health": 100.0,
+		"money": 50,
+		"dna": dna_dict
+	}
+	save_player_data(clean_char, initial_player_data)
+
+	var f := FileAccess.open(acct_path, FileAccess.READ)
+	var acct_text := f.get_as_text() if f else "{}"
+	if f: f.close()
+
+	var json := JSON.new()
+	var acct_data: Dictionary = {}
+	if json.parse(acct_text) == OK and json.data is Dictionary:
+		acct_data = json.data as Dictionary
+
+	var char_list: Array = acct_data.get("characters", [])
+	if not char_list.has(clean_char):
+		char_list.append(clean_char)
+		acct_data["characters"] = char_list
+		var fw := FileAccess.open(acct_path, FileAccess.WRITE)
+		if fw:
+			fw.store_string(JSON.stringify(acct_data, "\t"))
+			fw.close()
+
+	return {"success": true, "message": "Personagem criado com sucesso!", "character": initial_player_data}

@@ -44,10 +44,12 @@ Implementar uma arquitetura de **streaming de terreno em chunks com MultiMesh** 
 - Módulo de persistência que salva o estado dos jogadores em arquivos individuais no servidor ao desconectar e recarrega na reconexão.
 
 ## Critérios de Pronto
-- [ ] Documento do Bloco B24 registrado no repositório.
-- [ ] `TerrainChunkManager` funcional gerando relevo contínuo sem frestas entre chunks adjacentes.
-- [ ] MultiMesh populado dinamicamente por chunk de terreno.
-- [ ] `WorldBounds` e limites de limbo do jogador adaptados para escala de quilômetros.
-- [ ] Persistência do servidor gravando dados do jogador ao desconectar e restaurando na entrada.
-- [ ] Suíte de testes headless validando geração de chunks, MultiMesh e persistência de dados.
-- [ ] `33/33` (ou novos testes adicionados) passando com 100% de sucesso no `run_all.gd`.
+- [x] Documento do Bloco B24 registrado no repositório.
+- [x] `TerrainChunkManager` funcional gerando relevo contínuo sem frestas entre chunks adjacentes.
+- [x] MultiMesh populado dinamicamente por chunk de terreno.
+- [x] `WorldBounds` e limites de limbo do jogador adaptados para escala de quilômetros.
+- [x] Persistência do servidor gravando dados do jogador ao desconectar e restaurando na entrada.
+- [x] Autenticação de contas com usuário/senha (SHA-256 + salt) e suporte a WebSockets/Cloudflare Tunnel (ws://, wss://).
+- [x] Tela de Login/Registro e Criação de Personagens vinculados à conta (OnlineAuthModal).
+- [x] Suíte de testes headless validando geração de chunks, MultiMesh, contas, personagens e persistência de dados.
+- [x] 35/35 testes passando com 100% de sucesso no run_all.gd.

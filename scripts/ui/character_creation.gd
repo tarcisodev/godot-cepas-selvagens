@@ -47,8 +47,27 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_confirmed(dna: CharacterDNA) -> void:
 	var character_name := editor.get_character_name()
-	# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
-	get_node("/root/SaveGame").start_new_game(dna, character_name if character_name != "" else DEFAULT_NAME)
+	var final_name := character_name if character_name != "" else DEFAULT_NAME
+	var net: Node = get_node_or_null("/root/NetworkManager")
+	var is_online: bool = false
+	if net != null and "state" in net:
+		var st = net.get("state")
+		if st == NetworkManagerAutoload.NetworkState.CONNECTED_CLIENT and not net.get("current_account").is_empty():
+			is_online = true
+
+	if is_online:
+		var dna_dict: Dictionary = dna.to_dict()
+		net.send_create_character_request(final_name, dna_dict)
+		net.character_created.connect(func(success: bool, message: String, _cdata: Dictionary):
+			if success:
+				net.send_enter_world_request(final_name)
+				get_tree().change_scene_to_file("res://scenes/world.tscn")
+			else:
+				push_error("[CharacterCreation] Falha ao criar personagem online: %s" % message)
+		, CONNECT_ONE_SHOT)
+	else:
+		# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
+		get_node("/root/SaveGame").start_new_game(dna, final_name)
 
 func _back() -> void:
 	get_tree().change_scene_to_file(MAIN_MENU)

@@ -7,6 +7,7 @@ class_name MainMenu
 
 const BACKGROUND: String = "res://assets/ui/menu_background.png"
 const CHARACTER_CREATION: String = "res://scenes/character_creation.tscn"
+const OnlineAuthModalClass = preload("res://scripts/ui/online_auth_modal.gd")
 
 var continue_button: Button
 var settings_menu: PauseMenu
@@ -107,6 +108,7 @@ func _build_column() -> void:
 		continue_button.tooltip_text = "Nenhum jogo salvo ainda"
 	box.add_child(continue_button)
 	box.add_child(_make_button("🌱  Novo jogo", _on_new_game))
+	box.add_child(_make_button("🌐  Jogar Online (Beta)", _open_online_auth))
 	box.add_child(_make_button("⚙  Configurações", func(): settings_menu.open_settings()))
 	box.add_child(_make_button("🚪  Sair", func(): get_tree().quit()))
 
@@ -133,3 +135,7 @@ func _on_new_game() -> void:
 
 func _open_character_creation() -> void:
 	get_tree().change_scene_to_file(CHARACTER_CREATION)
+
+func _open_online_auth() -> void:
+	var modal: Control = OnlineAuthModalClass.new()
+	add_child(modal)
