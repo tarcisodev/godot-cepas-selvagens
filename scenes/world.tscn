@@ -43,6 +43,7 @@
 [ext_resource type="Script" path="res://scripts/world/world_settlements.gd" id="48_settlements"]
 [ext_resource type="Script" path="res://scripts/world/tutorial_trail.gd" id="49_trail"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_screen.gd" id="50_worldmap"]
+[ext_resource type="Script" path="res://scripts/world/terrain_chunk_manager.gd" id="51_chunks"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -97,6 +98,10 @@ script = ExtResource("4_plants")
 
 [node name="GrassAndFlowers" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("6_grass")
+landscape = NodePath("../Landscape")
+
+[node name="TerrainChunkManager" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("51_chunks")
 landscape = NodePath("../Landscape")
 
 [node name="WildBushes" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]

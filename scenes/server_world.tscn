@@ -1,0 +1,25 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/day_night_cycle.gd" id="1_sun"]
+[ext_resource type="Script" path="res://scripts/landscape_generator.gd" id="2_terrain"]
+[ext_resource type="Script" path="res://scripts/world/terrain_chunk_manager.gd" id="3_chunks"]
+[ext_resource type="Script" path="res://scripts/creatures/ecosystem_spawner.gd" id="4_eco"]
+
+[node name="ServerWorld" type="Node3D"]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.819152, -0.40558, 0.40558, 0, 0.707107, 0.707107, -0.573576, -0.579228, 0.579228, 0, 10, 0)
+script = ExtResource("1_sun")
+day_length_seconds = 1200.0
+use_timer_update = true
+
+[node name="Landscape" type="MeshInstance3D" parent="."]
+script = ExtResource("2_terrain")
+
+[node name="TerrainChunkManager" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("3_chunks")
+landscape = NodePath("../Landscape")
+
+[node name="EcosystemSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
+script = ExtResource("4_eco")
+landscape = NodePath("../Landscape")

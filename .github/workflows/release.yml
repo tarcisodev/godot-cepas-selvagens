@@ -1,0 +1,156 @@
+name: Build and Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Export Windows Desktop & Publish Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Extract GAME_VERSION
+        id: get_version
+        run: |
+          GAME_VERSION=$(grep 'const GAME_VERSION' scripts/core/network_manager.gd | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$GAME_VERSION" ]; then
+            echo "::error::GAME_VERSION não encontrada em scripts/core/network_manager.gd!"
+            exit 1
+          fi
+          echo "GAME_VERSION=$GAME_VERSION" >> $GITHUB_ENV
+          echo "Versão detectada da GAME_VERSION: $GAME_VERSION"
+          echo "Tag do git acionada: ${{ github.ref_name }}"
+
+      - name: Setup Godot Engine 4.7.2 & Official Export Templates
+        run: |
+          GODOT_VER="4.7.2"
+          GODOT_STATUS="stable"
+          
+          echo "=== 1. Baixando Godot Engine Linux Headless ==="
+          wget -q --retry-connrefused --waitretry=2 -O godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64.zip" || \
+          wget -q -O godot.zip \
+            "https://downloads.tuxfamily.org/godotengine/${GODOT_VER}/Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64.zip"
+          
+          unzip -q godot.zip
+          sudo mv Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64 /usr/local/bin/godot
+          sudo chmod +x /usr/local/bin/godot
+          rm -f godot.zip
+          
+          echo "=== 2. Baixando Export Templates Oficiais ==="
+          wget -q --retry-connrefused --waitretry=2 -O templates.tpz \
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_export_templates.tpz" || \
+          wget -q -O templates.tpz \
+            "https://downloads.tuxfamily.org/godotengine/${GODOT_VER}/Godot_v${GODOT_VER}-${GODOT_STATUS}_export_templates.tpz"
+          
+          unzip -q templates.tpz
+          
+          TEMPLATES_PATH="$HOME/.local/share/godot/export_templates/${GODOT_VER}.${GODOT_STATUS}"
+          mkdir -p "$TEMPLATES_PATH"
+          mv templates/* "$TEMPLATES_PATH/"
+          rm -rf templates templates.tpz
+          
+          # Suporte a caminho alternativo de templates no Godot 4
+          mkdir -p "$HOME/.local/share/godot/templates"
+          ln -sf "$TEMPLATES_PATH" "$HOME/.local/share/godot/templates/${GODOT_VER}.${GODOT_STATUS}"
+          
+          echo "=== 3. Validando Instalação do Godot ==="
+          godot --version
+
+      - name: Export Windows Desktop Preset
+        run: |
+          mkdir -p build/windows
+          echo "Iniciando export do preset 'Windows Desktop'..."
+          godot --headless --export-release "Windows Desktop" build/windows/CepaSelvagem.exe
+          
+          if [ ! -f "build/windows/CepaSelvagem.exe" ]; then
+            echo "::error::Falha na exportação: build/windows/CepaSelvagem.exe não foi gerado!"
+            exit 1
+          fi
+          
+          echo "Binário exportado com sucesso:"
+          ls -lh build/windows/CepaSelvagem.exe
+
+      - name: Package Windows ZIP
+        run: |
+          cd build/windows
+          
+          cat << 'EOF' > LEIA-ME.txt
+          ========================================================================
+          Cepas Selvagens — Playtest Fechado v${{ env.GAME_VERSION }} (Windows)
+          ========================================================================
+
+          Obrigado por participar do Playtest de Cepas Selvagens!
+
+          COMO INICIAR:
+          1. Extraia todos os arquivos para uma pasta de sua escolha.
+          2. Execute o arquivo 'CepaSelvagem.exe'.
+          3. Na tela de login, digite seu Usuário e Senha e clique em "Criar Conta & Entrar".
+          4. O jogo conecta automaticamente ao servidor oficial jogar.tarciso.dev:8787.
+
+          AVISO DO WINDOWS SMARTSCREEN:
+          Por ser uma build de desenvolvimento independente sem certificado pago, o
+          Windows SmartScreen pode exibir um aviso de proteção.
+          Para liberar:
+            - Clique no link "Mais informações".
+            - Em seguida, clique no botão "Executar assim mesmo".
+
+          AVISOS DE PLAYTEST:
+          - O servidor pode resetar o progresso entre versões conforme novos blocos
+            forem integrados ao jogo.
+          - O cliente precisa estar na mesma versão do servidor (v${{ env.GAME_VERSION }}).
+          - Para baixar versões mais novas, acesse: https://cepas.tarciso.dev
+
+          FEEDBACK E BUGS:
+          - GitHub Issues: https://github.com/tarcisodev/godot-cepas-selvagens/issues
+          ========================================================================
+          EOF
+
+          ZIP_NAME="CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip"
+          echo "Criando arquivo $ZIP_NAME..."
+          zip -9 -r "$ZIP_NAME" CepaSelvagem.exe LEIA-ME.txt
+          
+          echo "Pacote gerado:"
+          ls -lh "$ZIP_NAME"
+
+      - name: Create GitHub Release and Upload Artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/windows/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip
+          name: Cepas Selvagens v${{ env.GAME_VERSION }} (Playtest Fechado)
+          body: |
+            ## 🎮 Cepas Selvagens v${{ env.GAME_VERSION }} — Playtest Fechado
+
+            Nova versão de Playtest Fechado de **Cepas Selvagens**!
+
+            ### 📦 Download para Windows
+            - **Arquivo:** [`CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip)
+
+            ### 🚀 Como Jogar
+            1. Baixe o `.zip` acima e extraia o conteúdo em qualquer pasta.
+            2. Abra o executável `CepaSelvagem.exe`.
+            3. Informe um usuário e senha para criar sua conta.
+            4. O cliente já conecta automaticamente ao servidor dedicado `jogar.tarciso.dev:8787` (UDP).
+
+            ### ⚠️ Avisos Importantes
+            - **Possibilidade de Resets:** O mundo e inventários podem sofrer wipes entre versões de teste.
+            - **Paridade Obrigatória:** O client precisa estar exatamente na mesma versão que o servidor (`v${{ env.GAME_VERSION }}`).
+            - **Windows SmartScreen:** Se o Windows exibir aviso de proteção ao abrir o executável, clique em **"Mais informações"** e depois em **"Executar assim mesmo"**.
+
+            ### 🌐 Landing Page & Documentação
+            - [Landing Page Oficial](https://cepas.tarciso.dev)
+            - [Central de Issues & Bugs](https://github.com/tarcisodev/godot-cepas-selvagens/issues)
+          draft: false
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

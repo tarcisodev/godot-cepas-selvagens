@@ -18,8 +18,14 @@ const _StyleAttack = preload("res://scripts/data/style_attack.gd")
 const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
 
+const GAME_VERSION: String = "0.1.0"
 const DEFAULT_PORT: int = 8787
-const DEFAULT_HOST: String = "127.0.0.1"
+const DEFAULT_HOST: String = "jogar.tarciso.dev"
+const DEFAULT_LOCAL_HOST: String = "127.0.0.1"
+const MAX_PLAYERS: int = 32
+const MAX_CONNECTIONS_PER_IP: int = 3
+const MAX_LOGIN_ATTEMPTS_PER_MINUTE: int = 5
+const LOGIN_RATE_WINDOW_SECONDS: float = 60.0
 const SYNC_INTERVAL: float = 0.05 # 20 Hz
 
 enum NetworkState {
@@ -35,13 +41,25 @@ signal peer_left(peer_id: int)
 signal connection_established()
 signal connection_lost()
 signal players_updated()
+signal auth_result(success: bool, message: String, characters: Array)
+signal character_created(success: bool, message: String, character_data: Dictionary)
+signal entered_world(success: bool, world_data: Dictionary)
 
 var state: NetworkState = NetworkState.OFFLINE_HOST
-var peer: ENetMultiplayerPeer = null
+var peer: MultiplayerPeer = null
+
+## Sessão do jogador autenticado
+var current_account: String = ""
+var current_character: String = ""
+## No servidor: peer_id -> username
+var peer_accounts: Dictionary = {}
+
+## Rastreamento de conexões e segurança do servidor
+var peer_ips: Dictionary = {}
+var login_attempts_by_ip: Dictionary = {}
 
 ## peer_id -> {"name": String, "dna": Dictionary}
 var players_info: Dictionary = {}
-## peer_id -> Node3D (avatar remoto instanciado no mundo)
 var remote_avatars: Dictionary = {}
 
 var _sync_timer: float = 0.0
@@ -75,11 +93,19 @@ static func get_lan_ip() -> String:
 			candidates.append(ip)
 	return candidates[0] if not candidates.is_empty() else "127.0.0.1"
 
-## Inicia servidor autoritativo (até max_clients jogadores)
-func start_server(port: int = DEFAULT_PORT, max_clients: int = 16) -> Error:
+## Inicia servidor autoritativo (até max_clients jogadores). Suporta ENet (UDP) ou WebSocket (Cloudflare Tunnel)
+func start_server(port: int = DEFAULT_PORT, max_clients: int = MAX_PLAYERS, use_websocket: bool = false) -> Error:
 	cleanup_peer()
-	peer = ENetMultiplayerPeer.new()
-	var err := peer.create_server(port, max_clients)
+	var err: Error = OK
+	if use_websocket:
+		var ws := WebSocketMultiplayerPeer.new()
+		err = ws.create_server(port)
+		peer = ws
+	else:
+		var enet := ENetMultiplayerPeer.new()
+		err = enet.create_server(port, max_clients)
+		peer = enet
+
 	if err != OK:
 		push_error("Falha ao iniciar servidor na porta %d: %s" % [port, error_string(err)])
 		setup_offline_host()
@@ -98,16 +124,28 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = 16) -> Error:
 	network_state_changed.emit(state)
 	players_updated.emit()
 	var peer_id := mp.get_unique_id() if mp != null else 1
-	print("[NetworkManager] Servidor autoritativo iniciado na porta %d (Peer ID: %d, LAN IP: %s)" % [port, peer_id, get_lan_ip()])
+	var proto_name: String = "WebSocket (Cloudflare Tunnel)" if use_websocket else "ENet (UDP)"
+	print("[NetworkManager] Servidor iniciado via %s na porta %d (Peer ID: %d, LAN IP: %s)" % [proto_name, port, peer_id, get_lan_ip()])
 	return OK
 
-## Conecta cliente a um servidor
-func start_client(host: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Error:
+## Conecta cliente a um servidor (via IP ou URL Cloudflare: ws:// ou wss://)
+func start_client(host_or_url: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Error:
 	cleanup_peer()
-	peer = ENetMultiplayerPeer.new()
-	var err := peer.create_client(host.strip_edges(), port)
+	var target := host_or_url.strip_edges()
+	var is_ws: bool = target.begins_with("ws://") or target.begins_with("wss://")
+	var err: Error = OK
+
+	if is_ws:
+		var ws := WebSocketMultiplayerPeer.new()
+		err = ws.create_client(target)
+		peer = ws
+	else:
+		var enet := ENetMultiplayerPeer.new()
+		err = enet.create_client(target, port)
+		peer = enet
+
 	if err != OK:
-		push_error("Falha ao conectar cliente em %s:%d: %s" % [host, port, error_string(err)])
+		push_error("Falha ao conectar cliente em %s:%d: %s" % [target, port, error_string(err)])
 		setup_offline_host()
 		return err
 
@@ -124,7 +162,7 @@ func start_client(host: String = DEFAULT_HOST, port: int = DEFAULT_PORT) -> Erro
 	state = NetworkState.CONNECTED_CLIENT
 	network_state_changed.emit(state)
 	players_updated.emit()
-	print("[NetworkManager] Tentando conectar cliente em %s:%d..." % [host, port])
+	print("[NetworkManager] Tentando conectar cliente em %s..." % target)
 	return OK
 
 func cleanup_peer() -> void:
@@ -132,12 +170,66 @@ func cleanup_peer() -> void:
 		_remove_remote_avatar(id)
 	remote_avatars.clear()
 	players_info.clear()
+	peer_ips.clear()
 	if peer != null:
 		peer.close()
 		peer = null
 	var mp := _get_mp()
 	if mp != null and mp.has_multiplayer_peer():
 		mp.multiplayer_peer = null
+
+## Retorna o endereço IP remoto associado a um peer_id conectado
+func get_peer_ip(peer_id: int) -> String:
+	if peer_ips.has(peer_id):
+		return peer_ips[peer_id]
+	if peer == null:
+		return "127.0.0.1"
+	if peer is ENetMultiplayerPeer:
+		var enet := peer as ENetMultiplayerPeer
+		var packet_peer := enet.get_peer(peer_id)
+		if packet_peer != null:
+			var addr := packet_peer.get_remote_address()
+			if not addr.is_empty():
+				return addr
+	elif peer is WebSocketMultiplayerPeer:
+		var ws := peer as WebSocketMultiplayerPeer
+		var ws_peer := ws.get_peer(peer_id)
+		if ws_peer != null:
+			var host := ws_peer.get_connected_host()
+			if not host.is_empty():
+				return host
+	return "127.0.0.1"
+
+## Conta quantas conexões ativas existem a partir de um mesmo IP
+func count_active_connections_from_ip(ip: String) -> int:
+	var count := 0
+	for p_id in peer_ips:
+		if peer_ips[p_id] == ip:
+			count += 1
+	return count
+
+## Desconecta um peer com segurança suportando ENet e WebSocket
+func disconnect_peer_safe(peer_id: int) -> void:
+	if peer != null:
+		if peer is ENetMultiplayerPeer:
+			(peer as ENetMultiplayerPeer).disconnect_peer(peer_id)
+		elif peer is WebSocketMultiplayerPeer:
+			(peer as WebSocketMultiplayerPeer).disconnect_peer(peer_id)
+
+## Verifica se o IP excedeu o limite de tentativas de login por minuto (rate limiting)
+func _check_login_rate_limit(ip: String) -> bool:
+	var now: float = float(Time.get_ticks_msec()) / 1000.0
+	var attempts: Array = login_attempts_by_ip.get(ip, [])
+	var filtered: Array = []
+	for t in attempts:
+		if (now - float(t)) < LOGIN_RATE_WINDOW_SECONDS:
+			filtered.append(t)
+	if filtered.size() >= MAX_LOGIN_ATTEMPTS_PER_MINUTE:
+		login_attempts_by_ip[ip] = filtered
+		return false
+	filtered.append(now)
+	login_attempts_by_ip[ip] = filtered
+	return true
 
 ## Retorna true se este nó possui autoridade de servidor (ID 1 ou modo offline host)
 func is_server_authoritative() -> bool:
@@ -343,7 +435,27 @@ func sync_combat_result(target_path: NodePath, damage: float, poise_broken: bool
 			pools.take_damage(damage)
 
 func _on_peer_connected(id: int) -> void:
-	print("[NetworkManager] Novo jogador conectado: %d" % id)
+	if is_server_authoritative() and state == NetworkState.HOSTING_SERVER:
+		var mp := _get_mp()
+		var peer_count := mp.get_peers().size() if mp != null else 0
+		if peer_count > MAX_PLAYERS:
+			print("[Security] Recusa de conexão: limite máximo de %d jogadores atingido (%d conectados). Desconectando peer %d." % [MAX_PLAYERS, peer_count, id])
+			disconnect_peer_safe(id)
+			return
+
+		var ip := get_peer_ip(id)
+		peer_ips[id] = ip
+
+		var conn_count := count_active_connections_from_ip(ip)
+		if conn_count > MAX_CONNECTIONS_PER_IP:
+			print("[Security] Recusa de conexão: limite de %d conexões simultâneas por IP excedido para o IP %s (Peer: %d, Ativas: %d)." % [
+				MAX_CONNECTIONS_PER_IP, ip, id, conn_count
+			])
+			peer_ips.erase(id)
+			disconnect_peer_safe(id)
+			return
+
+	print("[NetworkManager] Novo jogador conectado: %d (IP: %s)" % [id, peer_ips.get(id, "local")])
 	_register_self_profile()
 	var mp := _get_mp()
 	var my_id := mp.get_unique_id() if mp else 1
@@ -354,7 +466,10 @@ func _on_peer_connected(id: int) -> void:
 	players_updated.emit()
 
 func _on_peer_disconnected(id: int) -> void:
-	print("[NetworkManager] Jogador desconectado: %d" % id)
+	var ip: String = peer_ips.get(id, "")
+	peer_ips.erase(id)
+	peer_accounts.erase(id)
+	print("[NetworkManager] Jogador desconectado: %d%s" % [id, " (IP: " + ip + ")" if not ip.is_empty() else ""])
 	_remove_remote_avatar(id)
 	players_info.erase(id)
 	peer_left.emit(id)
@@ -380,3 +495,136 @@ func _on_server_disconnected() -> void:
 	print("[NetworkManager] Desconectado do servidor.")
 	setup_offline_host()
 	connection_lost.emit()
+
+## ===================================================================
+## Autenticação de Contas & Criação de Personagens (B24)
+## ===================================================================
+
+## Envia solicitação de Login ou Registro para o servidor
+func send_auth_request(mode: String, username: String, password_raw: String, client_version: String = GAME_VERSION) -> void:
+	if client_version != GAME_VERSION:
+		var msg := "Versão incompatível do jogo (Cliente: %s | Servidor: %s). Por favor, atualize o jogo para entrar no playtest." % [
+			client_version if not client_version.is_empty() else "desconhecida",
+			GAME_VERSION
+		]
+		print("[Security] Recusa de autenticação: versão incompatível (cliente: '%s', servidor: '%s')" % [client_version, GAME_VERSION])
+		auth_result.emit(false, msg, [])
+		return
+
+	if state != NetworkState.CONNECTED_CLIENT and state != NetworkState.HOSTING_SERVER:
+		auth_result.emit(false, "Não conectado a nenhum servidor.", [])
+		return
+	var sp = get_node_or_null("/root/ServerPersistence")
+	if is_server_authoritative() and sp != null:
+		var res: Dictionary = sp.register_account(username, password_raw) if mode == "register" else sp.login_account(username, password_raw)
+		var ok: bool = res.get("success", false)
+		if ok:
+			current_account = username
+		auth_result.emit(ok, res.get("message", ""), res.get("characters", []))
+		return
+	rpc_id(1, "rpc_request_auth", mode, username, password_raw, client_version)
+
+## Envia solicitação de criação de personagem
+func send_create_character_request(character_name: String, dna_dict: Dictionary) -> void:
+	var sp = get_node_or_null("/root/ServerPersistence")
+	if is_server_authoritative() and sp != null:
+		var res: Dictionary = sp.create_character_for_account(current_account, character_name, dna_dict)
+		character_created.emit(res.get("success", false), res.get("message", ""), res.get("character", {}))
+		return
+	rpc_id(1, "rpc_request_create_character", character_name, dna_dict)
+
+## Solicita entrada no mundo com o personagem selecionado
+func send_enter_world_request(character_name: String) -> void:
+	current_character = character_name
+	var sp = get_node_or_null("/root/ServerPersistence")
+	if is_server_authoritative() and sp != null:
+		var pdata: Dictionary = sp.load_player_data(character_name)
+		entered_world.emit(true, pdata)
+		return
+	rpc_id(1, "rpc_request_enter_world", character_name)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_auth(mode: String, username: String, pass_hash_or_raw: String, client_version: String = "") -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	var ip := get_peer_ip(sender_id)
+
+	# 1. Validação de versão (Task 2)
+	if client_version != GAME_VERSION:
+		var mismatch_msg := "Versão incompatível do jogo (Cliente: %s | Servidor: %s). Por favor, atualize o jogo para entrar no playtest." % [
+			client_version if not client_version.is_empty() else "desconhecida",
+			GAME_VERSION
+		]
+		print("[Security] Recusa de login: versão incompatível '%s' (esperado '%s') para o IP %s (Peer: %d)" % [
+			client_version, GAME_VERSION, ip, sender_id
+		])
+		rpc_id(sender_id, "rpc_response_auth", false, mismatch_msg, [])
+		return
+
+	# 2. Rate limit de tentativas por IP (Task 3)
+	if not _check_login_rate_limit(ip):
+		var limit_msg := "Muitas tentativas de login a partir deste endereço. Aguarde um minuto antes de tentar novamente."
+		print("[Security] Recusa de login: rate limit excedido (> %d tentativas/min) para o IP %s (Peer: %d)" % [
+			MAX_LOGIN_ATTEMPTS_PER_MINUTE, ip, sender_id
+		])
+		rpc_id(sender_id, "rpc_response_auth", false, limit_msg, [])
+		return
+
+	var sp = get_node_or_null("/root/ServerPersistence")
+	if sp == null:
+		rpc_id(sender_id, "rpc_response_auth", false, "Servidor sem persistência ativa.", [])
+		return
+	var res: Dictionary = sp.register_account(username, pass_hash_or_raw) if mode == "register" else sp.login_account(username, pass_hash_or_raw)
+	var ok: bool = res.get("success", false)
+	if ok:
+		peer_accounts[sender_id] = username
+		print("[NetworkManager] Conta '%s' autenticada com sucesso (Peer: %d, IP: %s)" % [username, sender_id, ip])
+	else:
+		print("[Security] Falha de autenticação para conta '%s' do IP %s: %s" % [username, ip, res.get("message", "")])
+	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []))
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_response_auth(success: bool, message: String, characters: Array) -> void:
+	auth_result.emit(success, message, characters)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_create_character(character_name: String, dna_dict: Dictionary) -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	var sp = get_node_or_null("/root/ServerPersistence")
+	var account: String = peer_accounts.get(sender_id, "")
+	if account.is_empty() or sp == null:
+		rpc_id(sender_id, "rpc_response_create_character", false, "Não autenticado no servidor.", {})
+		return
+	var res: Dictionary = sp.create_character_for_account(account, character_name, dna_dict)
+	rpc_id(sender_id, "rpc_response_create_character", res.get("success", false), res.get("message", ""), res.get("character", {}))
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_response_create_character(success: bool, message: String, character_data: Dictionary) -> void:
+	character_created.emit(success, message, character_data)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_enter_world(character_name: String) -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	var sp = get_node_or_null("/root/ServerPersistence")
+	var account: String = peer_accounts.get(sender_id, "")
+	if account.is_empty() or sp == null:
+		rpc_id(sender_id, "rpc_response_enter_world", false, {})
+		return
+	var pdata: Dictionary = sp.load_player_data(character_name)
+	players_info[sender_id] = {
+		"name": character_name,
+		"dna": pdata.get("dna", {}),
+		"account": account
+	}
+	rpc_id(sender_id, "rpc_response_enter_world", true, pdata)
+	players_updated.emit()
+	rpc_sync_profile.rpc(sender_id, character_name, pdata.get("dna", {}))
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_response_enter_world(success: bool, world_data: Dictionary) -> void:
+	entered_world.emit(success, world_data)
