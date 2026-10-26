@@ -1,174 +1,217 @@
 extends SceneTree
 
-## Suíte de Testes Automatizados do Launcher de Cepas Selvagens.
+## Teste unitário e de integração do Launcher de Cepas Selvagens.
+## Execução: godot --path launcher/ --headless -s res://tests/test_launcher.gd
 
 const _LauncherConfig = preload("res://scripts/launcher_config.gd")
 const _VersionChecker = preload("res://scripts/version_checker.gd")
 const _Downloader = preload("res://scripts/downloader.gd")
 const _Patcher = preload("res://scripts/patcher.gd")
-const _LauncherMain = preload("res://scripts/launcher_main.gd")
+const _GameRunner = preload("res://scripts/game_runner.gd")
 
 var _started := false
 
 func _process(_delta: float) -> bool:
 	if not _started:
 		_started = true
-		_run()
+		_run_all_tests()
 	return false
 
-func _run() -> void:
+func _run_all_tests() -> void:
 	print("\n========================================================")
-	print("🚀 TESTANDO LAUNCHER OFICIAL DE CEPAS SELVAGENS")
+	print("🚀 TESTANDO LAUNCHER & AUTO-UPDATER DE CEPAS SELVAGENS")
 	print("========================================================")
-	test_launcher_config()
-	test_version_checker()
-	test_downloader_formatting()
-	test_patcher_integrity_and_zip()
-	test_launcher_main_states()
+	
+	test_version_comparison()
+	test_release_data_parsing()
+	test_config_and_version_file()
+	test_patcher_sha256_and_zip_extraction()
+	test_game_runner()
+	test_downloader_helpers()
+	
 	print("\n🎉 TODOS OS TESTES DO LAUNCHER PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
 
-func test_launcher_config() -> void:
-	print("\n[1/5] LauncherConfig: Caminhos, Versionamento e Configurações...")
-	var config := _LauncherConfig.new()
-	assert(not config.get_executable_path().is_empty(), "Caminho do executável gerado")
-	assert(not config.get_local_version_file_path().is_empty(), "Caminho do version.json gerado")
-	assert(config.github_repo == "tarcisodev/godot-cepas-selvagens", "Repositório padrão configurado")
-	assert(config.DEFAULT_SERVER_HOST == "jogar.tarciso.dev", "Host do servidor padrão correto")
-	assert(config.DEFAULT_SERVER_PORT == 8787, "Porta do servidor padrão correta")
-
-	# Teste de escrita e leitura de versão
-	config.write_installed_version("0.1.5")
-	var read_v := config.read_installed_version()
-	assert(read_v == "0.1.5", "Versão instalada lida com sucesso")
-
-	# Teste de persistência de configurações
-	config.game_directory = "custom_game_dir"
-	config.auto_play_on_ready = true
-	config.save_settings()
-
-	var config2 := _LauncherConfig.new()
-	assert(config2.game_directory == "custom_game_dir", "Configuração de pasta persistida")
-	assert(config2.auto_play_on_ready == true, "Configuração de auto play persistida")
-
-	# Limpeza de teste
-	config.game_directory = "game"
-	config.auto_play_on_ready = false
-	config.save_settings()
-	print("  -> Caminhos locais, version.json e persistência validados.")
-
-func test_version_checker() -> void:
-	print("\n[2/5] VersionChecker: Comparação Semântica e Parsing de Releases...")
-	# Comparação semântica
-	assert(_VersionChecker.clean_version("v1.2.3") == "1.2.3", "Limpeza de prefixo 'v'")
-	assert(_VersionChecker.clean_version("V0.1.0-alpha") == "0.1.0-alpha", "Limpeza de maiúsculo 'V'")
-
-	assert(_VersionChecker.compare_versions("0.1.0", "0.2.0") == -1, "0.1.0 < 0.2.0")
-	assert(_VersionChecker.compare_versions("0.2.0", "0.1.0") == 1, "0.2.0 > 0.1.0")
-	assert(_VersionChecker.compare_versions("0.1.0", "0.1.0") == 0, "0.1.0 == 0.1.0")
+func test_version_comparison() -> void:
+	print("\n[1/6] Comparação Semântica de Versões (VersionChecker)...")
+	
+	# Versões iguais
+	assert(_VersionChecker.compare_versions("0.1.0", "0.1.0") == 0, "Versões idênticas devem ser iguais")
+	assert(_VersionChecker.compare_versions("v0.1.0", "0.1.0") == 0, "Prefixo 'v' deve ser ignorado")
+	assert(_VersionChecker.compare_versions("0.1.0-beta", "0.1.0") == 0, "Sufixo de pré-release ignorado no corte base")
+	
+	# Versão menor (atualização disponível)
+	assert(_VersionChecker.compare_versions("0.1.0", "0.1.1") == -1, "0.1.0 < 0.1.1")
+	assert(_VersionChecker.compare_versions("0.1.9", "0.2.0") == -1, "0.1.9 < 0.2.0")
+	assert(_VersionChecker.compare_versions("0.9.5", "1.0.0") == -1, "0.9.5 < 1.0.0")
+	assert(_VersionChecker.compare_versions("v0.1.0", "v0.1.1") == -1, "v0.1.0 < v0.1.1")
+	
+	# Versão maior (desenvolvimento à frente da release)
+	assert(_VersionChecker.compare_versions("0.2.0", "0.1.9") == 1, "0.2.0 > 0.1.9")
 	assert(_VersionChecker.compare_versions("1.0.0", "0.9.9") == 1, "1.0.0 > 0.9.9")
-	assert(_VersionChecker.compare_versions("v0.1.5", "0.1.5") == 0, "v0.1.5 == 0.1.5")
+	
+	print("  -> Algoritmo semver validado com sucesso.")
 
-	# Parsing de manifesto customizado direto
-	var custom_manifest := {
-		"version": "v0.2.0",
-		"title": "Atualização Grande",
-		"changelog": "Adicionado novo mapa e forja",
-		"download_url": "https://cepas.tarciso.dev/builds/cepa_windows.zip",
-		"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-		"size_bytes": 104857600
-	}
-	var parsed_custom := _VersionChecker.parse_release_data(custom_manifest)
-	assert(parsed_custom.version == "0.2.0", "Versão do manifesto lida")
-	assert(parsed_custom.download_url == custom_manifest.download_url, "URL do manifesto lida")
-	assert(parsed_custom.size_bytes == 104857600, "Tamanho em bytes lido")
-
-	# Parsing de GitHub Release API mock
-	var github_release := {
-		"tag_name": "v0.1.0",
-		"name": "Playtest v0.1.0 Oficial",
-		"body": "- Primeira versão jogável",
+func test_release_data_parsing() -> void:
+	print("\n[2/6] Parsing de Release do GitHub e Manifesto...")
+	
+	# Mock de resposta da API do GitHub Releases
+	var github_mock := {
+		"tag_name": "v0.2.0",
+		"name": "Atualização 0.2.0 - Mercado Negro",
+		"body": "- Adicionadas armadilhas\n- Nova loja clandestina",
+		"published_at": "2026-10-25T20:00:00Z",
 		"assets": [
 			{
-				"name": "CepaSelvagem_v0.1.0_Windows.zip",
-				"browser_download_url": "https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/v0.1.0/CepaSelvagem_v0.1.0_Windows.zip",
-				"size": 52428800
+				"name": "outros_arquivos.txt",
+				"size": 1024,
+				"browser_download_url": "https://example.com/outros.txt"
+			},
+			{
+				"name": "CepaSelvagem-0.2.0-windows.zip",
+				"size": 125829120,
+				"browser_download_url": "https://example.com/CepaSelvagem-0.2.0-windows.zip"
 			}
 		]
 	}
-	var parsed_gh := _VersionChecker.parse_release_data(github_release)
-	assert(parsed_gh.version == "0.1.0", "Versão da release do GitHub lida")
-	assert(parsed_gh.asset_name == "CepaSelvagem_v0.1.0_Windows.zip", "Ativo Windows selecionado")
-	assert(parsed_gh.size_bytes == 52428800, "Tamanho do ativo correto")
-	print("  -> Versões semânticas e parsing de manifests/Releases validados.")
-
-func test_downloader_formatting() -> void:
-	print("\n[3/5] Downloader: Cálculos de Formatação e ETA...")
-	assert(_Downloader.format_bytes(512) == "512 B", "Bytes")
-	assert(_Downloader.format_bytes(1024 * 15) == "15.0 KB", "Kilobytes")
-	assert(_Downloader.format_bytes(1024 * 1024 * 45) == "45.0 MB", "Megabytes")
-	assert(_Downloader.format_bytes(1024 * 1024 * 1024 * 2) == "2.00 GB", "Gigabytes")
-
-	assert(_Downloader.format_speed(1024 * 1024 * 3) == "3.0 MB/s", "Velocidade MB/s")
-	assert(_Downloader.format_time(45) == "45s", "Tempo em segundos")
-	assert(_Downloader.format_time(125) == "2m 05s", "Tempo em minutos e segundos")
-	print("  -> Formatadores de bytes, velocidade e ETA validados.")
-
-func test_patcher_integrity_and_zip() -> void:
-	print("\n[4/5] Patcher: Verificação SHA-256 e ZIPReader...")
-	# Cria um arquivo de teste para validação de SHA-256
-	var test_file := "user://test_patcher_data.txt"
-	var f := FileAccess.open(test_file, FileAccess.WRITE)
-	f.store_string("Cepas Selvagens Test Integrity 2026")
-	f.close()
-
-	var actual_sha := FileAccess.get_sha256(test_file).to_lower()
-	assert(_Patcher.verify_sha256(test_file, actual_sha), "SHA-256 idêntico aceito")
-	assert(not _Patcher.verify_sha256(test_file, "1111222233334444555566667777888899990000aaaa"), "SHA-256 divergente rejeitado")
-	assert(_Patcher.verify_sha256(test_file, ""), "SHA-256 vazio aceito como opcional")
-
-	DirAccess.remove_absolute(test_file)
-
-	# Teste de extração com arquivo inexistente
-	var res := _Patcher.extract_zip("user://non_existent.zip", "user://test_dest/")
-	assert(not res.success, "Extração de arquivo inexistente falha graciosamente")
-	assert(not res.error.is_empty(), "Mensagem de erro retornada")
-	print("  -> Validação criptográfica de SHA-256 e integridade de arquivos validados.")
-
-func test_launcher_main_states() -> void:
-	print("\n[5/5] LauncherMain: Estados da Interface e Fluxo de Execução...")
-	var launcher := _LauncherMain.new()
-	root.add_child(launcher)
-
-	# Simulação de resposta de versão disponível
-	var mock_info := {
-		"version": "0.9.0",
-		"download_url": "https://example.com/build.zip",
-		"changelog": "Versão de teste automatizada",
-		"size_bytes": 1024
+	
+	var parsed_gh: Dictionary = _VersionChecker.parse_release_data(github_mock)
+	assert(not parsed_gh.is_empty(), "Parsing do GitHub não deve retornar vazio")
+	assert(parsed_gh["version"] == "0.2.0", "Versão extraída deve ser 0.2.0")
+	assert(parsed_gh["asset_name"] == "CepaSelvagem-0.2.0-windows.zip", "Asset de windows selecionado")
+	assert(parsed_gh["download_url"] == "https://example.com/CepaSelvagem-0.2.0-windows.zip", "URL extraída corretamente")
+	assert(parsed_gh["size_bytes"] == 125829120, "Tamanho em bytes validado")
+	assert(parsed_gh["is_zip"] == true, "Identificado como arquivo ZIP")
+	
+	# Mock de manifesto customizado direto
+	var manifest_mock := {
+		"version": "1.0.0",
+		"title": "Versão 1.0 Oficial",
+		"changelog": "Lançamento oficial",
+		"download_url": "https://cdn.example.com/cepas_v1.0.0.zip",
+		"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+		"size_bytes": 209715200
 	}
-	launcher._on_version_check_completed(mock_info)
+	
+	var parsed_mf: Dictionary = _VersionChecker.parse_release_data(manifest_mock)
+	assert(parsed_mf["version"] == "1.0.0", "Versão do manifesto validada")
+	assert(parsed_mf["sha256"] == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "SHA256 extraído")
+	assert(parsed_mf["download_url"] == "https://cdn.example.com/cepas_v1.0.0.zip", "URL do manifesto validada")
+	
+	print("  -> Parsing de GitHub API e Manifesto direto validados.")
 
-	assert(launcher.current_state == _LauncherMain.State.UPDATE_AVAILABLE, "Estado transiciona para UPDATE_AVAILABLE quando há versão mais nova")
-	assert(launcher._action_button.text.begins_with("⬇ ATUALIZAR"), "Botão atualiza texto de ação")
+func test_config_and_version_file() -> void:
+	print("\n[3/6] Persistência de Configurações e Versão Local...")
+	
+	var config := _LauncherConfig.new()
+	assert(config.github_repo == _LauncherConfig.DEFAULT_GITHUB_REPO, "Repo padrão deve coincidir")
+	assert(not config.get_executable_path().is_empty(), "Caminho do executável deve ser gerado")
+	
+	# Testa gravação e leitura de versão
+	var test_ver: String = "0.9.8"
+	config.write_installed_version(test_ver)
+	var read_ver: String = config.read_installed_version()
+	assert(read_ver == test_ver, "Versão lida deve ser igual à gravada: %s vs %s" % [read_ver, test_ver])
+	
+	# Salva e carrega configurações
+	config.custom_manifest_url = "https://custom.test/manifest.json"
+	config.save_settings()
+	
+	var config2 := _LauncherConfig.new()
+	assert(config2.custom_manifest_url == "https://custom.test/manifest.json", "Configuração persistida carregada")
+	
+	# Limpeza de teste
+	if FileAccess.file_exists(config.get_local_version_file_path()):
+		DirAccess.remove_absolute(config.get_local_version_file_path())
+	
+	print("  -> Configurações salvas e versão local lida/gravada com sucesso.")
 
-	# Simulação de versão já atualizada
-	launcher.config.write_installed_version("0.9.0")
-	# Cria mock temporário do executável
-	var exe_path := launcher.config.get_executable_path()
-	var parent_dir := exe_path.get_base_dir()
-	if not DirAccess.dir_exists_absolute(parent_dir):
-		DirAccess.make_dir_recursive_absolute(parent_dir)
-	var exe_file := FileAccess.open(exe_path, FileAccess.WRITE)
-	exe_file.store_string("mock exe")
-	exe_file.close()
+func test_patcher_sha256_and_zip_extraction() -> void:
+	print("\n[4/6] Patcher: Integridade SHA-256 e Descompactação ZIP...")
+	
+	var test_dir: String = "user://test_launcher_patcher"
+	DirAccess.make_dir_recursive_absolute(test_dir)
+	
+	var test_file_path: String = test_dir.path_join("test_sample.txt")
+	var file := FileAccess.open(test_file_path, FileAccess.WRITE)
+	file.store_string("CepasSelvagensLauncherPatcherContent")
+	file.close()
+	
+	# 1. Teste SHA-256
+	var expected_hash: String = FileAccess.get_sha256(test_file_path)
+	assert(not expected_hash.is_empty(), "Hash gerado não deve ser vazio")
+	assert(_Patcher.verify_sha256(test_file_path, expected_hash), "Validação com hash correto deve retornar true")
+	assert(not _Patcher.verify_sha256(test_file_path, "invalid_hash_value"), "Validação com hash incorreto deve retornar false")
+	assert(_Patcher.verify_sha256(test_file_path, ""), "Hash esperado vazio deve ser considerado válido")
+	
+	# 2. Teste Criação e Extração de ZIP via ZIPPacker e ZIPReader
+	var zip_path: String = test_dir.path_join("test_package.zip")
+	var packer := ZIPPacker.new()
+	var pack_err := packer.open(zip_path)
+	assert(pack_err == OK, "ZIPPacker abre com sucesso")
+	
+	packer.start_file("CepaSelvagem.exe")
+	packer.write_file("FAKE_EXECUTABLE_BYTES".to_utf8_buffer())
+	packer.close_file()
+	
+	packer.start_file("subfolder/data.txt")
+	packer.write_file("SUBFOLDER_CONTENT".to_utf8_buffer())
+	packer.close_file()
+	
+	packer.close()
+	
+	assert(FileAccess.file_exists(zip_path), "Arquivo ZIP de teste criado")
+	
+	# Extrai com o Patcher
+	var extract_dest: String = test_dir.path_join("extracted")
+	var progress_calls: Array[int] = [0]
+	var res: Dictionary = _Patcher.extract_zip(zip_path, extract_dest, func(_cur, _tot, _f): progress_calls[0] += 1)
+	
+	assert(res.get("success", false) == true, "Extração deve ser bem-sucedida")
+	assert(res.get("files_extracted", 0) == 2, "2 arquivos devem ter sido extraídos")
+	assert(progress_calls[0] >= 2, "Callback de progresso deve ter sido chamado")
+	
+	assert(FileAccess.file_exists(extract_dest.path_join("CepaSelvagem.exe")), "Executável extraído no destino")
+	assert(FileAccess.file_exists(extract_dest.path_join("subfolder/data.txt")), "Arquivo em subpasta extraído no destino")
+	
+	# Cleanup
+	_Patcher.cleanup(zip_path)
+	_Patcher.cleanup(test_file_path)
+	_Patcher.cleanup(extract_dest.path_join("CepaSelvagem.exe"))
+	_Patcher.cleanup(extract_dest.path_join("subfolder/data.txt"))
+	assert(not FileAccess.file_exists(zip_path), "ZIP temporário limpo com sucesso")
+	
+	print("  -> Verificação SHA-256 e extração recursiva de ZIP validadas com perfeição.")
 
-	launcher._on_version_check_completed(mock_info)
-	assert(launcher.current_state == _LauncherMain.State.READY_TO_PLAY, "Estado transiciona para READY_TO_PLAY quando versão bate e exe existe")
-	assert(launcher._action_button.text == "▶ JOGAR", "Botão exibe '▶ JOGAR'")
+func test_game_runner() -> void:
+	print("\n[5/6] GameRunner e Busca de Executável...")
+	
+	var fake_path: String = "user://fake_game_dir/CepaSelvagem.exe"
+	assert(not _GameRunner.is_game_installed(fake_path), "Caminho inexistente deve reportar não instalado")
+	
+	var base_dir: String = "user://test_runner_dir"
+	DirAccess.make_dir_recursive_absolute(base_dir)
+	var real_exe: String = base_dir.path_join("CepaSelvagem.exe")
+	var f := FileAccess.open(real_exe, FileAccess.WRITE)
+	f.store_string("EXE_MOCK")
+	f.close()
+	
+	assert(_GameRunner.is_game_installed(real_exe), "Executável presente deve ser detectado")
+	var found: String = _GameRunner.find_actual_executable(base_dir.path_join("qualquer_coisa.exe"))
+	assert(found == real_exe, "find_actual_executable deve localizar o binário CepaSelvagem.exe na pasta")
+	
+	DirAccess.remove_absolute(real_exe)
+	print("  -> Detecção de executável e métodos do GameRunner validados.")
 
-	# Limpeza
-	DirAccess.remove_absolute(exe_path)
-	launcher.queue_free()
-	print("  -> Máquina de estados do launcher e fluxo de atualização validados.")
+func test_downloader_helpers() -> void:
+	print("\n[6/6] Formatadores do Downloader...")
+	
+	assert(_Downloader.format_bytes(500) == "500 B", "500 bytes")
+	assert(_Downloader.format_bytes(1024 * 512) == "512.0 KB", "512 KB")
+	assert(_Downloader.format_bytes(1024 * 1024 * 45) == "45.0 MB", "45 MB")
+	assert(_Downloader.format_speed(1024 * 1024 * 3.5) == "3.5 MB/s", "Velocidade MB/s")
+	assert(_Downloader.format_time(45.0) == "45s", "Tempo em segundos")
+	assert(_Downloader.format_time(75.0) == "1m 15s", "Tempo em minutos e segundos")
+	
+	print("  -> Formatadores de bytes, velocidade e tempo restantes validados.")
