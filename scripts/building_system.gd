@@ -9,6 +9,9 @@ const BuildablePieceClass = preload("res://scripts/buildable_piece.gd")
 const ClaimTotemClass = preload("res://scripts/claim_totem.gd")
 const ZoneManagerClass = preload("res://scripts/core/zone_manager.gd")
 
+signal structure_placed(piece: Node3D)
+signal structure_dismantled(piece: Node3D)
+
 @export var player: Player
 @export var zone_manager: Node
 @export var snap_grid: float = 1.0
@@ -278,6 +281,7 @@ func _try_place_piece() -> bool:
 	node.position = pos
 	node.rotation.y = _ghost_yaw
 	get_parent().add_child(node)
+	structure_placed.emit(node)
 
 	_notify("✨ Construído: %s" % entry["name"])
 	return true
@@ -308,6 +312,7 @@ func try_dismantle_at(pos: Vector3) -> bool:
 	if best is ClaimTotemClass and _pieces_inside(best) > 0:
 		_notify("❌ Desmonte as construções do território antes do totem")
 		return false
+	structure_dismantled.emit(best)
 	var refunds: Dictionary = best.call("dismantle", player)
 	var parts: Array[String] = []
 	for mat_id in refunds:
