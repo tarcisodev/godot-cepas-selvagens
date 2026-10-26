@@ -549,23 +549,32 @@ func process_fish(player: Node) -> bool:
 			return true
 	return false
 
-## Desmonta a peça e devolve material (100% na janela de 2 min, senão 50%)
-func dismantle(player: Node) -> Dictionary:
+## Desmonta a peça e devolve material (100% na janela de 2 min, senão 50%, ou 25% para ruínas públicas)
+func dismantle(player: Node, is_ruin: bool = false) -> Dictionary:
 	var cfg: Dictionary = PIECE_CONFIG.get(piece_type, {})
-	var refunds := refund_costs(cfg.get("costs", {}), placed_at_msec, player)
+	var refunds := refund_costs(cfg.get("costs", {}), placed_at_msec, player, is_ruin)
 	queue_free()
 	return refunds
 
 ## Reembolso comum a peças e totem. Arredonda para baixo: o que sobra é ralo de material.
-static func refund_costs(costs: Dictionary, placed_at: int, player: Node) -> Dictionary:
-	var full := placed_at >= 0 and Time.get_ticks_msec() - placed_at <= FULL_REFUND_WINDOW_MS
+## Ruínas abandonadas devolvem 25% de sucata para desmanche público (GDD-08 §8 Decisão 7).
+static func refund_costs(costs: Dictionary, placed_at: int, player: Node, is_ruin: bool = false) -> Dictionary:
+	var full := not is_ruin and placed_at >= 0 and Time.get_ticks_msec() - placed_at <= FULL_REFUND_WINDOW_MS
 	var refunds: Dictionary = {}
+	var inv: Object = null
+	if player:
+		if "inventory" in player and player.inventory != null:
+			inv = player.inventory
+		elif player.has_meta("inventory"):
+			inv = player.get_meta("inventory")
+		elif player.get_node_or_null("InventoryComponent"):
+			inv = player.get_node_or_null("InventoryComponent")
 	for mat_id in costs:
 		var cost: int = costs[mat_id]
-		var amount: int = cost if full else cost / 2
+		var amount: int = cost if full else (maxi(1, int(cost * 0.25)) if is_ruin else cost / 2)
 		if amount <= 0:
 			continue
 		refunds[mat_id] = amount
-		if player and "inventory" in player and player.inventory != null:
-			player.inventory.add_material(mat_id, amount)
+		if inv:
+			inv.call("add_material", mat_id, amount)
 	return refunds
