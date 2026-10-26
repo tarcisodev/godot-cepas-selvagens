@@ -19,7 +19,7 @@ jobs:
         with:
           lfs: true
 
-      - name: Extract GAME_VERSION
+      - name: Validate Tag matches GAME_VERSION
         id: get_version
         run: |
           GAME_VERSION=$(grep 'const GAME_VERSION' scripts/core/network_manager.gd | sed -E 's/.*"([^"]+)".*/\1/')
@@ -28,19 +28,26 @@ jobs:
             exit 1
           fi
           echo "GAME_VERSION=$GAME_VERSION" >> $GITHUB_ENV
-          echo "Versão detectada da GAME_VERSION: $GAME_VERSION"
-          echo "Tag do git acionada: ${{ github.ref_name }}"
+          echo "Versão detectada em scripts/core/network_manager.gd: $GAME_VERSION"
+          echo "Ref do Git acionada: ${{ github.ref_name }}"
+          
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            EXPECTED_TAG="v${GAME_VERSION}"
+            if [ "${{ github.ref_name }}" != "$EXPECTED_TAG" ]; then
+              echo "::error::Tag acionada (${{ github.ref_name }}) não confere com v${GAME_VERSION} (scripts/core/network_manager.gd)!"
+              exit 1
+            fi
+            echo "Sucesso: Tag ${{ github.ref_name }} corresponde perfeitamente a v${GAME_VERSION}."
+          fi
 
       - name: Setup Godot Engine 4.7.2 & Official Export Templates
         run: |
           GODOT_VER="4.7.2"
           GODOT_STATUS="stable"
           
-          echo "=== 1. Baixando Godot Engine Linux Headless ==="
+          echo "=== 1. Baixando Godot Engine Linux Headless Oficial ==="
           wget -q --retry-connrefused --waitretry=2 -O godot.zip \
-            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64.zip" || \
-          wget -q -O godot.zip \
-            "https://downloads.tuxfamily.org/godotengine/${GODOT_VER}/Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64.zip"
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64.zip"
           
           unzip -q godot.zip
           sudo mv Godot_v${GODOT_VER}-${GODOT_STATUS}_linux.x86_64 /usr/local/bin/godot
@@ -49,9 +56,7 @@ jobs:
           
           echo "=== 2. Baixando Export Templates Oficiais ==="
           wget -q --retry-connrefused --waitretry=2 -O templates.tpz \
-            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_export_templates.tpz" || \
-          wget -q -O templates.tpz \
-            "https://downloads.tuxfamily.org/godotengine/${GODOT_VER}/Godot_v${GODOT_VER}-${GODOT_STATUS}_export_templates.tpz"
+            "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}-${GODOT_STATUS}/Godot_v${GODOT_VER}-${GODOT_STATUS}_export_templates.tpz"
           
           unzip -q templates.tpz
           
@@ -84,22 +89,24 @@ jobs:
       - name: Export Launcher Windows Desktop Preset
         run: |
           echo "Iniciando export do Launcher Oficial..."
-          godot --headless --path launcher --export-release "Windows Desktop" build/windows/CepasSelvagensLauncher.exe
+          mkdir -p build/windows launcher/build/windows
+          godot --headless --path launcher --export-release "Windows Desktop" "$(pwd)/build/windows/CepasSelvagensLauncher.exe"
           
-          if [ -f "build/windows/CepasSelvagensLauncher.exe" ]; then
-            echo "Launcher Oficial exportado com sucesso:"
-            ls -lh build/windows/CepasSelvagensLauncher.exe
-          else
-            echo "::warning::Launcher não foi gerado, prosseguindo com build principal."
+          if [ ! -f "build/windows/CepasSelvagensLauncher.exe" ]; then
+            echo "::error::Falha na exportação: build/windows/CepasSelvagensLauncher.exe não foi gerado!"
+            exit 1
           fi
+          
+          echo "Launcher Oficial exportado com sucesso:"
+          ls -lh build/windows/CepasSelvagensLauncher.exe
 
-      - name: Package Windows ZIP
+      - name: Package Windows ZIP and Generate Manifest
         run: |
           cd build/windows
           
           cat << 'EOF' > LEIA-ME.txt
           ========================================================================
-          Cepas Selvagens — Playtest Fechado v${{ env.GAME_VERSION }} (Windows)
+          Cepas Selvagens — Playtest v${{ env.GAME_VERSION }} (Windows)
           ========================================================================
 
           Obrigado por participar do Playtest de Cepas Selvagens!
@@ -132,14 +139,43 @@ jobs:
           echo "Criando arquivo $ZIP_NAME..."
           zip -9 -r "$ZIP_NAME" CepaSelvagem.exe LEIA-ME.txt
           
-          echo "Pacote gerado:"
-          ls -lh "$ZIP_NAME"
+          ZIP_SIZE=$(stat -c%s "$ZIP_NAME")
+          ZIP_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
+          
+          echo "Gerando manifest.json..."
+          cat << EOF > manifest.json
+          {
+            "version": "${{ env.GAME_VERSION }}",
+            "file": "$ZIP_NAME",
+            "size": $ZIP_SIZE,
+            "sha256": "$ZIP_SHA256"
+          }
+          EOF
+          
+          echo "Manifesto de integridade gerado com sucesso:"
+          cat manifest.json
+          echo ""
+
+          if [ -n "${{ secrets.RELEASE_SIGNING_KEY }}" ]; then
+            echo "Assinando manifest.json com chave privada..."
+            echo "${{ secrets.RELEASE_SIGNING_KEY }}" > signing_key.pem
+            openssl dgst -sha256 -sign signing_key.pem -out manifest.json.sig manifest.json 2>/dev/null || true
+            rm -f signing_key.pem
+            if [ -f manifest.json.sig ]; then
+              echo "Assinatura manifest.json.sig gerada com sucesso."
+            fi
+          fi
+          
+          echo "Artefatos prontos:"
+          ls -lh
 
       - name: Create GitHub Release and Upload Artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
             build/windows/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip
+            build/windows/manifest.json
+            build/windows/manifest.json.sig
             build/windows/CepasSelvagensLauncher.exe
           name: Cepas Selvagens v${{ env.GAME_VERSION }} (Playtest Fechado)
           body: |
@@ -149,10 +185,11 @@ jobs:
 
             ### 🚀 Opção 1: Launcher Oficial (Recomendado)
             - **Download:** [`CepasSelvagensLauncher.exe`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepasSelvagensLauncher.exe)
-            - O launcher gerencia o download do jogo e aplica atualizações futuras automaticamente sem que você precise baixar arquivos zip manuais!
+            - O launcher gerencia o download do jogo e aplica atualizações futuras automaticamente!
 
             ### 📦 Opção 2: Pacote Direto (.zip)
             - **Arquivo:** [`CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip)
+            - **Integridade:** [`manifest.json`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/manifest.json)
 
             ### 🚀 Como Jogar
             1. Baixe o **Launcher Oficial** e execute-o para instalar o jogo automaticamente, ou extraia o `.zip` manual em uma pasta.
@@ -168,6 +205,6 @@ jobs:
             - [Landing Page Oficial](https://cepas.tarciso.dev)
             - [Central de Issues & Bugs](https://github.com/tarcisodev/godot-cepas-selvagens/issues)
           draft: false
-          prerelease: true
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
