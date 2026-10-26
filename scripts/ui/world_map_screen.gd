@@ -417,7 +417,12 @@ func _select_entry(entry: Dictionary) -> void:
 		_detail_coords.text = "Coordenadas: X %.0f, Z %.0f" % [pos.x, pos.z]
 	if _travel_btn:
 		var can_ft: bool = entry.get("can_fast_travel", false)
-		_travel_btn.disabled = not can_ft
+		if player and player.has_meta("carrying_trade_pack") and player.get_meta("carrying_trade_pack") != null:
+			_travel_btn.disabled = true
+			_travel_btn.text = "🚫 Fardo Pesado (Sem Viagem Rápida)"
+		else:
+			_travel_btn.disabled = not can_ft
+			_travel_btn.text = "⚡ Viagem Rápida" 
 	if _map_canvas:
 		_map_canvas.queue_redraw()
 
