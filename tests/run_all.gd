@@ -14,12 +14,31 @@ const SUCCESS_MARKERS: Array[String] = ["SUCESSO", "PASSARAM"]
 const MAX_FRAMES: int = 3000
 
 func _initialize() -> void:
+	var filter: String = ""
+	var user_args: PackedStringArray = OS.get_cmdline_user_args()
+	if not user_args.is_empty():
+		filter = user_args[0].strip_edges().to_lower()
+	else:
+		for arg in OS.get_cmdline_args():
+			if arg.begins_with("--filter="):
+				filter = arg.trim_prefix("--filter=").strip_edges().to_lower()
+				break
+
 	var dir := DirAccess.open("res://tests")
 	var files: Array[String] = []
 	for f in dir.get_files():
 		if f.begins_with("test_") and f.ends_with(".gd"):
-			files.append(f)
+			if filter == "" or filter in f.to_lower():
+				files.append(f)
 	files.sort()
+
+	if files.is_empty():
+		print("Nenhum teste encontrado para o filtro: '%s'" % filter)
+		quit(0)
+		return
+
+	if filter != "":
+		print("Filtrando testes por '%s' (%d encontrados):\n" % [filter, files.size()])
 
 	var failed: Array[String] = []
 	for f in files:
