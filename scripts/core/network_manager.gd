@@ -18,7 +18,7 @@ const _StyleAttack = preload("res://scripts/data/style_attack.gd")
 const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
 
-const GAME_VERSION: String = "0.1.0"
+const GAME_VERSION: String = "0.1.1"
 const DEFAULT_PORT: int = 8787
 const DEFAULT_HOST: String = "jogar.tarciso.dev"
 const DEFAULT_LOCAL_HOST: String = "127.0.0.1"
