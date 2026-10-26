@@ -110,6 +110,10 @@ func consume_materials(requirements: Dictionary) -> bool:
 	stacks_changed.emit()
 	return true
 
+## Consome uma quantidade de material específico por ID
+func consume_material(id: StringName, amount: int = 1) -> bool:
+	return consume_materials({ id: amount })
+
 ## Pilhas de um material (ou todas, com id vazio), da pior qualidade para a melhor.
 func get_stacks(material_id: StringName = &"") -> Array[Dictionary]:
 	if material_id.is_empty():
@@ -287,6 +291,8 @@ const RECIPES: Dictionary = {
 	&"laco_fibra": {&"fibra": 4, &"galho": 2},
 	&"sedativo_erva": {&"erva": 3, &"mel": 1},
 	&"vara_pesca": {&"galho": 3, &"fibra": 4},
+	&"armadilha_mola": {&"madeira": 3, &"pedra": 2, &"tendao_elastico": 1},
+	&"isca_feromonio": {&"erva": 2, &"folha": 2, &"frutinha": 2},
 }
 
 ## Faz 1 unidade da receita (gasta a pior qualidade primeiro). false se faltar material.

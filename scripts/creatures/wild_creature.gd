@@ -184,6 +184,22 @@ func trap(by: Node) -> bool:
 	_show_rope(true)
 	return true
 
+## [Armadilha de Mandíbula] Prende a criatura pelo mecanismo de ferro por tempo determinado
+func force_trap(by: Node, duration: float = 8.0) -> bool:
+	if not is_alive() or state == State.CAPTURED or state == State.DEAD:
+		return false
+	state = State.TRAPPED
+	trapped_by = by
+	_timer = duration
+	_show_rope(true)
+	return true
+
+## [Isca Odorífera] Direciona a criatura em direção ao cheiro da isca se estiver passeando
+func set_bait_attraction(bait_pos: Vector3) -> void:
+	if state == State.WANDER:
+		_target = bait_pos
+		_wait = 0.0
+
 ## [Sedativo] Começa 3 s de sedação; o caçador precisa ficar parado e sem levar dano
 func start_sedation(player: Node3D) -> bool:
 	if state != State.TRAPPED:
@@ -792,8 +808,9 @@ func _show_rope(on: bool) -> void:
 	if on and _rope == null:
 		_rope = MeshInstance3D.new()
 		var torus := TorusMesh.new()
-		torus.inner_radius = dna.body_size() * 0.32
-		torus.outer_radius = dna.body_size() * 0.38
+		var b_size: float = dna.body_size() if dna != null else 1.0
+		torus.inner_radius = b_size * 0.32
+		torus.outer_radius = b_size * 0.38
 		_rope.mesh = torus
 		_rope.position.y = 0.25
 		var m := StandardMaterial3D.new()

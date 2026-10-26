@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"isca_feromonio"
+display_name = "Isca Odorífera de Caça"
+description = "Isca concentrada de ervas aromáticas e vísceras. Quando plantada no solo, atrai criaturas selvagens próximas para a área da armadilha."
+category = 5
+icon = "🥩"
+color = Color(0.75, 0.35, 0.35, 1)
+unit_weight = 0.5
+max_gather_quality = 5
+base_value = 10
+tool_action = &"isca"
