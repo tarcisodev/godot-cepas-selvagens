@@ -117,7 +117,7 @@ func use_selected() -> bool:
 	# Armadilha de Mandíbula: arma no solo à frente (GDD-03 §8)
 	if MaterialData.of(selected_id).tool_action == &"armadilha":
 		var trap_sys := _TrapSystem.get_instance(get_tree())
-		var ok := trap_sys != null and trap_sys.deploy_trap_by_player(player, selected_id)
+		var ok: bool = trap_sys != null and trap_sys.deploy_trap_by_player(player, selected_id)
 		if ok:
 			_notify("⚙️ Armadilha de Mandíbula armada no solo")
 		else:
@@ -126,7 +126,7 @@ func use_selected() -> bool:
 	# Isca Odorífera de Caça: coloca no solo à frente (GDD-03 §8)
 	if MaterialData.of(selected_id).tool_action == &"isca":
 		var trap_sys := _TrapSystem.get_instance(get_tree())
-		var ok := trap_sys != null and trap_sys.deploy_bait_by_player(player, selected_id)
+		var ok: bool = trap_sys != null and trap_sys.deploy_bait_by_player(player, selected_id)
 		if ok:
 			_notify("🥩 Isca Odorífera colocada no solo")
 		else:
