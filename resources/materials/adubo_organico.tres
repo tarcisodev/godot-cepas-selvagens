@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"adubo_organico"
+display_name = "Adubo de Monstro"
+description = "Fertilizante mineralizado produzido na Composteira a partir de ossos e biomassa de monstros. Acelera o crescimento dos canteiros em +50% e dobra a chance de mutações genéticas."
+category = 1
+icon = "🌱"
+color = Color(0.42, 0.32, 0.2, 1)
+unit_weight = 0.5
+max_gather_quality = 5
+base_value = 8
+tool_action = &""

@@ -17,20 +17,17 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 1. Guilda construída pelos jogadores — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-15-Guildas-territorio-e-uniformes|GDD-15]]
-- ✅ **Decidido (2026-10-25):** A guilda não é menu; é território conquistado e marcado com **Totem de Guilda** (raio de 40 a 80 m).
-- **Construção Comunitária:** Níveis 1 a 3 construídos com doação de materiais (Quadro de Contribuição).
-- **Heráldica:** Escolha de cores e emblema/brasão da guilda.
-- **Sets Personalizados por Ocasião:** Set de Gala/Social (eventos e casamentos na capela), Set de Guerra (brasão bordado na capa e escudo) e equipamento pessoal livre.
+## 1. Guilda construída pelos jogadores — Executado no [[03-Projects/Cepa-Selvagem/blocos/B26-guildas-territorio-e-heraldica|B26]] e [[03-Projects/Cepa-Selvagem/notas/GDD-15-Guildas-territorio-e-uniformes|GDD-15]]
+- ✅ **Implementado (Bloco B26):** Totem de Guilda (`GuildTotem`) com raio de 40 a 80m; construção comunitária da sede Níveis 1 a 3; heráldica (cores e brasão); armário de uniformes por ocasião (Set de Gala, Set de Guerra e Equipamento Pessoal livre) com overlay de brasão na Capa (`GearVisual`); interface `GuildScreen`.
 
 ---
 
-## 2. Quadro de missões na vila (GDD-05 §5 e GDD-03)
-- Na praça da vila, um quadro de contratos dinâmicos integrados à economia e ao ecossistema:
-  - **Caça Anatômica:** Abater monstros com partes específicas intactas (ligado ao GDD-03 e B23/B24).
-  - **Mineração e Forja:** Encomendas de barras de ferro e quartzo-lume para a muralha da vila.
-  - **Reconhecimento & Modo Foto:** Fotografar e catalogar mutações raras de plantas (GDD-04).
-  - **Culinária:** Fornecer pratos e assados para o estoque da taverna ([[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]).
+## 2. Quadro de missões na vila — Executado no [[03-Projects/Cepa-Selvagem/blocos/B28-quadro-de-missoes-e-modo-foto|B28]], [[03-Projects/Cepa-Selvagem/notas/GDD-05-Economia-e-mercado-negro|GDD-05 §5]] e [[03-Projects/Cepa-Selvagem/notas/GDD-03-Combate-e-caca|GDD-03]]
+- ✅ **Implementado (Bloco B28):**
+  - **Quadro de Missões 3D (`MissionBoard`)** na praça da vila com interface categorizada (`MissionBoardScreen`).
+  - **4 Categorias de Contratos Dinâmicos:** Caça Anatômica (partes íntegras), Mineração & Forja (reforço de muralhas), Culinária & Taverna (refeições no ponto de espeto e caldeirão) e Reconhecimento Ecológico (Modo Foto).
+  - **Modo Foto [P] (`PhotoModeScreen`):** Câmera com linhas de terços, zoom de 1× a 4×, identificação em tempo real de gênero/estágio da fauna e plantas, obturador fotográfico que avança contratos e desbloqueia cartões no álbum.
+  - Recompensas em $S, Reputação da Vila e XP de Maestrias de uso (Esfola, Forja, Mineração, Culinária).
 
 ---
 
@@ -41,10 +38,8 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 4. Cadeia alimentar & Carniceiros — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-10-Ciclo-natural#11-cadeia-alimentar-e-carniceiros-urubus|GDD-10 §11]]
-- ✅ **Decidido (2026-10-25):** Carnívoros caçam herbívoros por fome.
-- **Urubus como "Farol Natural":** Urubus voam em círculos no céu sobre carcaças no chão, visíveis à distância no horizonte.
-- Carcaças decompõem em 3 etapas, mineralizando a célula do solo e elevando a chance de mutação botânica para 12%.
+## 4. Cadeia alimentar & Carniceiros — Executado no [[03-Projects/Cepa-Selvagem/blocos/B25-culinaria-espeto-e-caldeirao|B25]] e [[03-Projects/Cepa-Selvagem/notas/GDD-10-Ciclo-natural#11-cadeia-alimentar-e-carniceiros-urubus|GDD-10 §11]]
+- ✅ **Implementado (Bloco B25):** Urubus voam em círculos no céu sobre carcaças no chão como farol orgânico no horizonte (`VultureFlock3D`); carcaça apodrece enriquecendo o solo com +0.80 de nutriente.
 
 ---
 
@@ -53,20 +48,28 @@ Ideias propostas e seu amadurecimento em notas de GDD, ADRs e blocos de execuç�
 
 ---
 
-## 6. Cozinha & Minigame Monster Hunter — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]
-- ✅ **Decidido (2026-10-25):** Espeto na fogueira com minigame de timing (crua → suculenta perfeita → queimada).
-- Caldeirão do Rancho combinando carnes, peixes, ovos, leite, mel, ervas, frutas e cogumelos para buffs duradouros.
+## 6. Cozinha & Minigame Monster Hunter — Executado no [[03-Projects/Cepa-Selvagem/blocos/B25-culinaria-espeto-e-caldeirao|B25]] e [[03-Projects/Cepa-Selvagem/notas/GDD-13-Cozinha-e-culinaria|GDD-13]]
+- ✅ **Implementado (Bloco B25):** Espeto na fogueira com minigame de timing (crua → suculenta perfeita → queimada) e buff Bem Alimentado; Caldeirão Culinário combinando bases e acompanhamentos com buffs de longa duração e qualidade derivada dos insumos.
 
 ---
 
-## 7. Gênero, Ciclo de Vida, Casamento & Creche — Estruturado no [[03-Projects/Cepa-Selvagem/notas/GDD-14-Reproducao-ciclo-de-vida-e-familia|GDD-14]]
-- ✅ **Decidido (2026-10-25):**
-  - Macho e fêmea para animais e jogadores.
-  - 4 estágios: filhote/criança, jovem, adulto e idoso.
-  - Capela da Vila: casamento e divórcio entre jogadores.
-  - Gravidez de 9 meses do jogo; parto gratuito com a parteira da cidade.
-  - Berçário da cidade acolhe o bebê na Fase 1, crescendo e trabalhando como aprendiz da comunidade com sexo definido e capacidade de continuar a linhagem.
-  - Migração de assets estáticos legados para modelos procedurais originais.
+## 7. Gênero, Ciclo de Vida, Casamento & Creche — Executado no [[03-Projects/Cepa-Selvagem/blocos/B27-genero-ciclo-de-vida-e-familia|B27]] e [[03-Projects/Cepa-Selvagem/notas/GDD-14-Reproducao-ciclo-de-vida-e-familia|GDD-14]]
+- ✅ **Implementado (Bloco B27):**
+  - Macho e fêmea com dimorfismo biológico para todos os animais e personagens (`CreatureDNA`, `CharacterDNA`).
+  - 4 estágios de vida: filhote/criança (0.45×), jovem (0.75×), adulto (1.00× fértil) e idoso (0.95×).
+  - Capela da Vila da Esperança (`VillageChapel`) com Altar de Votos para casamentos, divórcios e Aliança de Votos com buff *Laço de Votos* (+10% regen ao casal).
+  - Gravidez canônica de 9 meses (27 dias de sol) para a jogadora, sem impedir explorações.
+  - Casa da Parteira (`Mestra Clara`) com atendimento 100% gratuito.
+  - Berçário da Cidade (`TownNursery`) acolhendo o recém-nascido, que cresce seguro e aprende ofícios de aprendiz pela comunidade.
+
+---
+
+## 8. Composteira de Monstros, Tanque de Aquicultura & Conhecimento Ecológico — Executado no [[03-Projects/Cepa-Selvagem/blocos/B29-composteira-tanque-e-ecologia|B29]], [[03-Projects/Cepa-Selvagem/notas/GDD-04-Genetica-e-mutacao|GDD-04 §5]] e [[03-Projects/Cepa-Selvagem/notas/GDD-08-Construcao-e-propriedades|GDD-08 §5]]
+- ✅ **Implementado (Bloco B29):**
+  - **Composteira de Monstros (`PieceType.COMPOSTEIRA`):** Decompõe ossos e biomassa de monstros em `adubo_organico` (qualidade 3, mineralizado).
+  - **Tanque de Aquicultura (`PieceType.TANQUE_PEIXE`):** Processa peixes criados e capturados em `oleo_peixe` purificado (rendimento 2x para peixes dourados e alta qualidade).
+  - **Adubação de Plantas & Botânica:** `is_fertilized` acelera em +50% a velocidade de crescimento no `life_tick` e potencializa mutações genéticas.
+  - **Conhecimento Ecológico (`EcologyKnowledgeComponent`):** 3 tiers de pesquisa (Nv 1 Fraquezas e Partes Anatômicas, Nv 2 Diagnóstico em Tempo Real, Nv 3 Genética de Campo no visor do Modo Foto lendo alelos e mutações). Recompensas por foto, esfola e captura.
 
 ---
 

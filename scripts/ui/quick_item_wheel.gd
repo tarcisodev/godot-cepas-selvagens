@@ -1,6 +1,8 @@
 class_name QuickItemWheel
 extends Control
 
+const _TrapSystem = preload("res://scripts/systems/trap_system.gd")
+
 ## Roda rápida de consumíveis: segure [F] para abrir a roda, aponte com o mouse e solte para
 ## escolher. O tempo NÃO para nem desacelera (no online não haveria essa folga). [G] usa o item escolhido; [Z]/[X] passam para o anterior/próximo.
 ## Um indicador fixo no canto mostra o item escolhido e quantos restam.
@@ -112,6 +114,24 @@ func use_selected() -> bool:
 		_notify(msg)
 		return msg.begins_with("Pinhão-Lume plantado")
 	# Ferramenta de captura (laço, sedativo): age no bicho mais próximo
+	# Armadilha de Mandíbula: arma no solo à frente (GDD-03 §8)
+	if MaterialData.of(selected_id).tool_action == &"armadilha":
+		var trap_sys := _TrapSystem.get_instance(get_tree())
+		var ok := trap_sys != null and trap_sys.deploy_trap_by_player(player, selected_id)
+		if ok:
+			_notify("⚙️ Armadilha de Mandíbula armada no solo")
+		else:
+			_notify("Não foi possível armar a armadilha aqui")
+		return ok
+	# Isca Odorífera de Caça: coloca no solo à frente (GDD-03 §8)
+	if MaterialData.of(selected_id).tool_action == &"isca":
+		var trap_sys := _TrapSystem.get_instance(get_tree())
+		var ok := trap_sys != null and trap_sys.deploy_bait_by_player(player, selected_id)
+		if ok:
+			_notify("🥩 Isca Odorífera colocada no solo")
+		else:
+			_notify("Não foi possível colocar a isca aqui")
+		return ok
 	if MaterialData.of(selected_id).is_tool():
 		return WildCreature.use_tool(player, selected_id)
 	var stacks: Array[Dictionary] = player.inventory.get_stacks(selected_id)

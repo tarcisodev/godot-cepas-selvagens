@@ -12,6 +12,12 @@ const BANNER2_SCENE = preload("res://assets/models/props/fantasy/Banner_2.gltf")
 const AXE_SCENE = preload("res://assets/models/tools/axe.gltf")
 const ALCHEMIST_DNA = preload("res://resources/characters/alchemist_dna.tres")
 const BUILDER_DNA = preload("res://resources/characters/builder_dna.tres")
+const _CookingStation = preload("res://scripts/town/cooking_station.gd")
+const _VillageChapel = preload("res://scripts/town/village_chapel.gd")
+const _TownNursery = preload("res://scripts/town/town_nursery.gd")
+const _MissionBoardSystem = preload("res://scripts/systems/mission_board_system.gd")
+const _MissionBoard = preload("res://scripts/town/mission_board.gd")
+const _PhotoModeScreen = preload("res://scripts/ui/photo_mode_screen.gd")
 
 ## Centro e raio da vila (o ZoneManager usa os mesmos valores)
 const CENTER: Vector2 = Vector2(1.5, 4.5)
@@ -30,6 +36,8 @@ var reputation: int = 0
 ## Mercado da Vila (GDD-05 §6): encomendas e ordens de venda atendidas pela caravana
 var market := VillageMarket.new()
 var _market_screen: MarketScreen
+var mission_system: _MissionBoardSystem
+var _photo_screen: _PhotoModeScreen
 var _last_hour: int = -1
 
 ## Contratos da Vila (GDD-05 §5): sempre 3 pedidos "entregue N de um material comum"
@@ -39,6 +47,8 @@ const CONTRACT_POOL: Dictionary = {
 	&"madeira": Vector2i(6, 12), &"galho": Vector2i(8, 16), &"folha": Vector2i(6, 12),
 	&"fibra": Vector2i(6, 10), &"pedra": Vector2i(6, 12), &"frutinha": Vector2i(4, 8),
 	&"besouro": Vector2i(2, 5), &"ossos": Vector2i(2, 5), &"erva": Vector2i(4, 8), &"mel": Vector2i(1, 3),
+	&"carne_crua": Vector2i(3, 6), &"carne_bem_passada": Vector2i(2, 4), &"peixe_lambari": Vector2i(3, 6),
+	&"minerio_ferro": Vector2i(3, 6), &"barra_ferro": Vector2i(2, 4), &"couro_trotador": Vector2i(2, 4),
 }
 ## Loja da Alquimista: o ralo de moeda do slice; não compra nada de volta
 const SHOP_PRICES: Dictionary = {
@@ -58,6 +68,8 @@ var _board_layer: CanvasLayer
 
 func _ready() -> void:
 	add_to_group("city_hub")
+	if mission_system == null:
+		mission_system = _MissionBoardSystem.new()
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
 	_rng.randomize()
@@ -181,7 +193,7 @@ func get_state() -> Dictionary:
 	var saved_contracts: Array = []
 	for c in contracts:
 		saved_contracts.append({"id": String(c.id), "amount": c.amount, "reward": c.reward})
-	return {"reputation": reputation, "projects": projects, "contracts": saved_contracts, "market": market.get_state()}
+	return {"reputation": reputation, "projects": projects, "contracts": saved_contracts, "market": market.get_state(), "missions": mission_system.to_array() if mission_system else []}
 
 func apply_state(state: Dictionary) -> void:
 	reputation = int(state.get("reputation", 0))
@@ -193,6 +205,8 @@ func apply_state(state: Dictionary) -> void:
 		contracts_changed.emit()
 	if state.has("market"):
 		market.apply_state(state["market"])
+	if state.has("missions") and mission_system != null:
+		mission_system.load_from_array(state["missions"])
 	var projects: Dictionary = state.get("projects", {})
 	for p in _projects:
 		if projects.has(String(p.project_id)):
@@ -365,6 +379,27 @@ func _build_board() -> void:
 	fire.position = Vector3(-0.6, _get_ground_y(-0.6, 5.6), 5.6)
 	add_child(fire)
 
+	# Caldeirão Culinário público do acampamento (GDD-13 §4)
+	var cauldron := _CookingStation.new()
+	cauldron.name = "CaldeiraoPublico"
+	cauldron.city = self
+	cauldron.position = Vector3(1.8, _get_ground_y(1.8, 5.8), 5.8)
+	add_child(cauldron)
+
+	# Capela da Vila da Esperança (GDD-14 §4.1)
+	var chapel := _VillageChapel.new()
+	chapel.name = "CapelaDaEsperanca"
+	chapel.city = self
+	chapel.position = Vector3(-5.2, _get_ground_y(-5.2, 2.0), 2.0)
+	add_child(chapel)
+
+	# Berçário da Cidade e Casa da Parteira (GDD-14 §4.3)
+	var nursery := _TownNursery.new()
+	nursery.name = "BercarioDaCidade"
+	nursery.city = self
+	nursery.position = Vector3(6.5, _get_ground_y(6.5, -2.5), -2.5)
+	add_child(nursery)
+
 	_board_layer = CanvasLayer.new()
 	_board_layer.layer = 12
 	add_child(_board_layer)
@@ -374,6 +409,19 @@ func _build_board() -> void:
 	_market_screen = MarketScreen.new()
 	_market_screen.city = self
 	_board_layer.add_child(_market_screen)
+
+	# Quadro de Missões & Contratos da Vila (GDD-05 §5, GDD-03, GDD-13)
+	var mission_board := _MissionBoard.new()
+	mission_board.name = "QuadroDeMissoes"
+	mission_board.city = self
+	mission_board.mission_system = mission_system
+	mission_board.position = Vector3(-3.2, _get_ground_y(-3.2, -3.0), -3.0)
+	add_child(mission_board)
+
+	# Modo Foto [P] e Câmera de Reconhecimento
+	_photo_screen = _PhotoModeScreen.new()
+	_photo_screen.mission_system = mission_system
+	_board_layer.add_child(_photo_screen)
 
 func _spawn_city_npcs() -> void:
 	var builder := TownNPC.new()

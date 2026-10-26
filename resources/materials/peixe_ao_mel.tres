@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"peixe_ao_mel"
+display_name = "Peixe Dourado ao Mel do Vale"
+description = "Posta de peixe fresco caramelizada com mel silvestre e ervas. Concede o buff Foco Místico (+30 Éter máximo e +25% de regeneração de Éter por 20 min)."
+category = 5
+icon = "🐟"
+color = Color(0.95, 0.75, 0.25, 1)
+unit_weight = 0.7
+max_gather_quality = 5
+restore_health = 35.0
+restore_ether = 45.0
+food_buff_id = &"foco_mistico"
+food_buff_duration = 1200.0
+food_buff_name = "Foco Místico"
+base_value = 22

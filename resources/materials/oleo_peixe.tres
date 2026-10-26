@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"oleo_peixe"
+display_name = "Óleo de Peixe Purificado"
+description = "Solvente purificado produzido nos Tanques de Aquicultura do rancho. Essencial para extração de resinas e têmpera de ligas metálicas na forja."
+category = 3
+icon = "🫗"
+color = Color(0.88, 0.76, 0.35, 1)
+unit_weight = 0.4
+max_gather_quality = 5
+base_value = 12
+tool_action = &""

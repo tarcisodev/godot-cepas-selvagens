@@ -210,6 +210,20 @@ func spawn_offspring(a: WildCreature, b: WildCreature) -> bool:
 	c.breed_cooldown = WildCreature.BREED_COOLDOWN
 	return true
 
+## Filhote nascido de gestação por DNA de pai e mãe (GDD-14)
+func spawn_from_dna(mother_dna: CreatureDNA, father_dna: CreatureDNA, pos: Vector3, roam: float) -> WildCreature:
+	if population(mother_dna.species) >= POP_MAX.get(mother_dna.species, 10):
+		return null
+	var c := _add_wild(mother_dna.species, pos, roam)
+	c.dna = CreatureDNA.cross(mother_dna, father_dna, _rng.randi())
+	c.body.dna = c.dna
+	c.body.build()
+	c.age_days = 0.0
+	c.hunger = 0.3
+	c.thirst = 0.3
+	c.breed_cooldown = WildCreature.BREED_COOLDOWN
+	return c
+
 # ---------------------------------------------------------------- save da natureza (GDD-10)
 
 ## Plantas e bichos vivos como estão agora (posição, DNA, idade, fome, sede)
