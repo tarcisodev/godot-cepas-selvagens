@@ -118,7 +118,7 @@ static func randomized(p_species: Species, p_seed: int) -> CreatureDNA:
 	return d
 
 ## Cruza dois DNAs (GDD-04): cada filho herda um alelo de cada pai, com 3% de mutação
-static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int) -> CreatureDNA:
+static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int, p_mutation_chance: float = 0.03) -> CreatureDNA:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = p_seed
 	var child := CreatureDNA.new()
@@ -129,7 +129,7 @@ static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int) -> CreatureDNA:
 	for gene in a.alleles:
 		var pick: Array = [a.alleles[gene][rng.randi() % 2], b.alleles[gene][rng.randi() % 2]]
 		for i in 2:
-			if rng.randf() < 0.03:
+			if rng.randf() < p_mutation_chance:
 				pick[i] = "*"
 		child.alleles[gene] = pick
 	child.base_color = a.base_color.lerp(b.base_color, rng.randf())

@@ -177,6 +177,12 @@ func _on_capture_choice(choice: StringName) -> void:
 			if add_owned_mount(c.dna):
 				_say("🐎 %s levado ao estábulo! (%d/%d)" % [c.dna.species_name(), owned.size(), MAX_OWNED])
 			c.take_away()
+		&"rancho":
+			if _pending_player != null and _pending_player.has_method("add_livestock"):
+				_pending_player.add_livestock(c.dna)
+			else:
+				_say("🏡 %s enviado ao Rancho como matriz reprodutiva!" % c.dna.species_name())
+			c.take_away()
 		_:
 			_say("🌿 Você soltou o %s" % c.dna.species_name())
 			c.take_away()

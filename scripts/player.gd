@@ -37,6 +37,7 @@ const _FoodBuffComponent = preload("res://scripts/components/food_buff_component
 const _GuildComponent = preload("res://scripts/components/guild_component.gd")
 const _FamilyComponent = preload("res://scripts/components/family_component.gd")
 const _EcologyKnowledgeComponent = preload("res://scripts/components/ecology_knowledge_component.gd")
+const _CreatureDNA = preload("res://scripts/data/creature_dna.gd")
 
 ## Estilo de batalha atual (B10): define os 2 básicos, o peso e o que aparece no corpo.
 @export var weapon_style: WeaponStyle = preload("res://resources/weapons/sword_shield.tres")
@@ -66,6 +67,24 @@ var food_buff: _FoodBuffComponent
 ## Filiação a guilda, estandarte e uniformes de clã (GDD-15)
 var guild: _GuildComponent
 var family: _FamilyComponent
+## Matrizes reprodutivas capturadas para o Cercado do Rancho (GDD-04 §2)
+var livestock: Array[_CreatureDNA] = []
+const MAX_LIVESTOCK: int = 12
+
+func add_livestock(dna: _CreatureDNA) -> bool:
+	if livestock.size() >= MAX_LIVESTOCK:
+		if has_signal("posture_changed"):
+			posture_changed.emit("❌ Rancho cheio de matrizes (%d/%d)" % [livestock.size(), MAX_LIVESTOCK])
+		return false
+	livestock.append(dna)
+	if has_signal("posture_changed"):
+		posture_changed.emit("🏡 %s adicionado às matrizes do Rancho (%d/%d)" % [dna.species_name(), livestock.size(), MAX_LIVESTOCK])
+	return true
+
+func remove_livestock(index: int) -> _CreatureDNA:
+	if index >= 0 and index < livestock.size():
+		return livestock.pop_at(index)
+	return null
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)

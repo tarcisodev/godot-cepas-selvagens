@@ -4,6 +4,8 @@ extends StaticBody3D
 const _CookingStation = preload("res://scripts/town/cooking_station.gd")
 const _GuildTotem = preload("res://scripts/town/guild_totem.gd")
 const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
+const _BreedingPen = preload("res://scripts/systems/breeding_pen.gd")
+const _BreedingPenScreen = preload("res://scripts/ui/breeding_pen_screen.gd")
 
 ## Peça Modular de Construção (Piso, Parede, Porta, Telhado, Cerca, Canteiro, Bancada,
 ## Fogueira, Banco e Cama — as três últimas são de descanso, GDD-10 §10.5)
@@ -27,7 +29,8 @@ enum PieceType {
 	CALDEIRAO,
 	TOTEM_GUILDA,
 	COMPOSTEIRA,
-	TANQUE_PEIXE
+	TANQUE_PEIXE,
+	CERCADO_BREEDING
 }
 
 const PIECE_CONFIG: Dictionary = {
@@ -114,6 +117,12 @@ const PIECE_CONFIG: Dictionary = {
 		"name": "Tanque de Aquicultura",
 		"costs": { &"madeira": 4, &"pedra": 4, &"quartzo_lume": 2 },
 		"size": Vector3(1.8, 1.1, 1.8)
+	},
+	PieceType.CERCADO_BREEDING: {
+		"id": &"cercado_breeding",
+		"name": "Cercado de Reprodução",
+		"costs": { &"madeira": 6, &"galho": 4, &"fibra": 2, &"folha": 2 },
+		"size": Vector3(4.0, 1.4, 4.0)
 	}
 }
 
@@ -125,6 +134,8 @@ var placed_at_msec: int = -1
 var is_door_open: bool = false
 var door_pivot: Node3D
 var label_prompt: Label3D
+var pen: _BreedingPen = null
+var _pen_screen: _BreedingPenScreen = null
 
 func _ready() -> void:
 	add_to_group("built_structures")
@@ -187,6 +198,9 @@ func _build_piece() -> void:
 
 		PieceType.TANQUE_PEIXE:
 			_build_fish_tank(sz)
+
+		PieceType.CERCADO_BREEDING:
+			_build_breeding_pen(sz)
 
 func _build_box(size: Vector3, offset: Vector3, color: Color) -> void:
 	var col := CollisionShape3D.new()
@@ -348,6 +362,53 @@ func _build_composter(sz: Vector3) -> void:
 	_add_prompt("[E] Composteira (Adubar)", sz.y + 0.4)
 
 ## Tanque de Aquicultura: bacia de pedra com visor de quartzo e água
+func _build_breeding_pen(sz: Vector3) -> void:
+	var wood := Color(0.48, 0.33, 0.18)
+	var post_sz := Vector3(0.18, sz.y, 0.18)
+	for x_side in [-1.0, 1.0]:
+		for z_side in [-1.0, 1.0]:
+			_build_box(post_sz, Vector3(x_side * (sz.x * 0.5 - 0.1), sz.y * 0.5, z_side * (sz.z * 0.5 - 0.1)), wood)
+	
+	var side_rail_sz := Vector3(0.1, 0.1, sz.z - 0.2)
+	for x_side in [-1.0, 1.0]:
+		_build_box(side_rail_sz, Vector3(x_side * (sz.x * 0.5 - 0.1), sz.y * 0.35, 0), wood.darkened(0.1))
+		_build_box(side_rail_sz, Vector3(x_side * (sz.x * 0.5 - 0.1), sz.y * 0.75, 0), wood.darkened(0.1))
+	
+	var back_rail_sz := Vector3(sz.x - 0.2, 0.1, 0.1)
+	_build_box(back_rail_sz, Vector3(0, sz.y * 0.35, -sz.z * 0.5 + 0.1), wood.darkened(0.1))
+	_build_box(back_rail_sz, Vector3(0, sz.y * 0.75, -sz.z * 0.5 + 0.1), wood.darkened(0.1))
+	
+	var front_rail_sz := Vector3((sz.x - 1.4) * 0.5, 0.1, 0.1)
+	_build_box(front_rail_sz, Vector3(-sz.x * 0.5 + front_rail_sz.x * 0.5 + 0.1, sz.y * 0.35, sz.z * 0.5 - 0.1), wood.darkened(0.1))
+	_build_box(front_rail_sz, Vector3(-sz.x * 0.5 + front_rail_sz.x * 0.5 + 0.1, sz.y * 0.75, sz.z * 0.5 - 0.1), wood.darkened(0.1))
+	_build_box(front_rail_sz, Vector3(sz.x * 0.5 - front_rail_sz.x * 0.5 - 0.1, sz.y * 0.35, sz.z * 0.5 - 0.1), wood.darkened(0.1))
+	_build_box(front_rail_sz, Vector3(sz.x * 0.5 - front_rail_sz.x * 0.5 - 0.1, sz.y * 0.75, sz.z * 0.5 - 0.1), wood.darkened(0.1))
+	
+	_build_box(Vector3(1.1, 0.45, 0.55), Vector3(-sz.x * 0.5 + 0.8, 0.225, -sz.z * 0.5 + 0.5), Color(0.38, 0.25, 0.14))
+	_build_box(Vector3(0.95, 0.18, 0.42), Vector3(-sz.x * 0.5 + 0.8, 0.36, -sz.z * 0.5 + 0.5), Color(0.72, 0.65, 0.35))
+	_build_box(Vector3(1.3, 0.08, 1.3), Vector3(sz.x * 0.5 - 0.9, 0.04, -sz.z * 0.5 + 0.9), Color(0.68, 0.58, 0.38))
+	
+	if pen == null:
+		pen = _BreedingPen.new()
+		pen.name = "BreedingPen"
+		add_child(pen)
+	
+	add_to_group("breeding_pens")
+	_add_prompt("[E] Cercado de Reprodução", sz.y + 0.4)
+
+func _interact_breeding_pen(player: Node) -> void:
+	if pen == null:
+		pen = _BreedingPen.new()
+		pen.name = "BreedingPen"
+		add_child(pen)
+	if _pen_screen == null:
+		var layer := CanvasLayer.new()
+		layer.layer = 12
+		add_child(layer)
+		_pen_screen = _BreedingPenScreen.new()
+		layer.add_child(_pen_screen)
+	_pen_screen.open(pen, player)
+
 func _build_fish_tank(sz: Vector3) -> void:
 	_build_box(sz, Vector3(0, sz.y * 0.5, 0), Color(0.45, 0.45, 0.48))
 	var water := MeshInstance3D.new()
@@ -404,6 +465,9 @@ func talk_to(player: Node) -> void:
 		return
 	if piece_type == PieceType.TANQUE_PEIXE:
 		_interact_fish_tank(player)
+		return
+	if piece_type == PieceType.CERCADO_BREEDING:
+		_interact_breeding_pen(player)
 		return
 
 func _interact_composter(player: Node) -> void:

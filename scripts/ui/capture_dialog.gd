@@ -5,7 +5,7 @@ extends Control
 ## levar ao estábulo como montaria própria (Trotador e Planador; até 3) ou soltar.
 ## O mundo continua rodando enquanto a tela está aberta.
 
-signal chosen(choice: StringName)  # &"abate", &"estabulo", &"soltar"
+signal chosen(choice: StringName)  # &"abate", &"estabulo", &"rancho", &"soltar"
 
 const TEXT := Color(0.92, 0.92, 0.95)
 const TEXT_DIM := Color(0.62, 0.64, 0.7)
@@ -14,6 +14,7 @@ const GOLD := Color(0.95, 0.78, 0.35)
 var _title: Label
 var _genes: Label
 var _stable_btn: Button
+var _rancho_btn: Button
 var _buttons: VBoxContainer
 
 func _ready() -> void:
@@ -44,6 +45,7 @@ func _ready() -> void:
 	col.add_child(_buttons)
 	_add_button("🔪  Abate cuidadoso — todas as partes saem Íntegras (+1★)", &"abate")
 	_stable_btn = _add_button("", &"estabulo")
+	_rancho_btn = _add_button("🏡  Enviar ao Rancho — matriz reprodutiva para o Cercado", &"rancho")
 	_add_button("🌿  Soltar na natureza", &"soltar")
 
 func ask(dna: CreatureDNA, can_stable: bool, stable_reason: String) -> void:
@@ -57,6 +59,9 @@ func ask(dna: CreatureDNA, can_stable: bool, stable_reason: String) -> void:
 	_genes.text = " · ".join(genes)
 	_stable_btn.text = "🐎  Levar ao estábulo — vira sua montaria" + ("" if can_stable else "  (%s)" % stable_reason)
 	_stable_btn.disabled = not can_stable
+	var can_rancho: bool = dna.species != CreatureDNA.Species.RINOLITO
+	_rancho_btn.disabled = not can_rancho
+	_rancho_btn.text = "🏡  Enviar ao Rancho — matriz reprodutiva" + ("" if can_rancho else "  (Monstro colossal indomável)")
 	visible = true
 	add_to_group("open_menus")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
