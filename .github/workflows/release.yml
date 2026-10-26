@@ -83,8 +83,16 @@ jobs:
             exit 1
           fi
           
-          echo "Binário do cliente exportado com sucesso:"
-          ls -lh build/windows/CepaSelvagem.exe
+          echo "Iniciando export do pacote de recursos .pck (In-Game Patch)..."
+          godot --headless --export-pack "Windows Desktop" "build/windows/CepaSelvagem-${{ env.GAME_VERSION }}.pck"
+          
+          if [ ! -f "build/windows/CepaSelvagem-${{ env.GAME_VERSION }}.pck" ]; then
+            echo "::error::Falha na exportação do pacote .pck!"
+            exit 1
+          fi
+          
+          echo "Binário e pacote .pck exportados com sucesso:"
+          ls -lh build/windows/CepaSelvagem.exe "build/windows/CepaSelvagem-${{ env.GAME_VERSION }}.pck"
 
       - name: Export Launcher Windows Desktop Preset
         run: |
@@ -142,13 +150,20 @@ jobs:
           ZIP_SIZE=$(stat -c%s "$ZIP_NAME")
           ZIP_SHA256=$(sha256sum "$ZIP_NAME" | awk '{print $1}')
           
+          PCK_NAME="CepaSelvagem-${{ env.GAME_VERSION }}.pck"
+          PCK_SIZE=$(stat -c%s "$PCK_NAME")
+          PCK_SHA256=$(sha256sum "$PCK_NAME" | awk '{print $1}')
+
           echo "Gerando manifest.json..."
           cat << EOF > manifest.json
           {
             "version": "${{ env.GAME_VERSION }}",
             "file": "$ZIP_NAME",
             "size": $ZIP_SIZE,
-            "sha256": "$ZIP_SHA256"
+            "sha256": "$ZIP_SHA256",
+            "pck_file": "$PCK_NAME",
+            "pck_size": $PCK_SIZE,
+            "pck_sha256": "$PCK_SHA256"
           }
           EOF
           
@@ -174,6 +189,7 @@ jobs:
         with:
           files: |
             build/windows/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip
+            build/windows/CepaSelvagem-${{ env.GAME_VERSION }}.pck
             build/windows/manifest.json
             build/windows/manifest.json.sig
             build/windows/CepasSelvagensLauncher.exe
@@ -183,13 +199,16 @@ jobs:
 
             Nova versão de Playtest Fechado de **Cepas Selvagens**!
 
-            ### 🚀 Opção 1: Launcher Oficial (Recomendado)
-            - **Download:** [`CepasSelvagensLauncher.exe`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepasSelvagensLauncher.exe)
-            - O launcher gerencia o download do jogo e aplica atualizações futuras automaticamente!
+            ### ✨ Auto-Update Integrado (In-Game)
+            - Quem já tem o jogo instalado só precisa abrir `CepaSelvagem.exe`! A tela inicial verifica atualizações e baixa o pacote de recursos `CepaSelvagem-${{ env.GAME_VERSION }}.pck` de forma 100% transparente.
 
-            ### 📦 Opção 2: Pacote Direto (.zip)
+            ### 🚀 Opção 1: Download Direto do Cliente (.zip)
             - **Arquivo:** [`CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepaSelvagem-${{ env.GAME_VERSION }}-windows.zip)
+            - **Pacote de Recursos (.pck):** [`CepaSelvagem-${{ env.GAME_VERSION }}.pck`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepaSelvagem-${{ env.GAME_VERSION }}.pck)
             - **Integridade:** [`manifest.json`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/manifest.json)
+
+            ### 🛠️ Opção 2: Launcher Standalone (Opcional)
+            - **Download:** [`CepasSelvagensLauncher.exe`](https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/${{ github.ref_name }}/CepasSelvagensLauncher.exe)
 
             ### 🚀 Como Jogar
             1. Baixe o **Launcher Oficial** e execute-o para instalar o jogo automaticamente, ou extraia o `.zip` manual em uma pasta.
