@@ -19,9 +19,9 @@ flowchart TD
     
     Tag -->|"Aciona"| ReleaseWf[".github/workflows/release.yml"]
     ReleaseWf -->|"Instala Godot 4.7.2 + Templates"| Godot["Godot Engine CLI"]
-    Godot -->|"Exporta preset Windows Desktop"| Build["build/windows/CepaSelvagem.exe"]
-    Build -->|"Zipa com LEIA-ME"| Zip["CepaSelvagem-X.Y.Z-windows.zip"]
-    Zip -->|"Upload do Asset"| GHRelease["GitHub Release (tag vX.Y.Z)"]
+    Godot -->|"Exporta Cliente + Launcher"| Build["build/windows/CepaSelvagem.exe & CepasSelvagensLauncher.exe"]
+    Build -->|"Zipa Cliente com LEIA-ME"| Zip["CepaSelvagem-X.Y.Z-windows.zip"]
+    Zip -->|"Upload dos Assets (ZIP + Launcher)"| GHRelease["GitHub Release (tag vX.Y.Z)"]
 ```
 
 ---
