@@ -1,0 +1,23 @@
+; Engine configuration file.
+; Launcher minimal configuration for Cepas Selvagens
+config_version=5
+
+[application]
+
+config/name="Cepas Selvagens Launcher"
+config/description="Launcher & Atualizador Oficial de Cepas Selvagens"
+run/main_scene="res://scenes/launcher_main.tscn"
+config/features=PackedStringArray("4.7", "Compatibility")
+
+[display]
+
+window/size/viewport_width=960
+window/size/viewport_height=540
+window/size/resizable=false
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
