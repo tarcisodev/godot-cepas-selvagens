@@ -8,6 +8,7 @@ const _LauncherConfig = preload("res://scripts/launcher_config.gd")
 const _VersionChecker = preload("res://scripts/version_checker.gd")
 const _Downloader = preload("res://scripts/downloader.gd")
 const _Patcher = preload("res://scripts/patcher.gd")
+const _GameRunner = preload("res://scripts/game_runner.gd")
 
 enum State {
 	IDLE,
@@ -145,7 +146,7 @@ func _on_action_button_pressed() -> void:
 
 func launch_game() -> bool:
 	var exe_path := config.get_executable_path()
-	if not FileAccess.file_exists(exe_path):
+	if not _GameRunner.is_game_installed(exe_path):
 		_status_label.text = "Executável não encontrado em: %s" % exe_path
 		_set_state(State.UPDATE_AVAILABLE)
 		return false
@@ -157,8 +158,8 @@ func launch_game() -> bool:
 		"--connect-to", "%s:%d" % [config.DEFAULT_SERVER_HOST, config.DEFAULT_SERVER_PORT]
 	])
 	
-	var pid := OS.create_process(exe_path, args)
-	if pid <= 0:
+	var res := _GameRunner.launch_game(exe_path, args)
+	if not res.get("success", false):
 		_status_label.text = "Falha ao iniciar o processo do jogo."
 		_set_state(State.ERROR)
 		return false
@@ -166,11 +167,16 @@ func launch_game() -> bool:
 	if config.close_launcher_on_play:
 		get_tree().quit()
 	else:
-		_status_label.text = "Jogo em execução (PID: %d)" % pid
+		_status_label.text = "Jogo em execução (PID: %d)" % int(res.get("pid", 0))
 		_set_state(State.READY_TO_PLAY)
 	return true
 
 func start_update_download() -> void:
+	# Valida se o jogo está em execução antes de atualizar
+	if _GameRunner.is_game_running(config.get_executable_path()):
+		_status_label.text = "O jogo já está em execução! Feche-o antes de atualizar."
+		return
+
 	var url: String = remote_release_info.get("download_url", "")
 	if url.is_empty():
 		_status_label.text = "URL de download inválida no pacote de lançamento."
@@ -193,16 +199,21 @@ func _on_download_progress(downloaded: int, total: int, percent: float, speed: f
 	_progress_details_label.text = "%.1f%% · Tempo estimado restante: %s" % [percent, eta_str]
 
 func _on_download_completed(zip_path: String) -> void:
+	# Valida se o jogo foi aberto durante o download
+	if _GameRunner.is_game_running(config.get_executable_path()):
+		_status_label.text = "O jogo foi aberto durante o processo! Feche-o antes de instalar."
+		_set_state(State.ERROR)
+		return
+
 	_set_state(State.VERIFYING)
 	
-	# 1. Verificação de integridade SHA-256
-	var expected_sha: String = remote_release_info.get("sha256", "")
-	if not expected_sha.is_empty():
-		if not _Patcher.verify_sha256(zip_path, expected_sha):
-			DirAccess.remove_absolute(zip_path)
-			_status_label.text = "Erro: Assinatura SHA-256 do arquivo corrompida."
-			_set_state(State.ERROR)
-			return
+	# 1. Verificação de integridade estrita SHA-256
+	var expected_sha: String = str(remote_release_info.get("sha256", "")).strip_edges().to_lower()
+	if expected_sha.is_empty() or not _Patcher.verify_sha256(zip_path, expected_sha):
+		_Patcher.cleanup(zip_path)
+		_status_label.text = "Erro: Assinatura SHA-256 ausente ou corrompida. Download descartado."
+		_set_state(State.ERROR)
+		return
 
 	# 2. Descompactação dos arquivos do jogo
 	_set_state(State.EXTRACTING)
@@ -210,8 +221,7 @@ func _on_download_completed(zip_path: String) -> void:
 	var extract_result := _Patcher.extract_zip(zip_path, target_dir)
 
 	# Remove o arquivo temporário
-	if FileAccess.file_exists(zip_path):
-		DirAccess.remove_absolute(zip_path)
+	_Patcher.cleanup(zip_path)
 
 	if not extract_result.get("success", false):
 		_status_label.text = "Erro na instalação: %s" % extract_result.get("error", "Desconhecido")
@@ -219,7 +229,7 @@ func _on_download_completed(zip_path: String) -> void:
 		return
 
 	# 3. Atualiza versão gravada no version.json
-	var new_v: String = remote_release_info.get("version", "0.1.0")
+	var new_v: String = str(remote_release_info.get("version", "0.1.1"))
 	config.write_installed_version(new_v)
 	_update_installed_version_display()
 
@@ -242,7 +252,7 @@ func _on_version_check_completed(info: Dictionary) -> void:
 		_notes_text.text = "[b]Novidades da Versão %s:[/b]\n\n%s" % [remote_v, notes]
 
 	var cmp := _VersionChecker.compare_versions(installed_v, remote_v)
-	var exe_exists := FileAccess.file_exists(config.get_executable_path())
+	var exe_exists := _GameRunner.is_game_installed(config.get_executable_path())
 
 	if cmp < 0 or not exe_exists:
 		_set_state(State.UPDATE_AVAILABLE)
@@ -250,10 +260,11 @@ func _on_version_check_completed(info: Dictionary) -> void:
 		_set_state(State.READY_TO_PLAY)
 
 func _on_version_check_failed(err_msg: String) -> void:
-	# Se a verificação falhar, mas o jogo local já existir, permite jogar offline
-	var exe_exists := FileAccess.file_exists(config.get_executable_path())
+	# Se a verificação falhar (ex: offline ou rate limit 403), permite jogar offline caso o jogo já esteja instalado
+	var exe_exists := _GameRunner.is_game_installed(config.get_executable_path())
 	if exe_exists:
-		_status_label.text = "Aviso: Sem conexão com servidor de versão. Modo offline pronto."
+		var installed_v := config.read_installed_version()
+		_status_label.text = "Modo Offline (Verificação indisponível). Pronto para jogar v%s." % installed_v
 		_set_state(State.READY_TO_PLAY)
 	else:
 		_status_label.text = "Erro ao buscar versão: %s" % err_msg
@@ -459,6 +470,7 @@ func _build_settings_dialog() -> void:
 
 	_input_repo = LineEdit.new()
 	_input_repo.text = config.github_repo
+	_input_repo.editable = not config.is_repo_locked()
 	svbox.add_child(_input_repo)
 
 	_check_close_on_play = CheckBox.new()
@@ -485,11 +497,13 @@ func _toggle_settings() -> void:
 	if _settings_dialog.visible:
 		_input_game_dir.text = config.game_directory
 		_input_repo.text = config.github_repo
+		_input_repo.editable = not config.is_repo_locked()
 		_check_close_on_play.button_pressed = config.close_launcher_on_play
 
 func _save_settings_dialog() -> void:
 	config.game_directory = _input_game_dir.text.strip_edges()
-	config.github_repo = _input_repo.text.strip_edges()
+	if not config.is_repo_locked():
+		config.github_repo = _input_repo.text.strip_edges()
 	config.close_launcher_on_play = _check_close_on_play.button_pressed
 	config.save_settings()
 	_settings_dialog.visible = false

@@ -132,15 +132,17 @@ func _on_check_failed(error_msg: String) -> void:
 	var is_installed: bool = _GameRunner.is_game_installed(_config.get_executable_path())
 	
 	if is_installed:
-		# Modo offline: se o jogo já está no disco, permite jogar mesmo sem internet
+		# Modo offline: se o jogo já está no disco, permite jogar mesmo sem internet ou com rate limit 403
 		_set_state(State.READY_TO_PLAY)
 		var local_ver: String = _config.read_installed_version()
-		status_label.text = "Modo Offline (Não foi possível consultar atualizações)"
-		substatus_label.text = "Você pode jogar a versão local instalada (v%s)." % local_ver
+		status_label.text = "Modo Offline (Verificação indisponível)"
+		substatus_label.text = "%s. Você pode jogar a versão instalada (v%s)." % [error_msg, local_ver]
+		latest_version_label.text = "Disponível: Offline"
 	else:
 		_set_state(State.ERROR)
 		status_label.text = "Erro ao verificar atualizações"
 		substatus_label.text = error_msg
+		latest_version_label.text = "Disponível: Indisponível"
 	
 	news_rich_text.text = "[color=#e74c3c][b]Aviso de Conexão:[/b][/color]\n" + error_msg + "\n\nSe estiver sem internet ou com limite de requisições, você pode tentar novamente mais tarde."
 
@@ -160,6 +162,12 @@ func _on_action_button_pressed() -> void:
 			start_update_check()
 
 func _start_download() -> void:
+	# Valida se o jogo está em execução antes de iniciar
+	if _GameRunner.is_game_running(_config.get_executable_path()):
+		status_label.text = "O jogo já está em execução!"
+		substatus_label.text = "Feche o Cepas Selvagens antes de iniciar a atualização."
+		return
+	
 	var url: String = str(_remote_info.get("download_url", "")).strip_edges()
 	if url.is_empty():
 		_set_state(State.ERROR)
@@ -193,23 +201,30 @@ func _on_download_failed(error_msg: String) -> void:
 	progress_bar.value = 0.0
 
 func _on_download_completed(downloaded_file: String) -> void:
+	# Valida se o jogo foi aberto durante o download
+	if _GameRunner.is_game_running(_config.get_executable_path()):
+		_set_state(State.ERROR)
+		status_label.text = "O jogo foi aberto durante o processo!"
+		substatus_label.text = "Feche o Cepas Selvagens antes de extrair a atualização."
+		progress_bar.indeterminate = false
+		return
+	
 	_set_state(State.EXTRACTING)
 	status_label.text = "Validando e instalando arquivos..."
-	substatus_label.text = "Verificando integridade e descompactando..."
+	substatus_label.text = "Verificando integridade SHA-256 e descompactando..."
 	progress_bar.indeterminate = true
 	
-	# Valida SHA-256 se fornecido
-	var expected_sha: String = str(_remote_info.get("sha256", ""))
-	if not expected_sha.is_empty():
-		if not _Patcher.verify_sha256(downloaded_file, expected_sha):
-			_set_state(State.ERROR)
-			status_label.text = "Erro de integridade do pacote"
-			substatus_label.text = "O arquivo baixado falhou na checagem SHA-256. Tente baixar novamente."
-			_Patcher.cleanup(downloaded_file)
-			progress_bar.indeterminate = false
-			return
+	# Valida SHA-256 estritamente: sem hash ou com hash diferente, RECUSA e apaga
+	var expected_sha: String = str(_remote_info.get("sha256", "")).strip_edges().to_lower()
+	if expected_sha.is_empty() or not _Patcher.verify_sha256(downloaded_file, expected_sha):
+		_set_state(State.ERROR)
+		status_label.text = "Erro de integridade do pacote"
+		substatus_label.text = "O hash SHA-256 é inválido ou ausente. O download foi descartado por segurança."
+		_Patcher.cleanup(downloaded_file)
+		progress_bar.indeterminate = false
+		return
 	
-	# Extrai arquivos para o diretório de destino
+	# Extrai arquivos para o diretório de destino de forma atômica
 	var target_dir: String = _config.get_absolute_game_dir()
 	var extract_result: Dictionary = _Patcher.extract_zip(downloaded_file, target_dir)
 	progress_bar.indeterminate = false
@@ -225,7 +240,7 @@ func _on_download_completed(downloaded_file: String) -> void:
 	_Patcher.cleanup(downloaded_file)
 	
 	# Salva a nova versão localmente
-	var new_ver: String = str(_remote_info.get("version", "0.1.0"))
+	var new_ver: String = str(_remote_info.get("version", "0.1.1"))
 	_config.write_installed_version(new_ver)
 	
 	installed_version_label.text = "Instalado: v%s" % new_ver
