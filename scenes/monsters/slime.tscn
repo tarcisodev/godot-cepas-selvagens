@@ -1,12 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/test_monster.gd" id="1_monster"]
-[ext_resource type="PackedScene" path="res://assets/models/monsters/quaternius/Slime.fbx" id="2_model"]
 
 [node name="Slime" type="CharacterBody3D"]
 script = ExtResource("1_monster")
 display_name = "Slime"
-model_scene = ExtResource("2_model")
 model_scale = 0.45
 anim_idle = &"Slime_Idle"
 anim_move = &"Slime_Walk"
