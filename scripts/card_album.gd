@@ -7,6 +7,9 @@ extends CanvasLayer
 signal album_opened()
 signal album_closed()
 
+var is_open: bool:
+	get: return visible
+
 @export var collection_component: CardCollectionComponent
 
 const SLOT_SIZE := Vector2(104, 150)
@@ -61,6 +64,7 @@ var _is_dragging_3d: bool = false
 var _last_mouse_pos: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
+	add_to_group("card_album")
 	_setup_nodes()
 	visible = false
 	if close_button and not close_button.pressed.is_connected(close_album):
@@ -211,7 +215,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		close_album()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_K:
+		if event.keycode == KEY_K or event.physical_keycode == KEY_K:
 			toggle_album()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_SPACE and visible and card_3d_stage != null:
@@ -242,6 +246,8 @@ func close_album() -> void:
 		_play(&"close")
 	visible = false
 	remove_from_group("open_menus")
+	if is_inside_tree() and get_tree().get_nodes_in_group("open_menus").is_empty():
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	album_closed.emit()
 
 ## Atualiza a grade de cartas e métricas de progresso

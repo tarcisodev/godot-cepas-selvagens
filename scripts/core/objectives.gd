@@ -23,12 +23,18 @@ var panel_container: PanelContainer = null
 var _labels: Dictionary = {}
 var _title: Label
 var _check_timer: float = 0.0
+var _fade_tween: Tween = null
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 func reset() -> void:
 	done.clear()
+	if _fade_tween and _fade_tween.is_valid():
+		_fade_tween.kill()
+	if panel_container and is_instance_valid(panel_container):
+		panel_container.modulate.a = 1.0
+		panel_container.visible = true
 	_refresh()
 
 func get_state() -> Array:
@@ -39,6 +45,8 @@ func set_state(ids: Array) -> void:
 	for id in ids:
 		done[StringName(id)] = true
 	_refresh()
+	if done.size() == STEPS.size() and panel_container and is_instance_valid(panel_container):
+		panel_container.visible = false
 
 func is_done(id: StringName) -> bool:
 	return done.has(id)
@@ -51,6 +59,21 @@ func complete(id: StringName) -> void:
 	_refresh()
 	if done.size() == STEPS.size():
 		all_completed.emit()
+		_fade_out_panel_completed()
+
+func _fade_out_panel_completed() -> void:
+	if _panel == null or not is_instance_valid(_panel) or panel_container == null or not is_instance_valid(panel_container):
+		return
+	if _fade_tween and _fade_tween.is_valid():
+		_fade_tween.kill()
+	_fade_tween = create_tween()
+	# Dá 4.0 segundos para o jogador ver a mensagem "🏁 Caçada concluída!"
+	_fade_tween.tween_interval(4.0)
+	_fade_tween.tween_property(panel_container, "modulate:a", 0.0, 1.0)
+	_fade_tween.tween_callback(func():
+		if panel_container and is_instance_valid(panel_container):
+			panel_container.visible = false
+	)
 
 func _process(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") if is_inside_tree() else null
@@ -59,7 +82,14 @@ func _process(delta: float) -> void:
 	if _panel == null or not is_instance_valid(_panel):
 		_build_panel()
 	# Some enquanto um menu estiver aberto (fica em camada acima do HUD)
-	_panel.visible = get_tree().get_nodes_in_group("open_menus").is_empty()
+	var has_open_menus := not get_tree().get_nodes_in_group("open_menus").is_empty()
+	if has_open_menus:
+		_panel.visible = false
+	else:
+		if done.size() == STEPS.size() and panel_container and not panel_container.visible:
+			_panel.visible = false
+		else:
+			_panel.visible = true
 	_check_timer -= delta
 	if _check_timer > 0.0:
 		return
@@ -68,8 +98,12 @@ func _process(delta: float) -> void:
 
 ## Confere cada etapa no estado do jogo (em ordem: a próxima só conta depois da anterior).
 func _check(player: Node) -> void:
-	var inv = player.get("inventory")
-	var beast := get_tree().current_scene.get_node_or_null("DummyCreature") as Node3D
+	var tree: SceneTree = get_tree() if is_inside_tree() else (Engine.get_main_loop() as SceneTree)
+	if tree == null:
+		return
+	var cur_scene := tree.current_scene
+	var inv = player.get("inventory") if player != null else null
+	var beast: Node3D = cur_scene.get_node_or_null("DummyCreature") as Node3D if cur_scene != null else null
 	var has_horn: bool = inv != null and inv.get_material_count(&"chifre_rinolito") > 0
 	var helmet: bool = inv != null and inv.equipped.get(&"head", &"") != &""
 
@@ -84,8 +118,12 @@ func _check(player: Node) -> void:
 	if is_done(&"harvest") and helmet:
 		complete(&"forge")
 	if is_done(&"forge"):
-		var album := get_tree().current_scene.find_child("CardAlbum", true, false) as CanvasItem
-		if album and album.visible:
+		var album: Node = tree.get_first_node_in_group("card_album")
+		if album == null and cur_scene != null:
+			album = cur_scene.find_child("CardAlbum", true, false)
+		if album == null and tree.root != null:
+			album = tree.root.find_child("CardAlbum", true, false)
+		if album and bool(album.get("visible")):
 			complete(&"album")
 
 func _build_panel() -> void:

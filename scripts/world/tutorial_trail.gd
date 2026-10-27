@@ -315,8 +315,8 @@ func _check_auto_progress() -> void:
 				advance_step()
 		&"taverna_mundo":
 			var map_s := scene.find_child("WorldMapScreen", true, false)
-			var album := scene.find_child("CardAlbum", true, false) as CanvasItem
-			if (map_s and map_s.get("is_open")) or (album and album.visible):
+			var album := scene.find_child("CardAlbum", true, false)
+			if (map_s and map_s.get("is_open")) or (album and bool(album.get("visible"))):
 				advance_step()
 
 func _update_beacons_and_hud() -> void:
