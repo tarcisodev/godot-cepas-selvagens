@@ -18,7 +18,7 @@ enum BorderMode { RARIDADE, GRUPO }
 const SORT_LABELS: Array[String] = ["★ Raridade", "# Quantidade", "⚖ Peso", "🎨 Cor", "Aa Nome", "✋ Manual"]
 const BORDER_LABELS: Array[String] = ["Raridade", "Grupo"]
 const COLUMNS: int = 5
-const SLOT_SIZE: Vector2 = Vector2(108, 118)
+const SLOT_SIZE: Vector2 = Vector2(86, 94)
 const PANEL_BG := Color(0.07, 0.075, 0.09, 0.96)
 const TEXT := Color(0.9, 0.9, 0.94)
 const TEXT_DIM := Color(0.55, 0.57, 0.64)
@@ -333,13 +333,13 @@ func _build_ui() -> void:
 	add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(1540, 680)
+	panel.custom_minimum_size = Vector2(1120, 560)
 	panel.add_theme_stylebox_override("panel", _box(PANEL_BG, Color(1, 1, 1, 0.08), 14, 1))
 	center.add_child(panel)
 
 	var margin := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 20)
+		margin.add_theme_constant_override("margin_" + side, 14)
 	panel.add_child(margin)
 
 	var root_box := VBoxContainer.new()
@@ -544,7 +544,7 @@ func _build_toolbar() -> Control:
 
 func _build_detail_panel() -> Control:
 	var frame := PanelContainer.new()
-	frame.custom_minimum_size = Vector2(290, 0)
+	frame.custom_minimum_size = Vector2(250, 0)
 	frame.add_theme_stylebox_override("panel", _box(Color(1, 1, 1, 0.03), Color(1, 1, 1, 0.06), 10, 1))
 	var m := MarginContainer.new()
 	for side in ["left", "right", "top", "bottom"]:
@@ -602,21 +602,21 @@ func _make_slot(s: Dictionary) -> Button:
 	# Faixa do outro critério no topo: grupo quando a borda é raridade, e vice-versa
 	var band := ColorRect.new()
 	band.color = group if border_mode == BorderMode.RARIDADE else rarity
-	band.position = Vector2(10, 7)
-	band.size = Vector2(SLOT_SIZE.x - 20, 3)
+	band.position = Vector2(8, 6)
+	band.size = Vector2(SLOT_SIZE.x - 16, 3)
 	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(band)
 
 	var disc := Panel.new()
-	disc.add_theme_stylebox_override("panel", _box(Color(data.color.r, data.color.g, data.color.b, 0.35), Color(data.color.r, data.color.g, data.color.b, 0.6), 30, 1))
-	disc.position = Vector2(SLOT_SIZE.x * 0.5 - 30, 18)
-	disc.size = Vector2(60, 60)
+	disc.add_theme_stylebox_override("panel", _box(Color(data.color.r, data.color.g, data.color.b, 0.35), Color(data.color.r, data.color.g, data.color.b, 0.6), 24, 1))
+	disc.position = Vector2(SLOT_SIZE.x * 0.5 - 24, 13)
+	disc.size = Vector2(48, 48)
 	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(disc)
 
 	var icon := Label.new()
 	icon.text = data.icon
-	icon.add_theme_font_size_override("font_size", 32)
+	icon.add_theme_font_size_override("font_size", 26)
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	icon.position = disc.position
@@ -626,21 +626,21 @@ func _make_slot(s: Dictionary) -> Button:
 
 	var stars := Label.new()
 	stars.text = "★".repeat(s.quality)
-	stars.add_theme_font_size_override("font_size", 12)
+	stars.add_theme_font_size_override("font_size", 10)
 	stars.add_theme_color_override("font_color", rarity)
-	stars.position = Vector2(9, SLOT_SIZE.y - 24)
+	stars.position = Vector2(7, SLOT_SIZE.y - 20)
 	stars.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(stars)
 
 	var qty := Label.new()
 	qty.text = "×%d" % s.amount
-	qty.add_theme_font_size_override("font_size", 15)
+	qty.add_theme_font_size_override("font_size", 13)
 	qty.add_theme_color_override("font_color", TEXT)
 	qty.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-	qty.add_theme_constant_override("outline_size", 4)
+	qty.add_theme_constant_override("outline_size", 3)
 	qty.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	qty.position = Vector2(0, SLOT_SIZE.y - 27)
-	qty.size = Vector2(SLOT_SIZE.x - 10, 20)
+	qty.position = Vector2(0, SLOT_SIZE.y - 21)
+	qty.size = Vector2(SLOT_SIZE.x - 7, 18)
 	qty.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(qty)
 
