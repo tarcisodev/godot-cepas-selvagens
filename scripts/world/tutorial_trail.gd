@@ -2,6 +2,7 @@ class_name TutorialTrail
 extends Node3D
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const LANTERN_SCENE = preload("res://assets/models/tools/lantern.gltf")
 
 ## Caminho do Tutorial (Trilha do Iniciado):
 ## Guia físico e interativo adaptado para o estado atual completo de Cepa Selvagem.
@@ -122,10 +123,12 @@ func _ground_y(x: float, z: float) -> float:
 
 func _init_materials() -> void:
 	_beacon_mat = StandardMaterial3D.new()
-	_beacon_mat.albedo_color = Color(0.98, 0.86, 0.38, 0.92)
-	_beacon_mat.emission_enabled = true
-	_beacon_mat.emission = Color(0.95, 0.78, 0.25)
-	_beacon_mat.emission_energy_multiplier = 2.6
+	_beacon_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_beacon_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_beacon_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_beacon_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	_beacon_mat.albedo_texture = soft_dot()
+	_beacon_mat.albedo_color = Color(1.0, 0.85, 0.45, 0.85)
 
 	_active_pillar_mat = StandardMaterial3D.new()
 	_active_pillar_mat.albedo_color = Color(0.98, 0.84, 0.35)
@@ -155,16 +158,32 @@ func _build_stations() -> void:
 		add_child(st)
 		_station_nodes.append(st)
 
+static var _soft_dot: GradientTexture2D
+
+## Mancha redonda de borda suave (brilho da lanterna e das luzinhas-guia).
+static func soft_dot() -> GradientTexture2D:
+	if _soft_dot == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.3, Color(1, 1, 1, 0.7))
+		_soft_dot = GradientTexture2D.new()
+		_soft_dot.gradient = g
+		_soft_dot.fill = GradientTexture2D.FILL_RADIAL
+		_soft_dot.fill_from = Vector2(0.5, 0.5)
+		_soft_dot.fill_to = Vector2(0.5, 0.0)
+		_soft_dot.width = 64
+		_soft_dot.height = 64
+	return _soft_dot
+
+## Luzinhas-guia (B25: no lugar das esferas amarelas): pontos de luz suaves rente ao chão.
 func _build_beacon_pool() -> void:
-	var sphere := SphereMesh.new()
-	sphere.radius = 0.18
-	sphere.height = 0.22
-	sphere.radial_segments = 10
-	sphere.rings = 5
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.22, 0.22)
 	for i in BEACON_COUNT:
 		var b := MeshInstance3D.new()
 		b.name = "TrailBeacon_%d" % i
-		b.mesh = sphere
+		b.mesh = quad
 		b.material_override = _beacon_mat
 		b.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(b)
@@ -394,7 +413,9 @@ func _refresh_stations() -> void:
 class TutorialStationNode extends Node3D:
 	var step_index: int = 0
 	var trail: TutorialTrail
-	var _gem: MeshInstance3D
+	var _ribbons: Array[MeshInstance3D] = []  # fita na cor do estado (B25: sai a esfera)
+	var _lantern_light: OmniLight3D
+	var _lantern_glow: MeshInstance3D
 	var _label: _WorldLabel
 	var _prompt: _WorldLabel
 
@@ -402,28 +423,102 @@ class TutorialStationNode extends Node3D:
 		add_to_group("talkable")
 		_build()
 
+	## Estaca de madeira com ponta, fita amarrada e lanterna pendurada.
 	func _build() -> void:
 		var wood := StandardMaterial3D.new()
-		wood.albedo_color = Color(0.36, 0.24, 0.14)
-		wood.roughness = 0.88
+		wood.albedo_color = Color(0.4, 0.27, 0.15)
+		wood.roughness = 0.92
 
+		var stake := Node3D.new()
+		stake.rotation = Vector3(deg_to_rad(3.0), float(step_index) * 2.1, deg_to_rad(-2.0))  # fincada à mão
+		add_child(stake)
 		var post := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.14
-		cyl.bottom_radius = 0.18
-		cyl.height = 1.25
+		cyl.top_radius = 0.09
+		cyl.bottom_radius = 0.11
+		cyl.height = 1.5
+		cyl.radial_segments = 6  # facetada, cara de tora lascada
+		cyl.rings = 1
 		post.mesh = cyl
 		post.material_override = wood
-		post.position.y = 0.62
-		add_child(post)
+		post.position.y = 0.75
+		stake.add_child(post)
+		var tip := MeshInstance3D.new()
+		var cone := CylinderMesh.new()
+		cone.top_radius = 0.0
+		cone.bottom_radius = 0.09
+		cone.height = 0.22
+		cone.radial_segments = 6
+		cone.rings = 1
+		tip.mesh = cone
+		tip.material_override = wood
+		tip.position.y = 1.61
+		stake.add_child(tip)
 
-		_gem = MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.22
-		sm.height = 0.48
-		_gem.mesh = sm
-		_gem.position.y = 1.5
-		add_child(_gem)
+		# Fita: volta amarrada na estaca e duas pontas soltas
+		var knot := MeshInstance3D.new()
+		var band := CylinderMesh.new()
+		band.top_radius = 0.105
+		band.bottom_radius = 0.105
+		band.height = 0.07
+		band.radial_segments = 6
+		knot.mesh = band
+		knot.position.y = 1.32
+		stake.add_child(knot)
+		_ribbons.append(knot)
+		for i in 2:
+			var tail := MeshInstance3D.new()
+			var strip := BoxMesh.new()
+			strip.size = Vector3(0.05, 0.42 - i * 0.1, 0.008)
+			tail.mesh = strip
+			tail.position = Vector3(0.1, 1.12 + i * 0.04, 0.03 - i * 0.05)
+			tail.rotation = Vector3(0.1, 0.4 * i, 0.25 + i * 0.15)
+			tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			stake.add_child(tail)
+			_ribbons.append(tail)
+
+		# Lanterna pendurada num toco de galho que sai da estaca
+		var peg := MeshInstance3D.new()
+		var peg_mesh := CylinderMesh.new()
+		peg_mesh.top_radius = 0.022
+		peg_mesh.bottom_radius = 0.03
+		peg_mesh.height = 0.3
+		peg_mesh.radial_segments = 5
+		peg.mesh = peg_mesh
+		peg.material_override = wood
+		peg.position = Vector3(0, 1.2, 0.17)
+		peg.rotation.x = deg_to_rad(80.0)
+		stake.add_child(peg)
+		var lantern := LANTERN_SCENE.instantiate() as Node3D
+		if lantern:
+			lantern.scale = Vector3.ONE * 0.32
+			lantern.position = Vector3(0, 0.86, 0.29)
+			stake.add_child(lantern)
+		_lantern_glow = MeshInstance3D.new()
+		var glow := QuadMesh.new()
+		glow.size = Vector2(0.35, 0.35)
+		var glow_mat := StandardMaterial3D.new()
+		glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		glow_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		glow_mat.albedo_texture = TutorialTrail.soft_dot()
+		glow_mat.albedo_color = Color(1.0, 0.75, 0.35, 0.8)
+		glow.material = glow_mat
+		_lantern_glow.mesh = glow
+		_lantern_glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_lantern_glow.position = Vector3(0, 0.98, 0.29)
+		stake.add_child(_lantern_glow)
+		_lantern_light = OmniLight3D.new()
+		_lantern_light.light_color = Color(1.0, 0.72, 0.4)
+		_lantern_light.omni_range = 3.0
+		_lantern_light.light_energy = 1.1
+		_lantern_light.shadow_enabled = false  # B25: sombra só nas 6 luzes grandes da vila
+		_lantern_light.distance_fade_enabled = true
+		_lantern_light.distance_fade_begin = 35.0
+		_lantern_light.distance_fade_length = 10.0
+		_lantern_light.position = Vector3(0, 0.98, 0.35)
+		stake.add_child(_lantern_light)
 
 		var step: Dictionary = TutorialTrail.TRAIL_STEPS[step_index]
 		_label = _WorldLabel.make(_WorldLabel.Kind.NAME, "➤ %s %s" % [step.icon, step.title], step.icon)
@@ -434,8 +529,13 @@ class TutorialStationNode extends Node3D:
 		add_child(_prompt)
 
 	func set_visual_state(state: int, mat: Material) -> void:
-		if _gem:
-			_gem.material_override = mat
+		for r in _ribbons:
+			r.material_override = mat
+		# Lanterna acesa só no passo atual
+		if _lantern_light:
+			_lantern_light.visible = (state == 0)
+		if _lantern_glow:
+			_lantern_glow.visible = (state == 0)
 		# Só o passo atual mostra nome e [E]; os outros ficam calados
 		if _label:
 			_label.active = (state == 0)

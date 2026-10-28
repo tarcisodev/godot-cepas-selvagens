@@ -16,6 +16,7 @@ const VIEWS := [
 	["chao_rua", Vector3(1, 1.0, 6), Vector3(0, 0, -2)],
 	["portao_norte", Vector3(0, 2.5, -4), Vector3(0, 1.5, -15)],
 	["fogueira", Vector3(-0.4, 1.3, 3.4), Vector3(-2.1, 0.5, 1.1)],
+	["estacoes", Vector3(-0.3, 1.5, 4.5), Vector3(0.6, 1.0, -0.8)],
 ]
 const TIMES := [["dia", 11.0], ["tarde", 17.6], ["noite", 22.5]]
 
