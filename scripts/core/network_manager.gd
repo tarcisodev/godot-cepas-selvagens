@@ -43,6 +43,7 @@ signal connection_lost()
 signal players_updated()
 signal auth_result(success: bool, message: String, characters: Array)
 signal character_created(success: bool, message: String, character_data: Dictionary)
+signal character_deleted(success: bool, message: String, character_name: String)
 signal entered_world(success: bool, world_data: Dictionary)
 
 var state: NetworkState = NetworkState.OFFLINE_HOST
@@ -52,6 +53,7 @@ var peer: MultiplayerPeer = null
 var current_account: String = ""
 var _pending_auth_username: String = ""
 var current_character: String = ""
+var current_characters_data: Array = []
 ## No servidor: peer_id -> username
 var peer_accounts: Dictionary = {}
 
@@ -522,6 +524,9 @@ func send_auth_request(mode: String, username: String, password_raw: String, cli
 		var ok: bool = res.get("success", false)
 		if ok:
 			current_account = username
+			current_characters_data = res.get("characters_data", [])
+		else:
+			current_characters_data = []
 		auth_result.emit(ok, res.get("message", ""), res.get("characters", []))
 		return
 	rpc_id(1, "rpc_request_auth", mode, username, password_raw, client_version)
@@ -531,9 +536,35 @@ func send_create_character_request(character_name: String, dna_dict: Dictionary)
 	var sp = get_node_or_null("/root/ServerPersistence")
 	if is_server_authoritative() and sp != null:
 		var res: Dictionary = sp.create_character_for_account(current_account, character_name, dna_dict)
-		character_created.emit(res.get("success", false), res.get("message", ""), res.get("character", {}))
+		var ok: bool = res.get("success", false)
+		if ok:
+			var c_dict: Dictionary = res.get("character", {})
+			current_characters_data.append({
+				"name": character_name,
+				"money": int(c_dict.get("money", 50)),
+				"play_time": float(c_dict.get("play_time", 0.0))
+			})
+		character_created.emit(ok, res.get("message", ""), res.get("character", {}))
 		return
 	rpc_id(1, "rpc_request_create_character", character_name, dna_dict)
+
+## Envia solicitação de exclusão de personagem
+func send_delete_character_request(character_name: String) -> void:
+	var sp = get_node_or_null("/root/ServerPersistence")
+	if is_server_authoritative() and sp != null:
+		var res: Dictionary = sp.delete_character_for_account(current_account, character_name)
+		var ok: bool = res.get("success", false)
+		if ok:
+			_remove_character_data(character_name)
+		character_deleted.emit(ok, res.get("message", ""), character_name)
+		return
+	rpc_id(1, "rpc_request_delete_character", character_name)
+
+func _remove_character_data(character_name: String) -> void:
+	for i in range(current_characters_data.size() - 1, -1, -1):
+		var item = current_characters_data[i]
+		if (item is Dictionary and item.get("name") == character_name) or str(item) == character_name:
+			current_characters_data.remove_at(i)
 
 ## Solicita entrada no mundo com o personagem selecionado
 func send_enter_world_request(character_name: String) -> void:
@@ -584,14 +615,16 @@ func rpc_request_auth(mode: String, username: String, pass_hash_or_raw: String, 
 		print("[NetworkManager] Conta '%s' autenticada com sucesso (Peer: %d, IP: %s)" % [username, sender_id, ip])
 	else:
 		print("[Security] Falha de autenticação para conta '%s' do IP %s: %s" % [username, ip, res.get("message", "")])
-	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []), username if ok else "")
+	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []), username if ok else "", res.get("characters_data", []))
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_response_auth(success: bool, message: String, characters: Array, auth_account: String = "") -> void:
+func rpc_response_auth(success: bool, message: String, characters: Array, auth_account: String = "", characters_data: Array = []) -> void:
 	if success:
 		current_account = auth_account if not auth_account.is_empty() else _pending_auth_username
+		current_characters_data = characters_data
 	else:
 		current_account = ""
+		current_characters_data = []
 	auth_result.emit(success, message, characters)
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -609,7 +642,34 @@ func rpc_request_create_character(character_name: String, dna_dict: Dictionary) 
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_response_create_character(success: bool, message: String, character_data: Dictionary) -> void:
+	if success and not character_data.is_empty():
+		var cname: String = str(character_data.get("name", ""))
+		if not cname.is_empty():
+			current_characters_data.append({
+				"name": cname,
+				"money": int(character_data.get("money", 50)),
+				"play_time": float(character_data.get("play_time", 0.0))
+			})
 	character_created.emit(success, message, character_data)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_delete_character(character_name: String) -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	var sp = get_node_or_null("/root/ServerPersistence")
+	var account: String = peer_accounts.get(sender_id, "")
+	if account.is_empty() or sp == null:
+		rpc_id(sender_id, "rpc_response_delete_character", false, "Não autenticado no servidor.", character_name)
+		return
+	var res: Dictionary = sp.delete_character_for_account(account, character_name)
+	rpc_id(sender_id, "rpc_response_delete_character", res.get("success", false), res.get("message", ""), character_name)
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_response_delete_character(success: bool, message: String, character_name: String) -> void:
+	if success:
+		_remove_character_data(character_name)
+	character_deleted.emit(success, message, character_name)
 
 @rpc("any_peer", "call_remote", "reliable")
 func rpc_request_enter_world(character_name: String) -> void:

@@ -4,6 +4,7 @@ extends SceneTree
 
 const ServerPersistenceClass = preload("res://scripts/core/server_persistence.gd")
 const NetworkManagerClass = preload("res://scripts/core/network_manager.gd")
+const OnlineAuthModalClass = preload("res://scripts/ui/online_auth_modal.gd")
 
 var _started: bool = false
 
@@ -23,6 +24,7 @@ func _run() -> void:
 	_test_autosave_keeps_character_identity()
 	_test_host_creates_character_on_own_server()
 	_test_websocket_peer_init()
+	_test_character_delete_and_stats()
 
 	print("\n🎉 TODOS OS TESTES DE AUTENTICAÇÃO E WEBSOCKET PASSARAM COM SUCESSO!")
 	print("========================================================\n")
@@ -203,3 +205,68 @@ func _test_websocket_peer_init() -> void:
 	if created_net:
 		net.queue_free()
 	print("     ✓ Servidor WebSocket (Cloudflare Tunnel) inicializado e liberado com sucesso")
+
+func _test_character_delete_and_stats() -> void:
+	print("  6. Verificando exclusão de personagem, formatação de tempo e dinheiro...")
+	var sp = ServerPersistenceClass.new()
+	root.add_child(sp)
+
+	var user := "StatsTester2026"
+	var pwd := "SenhaValida123!"
+	var char_name := "Guerreira_Temp"
+	var test_dna := {"skin_color": "ffe0b2", "hair_id": 1, "hair_color": "000000"}
+
+	# Limpa antes do teste
+	var acct_file := "%s/%s.json" % [ServerPersistenceClass.ACCOUNTS_DIR, user.to_lower()]
+	var char_file := "%s/%s.json" % [ServerPersistenceClass.PLAYERS_DIR, char_name]
+	for f in [acct_file, char_file]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+	# 1. Registra e cria personagem
+	sp.register_account(user, pwd)
+	var c_res := sp.create_character_for_account(user, char_name, test_dna)
+	assert(c_res.get("success", false), "Criação deve ser bem sucedida")
+
+	# 2. Verifica resumo de saldo e tempo inicial
+	var summary_initial: Dictionary = sp.get_character_summary(char_name)
+	assert(summary_initial.get("money") == 50, "Saldo inicial deve ser 50")
+	assert(summary_initial.get("play_time") == 0.0, "Tempo inicial de jogo deve ser 0.0")
+
+	# 3. Atualiza dados com dinheiro e tempo jogado
+	sp.update_player_data(char_name, {"money": 350, "play_time": 3725.0})
+	var summary_updated: Dictionary = sp.get_character_summary(char_name)
+	assert(summary_updated.get("money") == 350, "Saldo atualizado deve ser 350")
+	assert(absf(summary_updated.get("play_time") - 3725.0) < 0.1, "Tempo atualizado deve ser 3725.0s")
+
+	# 4. Formatação de tempo em OnlineAuthModal
+	assert(OnlineAuthModalClass.format_play_time(0.0) == "Recém-criado", "0s deve formatar como Recém-criado")
+	assert(OnlineAuthModalClass.format_play_time(42.0) == "42 seg", "42s deve formatar como 42 seg")
+	assert(OnlineAuthModalClass.format_play_time(180.0) == "3 min", "180s deve formatar como 3 min")
+	assert(OnlineAuthModalClass.format_play_time(3725.0) == "1h 02min", "3725s deve formatar como 1h 02min")
+
+	# 5. Login na conta retorna characters e characters_data
+	var login_res := sp.login_account(user, pwd)
+	var chars_data: Array = login_res.get("characters_data", [])
+	assert(not chars_data.is_empty(), "Login deve retornar characters_data")
+	assert(chars_data[0].get("money") == 350, "Saldo no login deve ser 350")
+
+	# 6. Exclusão de personagem
+	# Tentar excluir personagem que não pertence à conta deve falhar
+	var del_wrong := sp.delete_character_for_account(user, "Personagem_Inexistente")
+	assert(not del_wrong.get("success", false), "Exclusão de personagem inexistente deve falhar")
+
+	# Excluir com sucesso
+	var del_ok := sp.delete_character_for_account(user, char_name)
+	assert(del_ok.get("success", false), "Exclusão do personagem deve ter sucesso")
+	assert(not FileAccess.file_exists(char_file), "Arquivo de save do personagem deve ser deletado do disco")
+
+	# Verifica se removeu da conta
+	var login_after := sp.login_account(user, pwd)
+	assert(login_after.get("characters", []).is_empty(), "Lista de personagens da conta deve estar vazia após exclusão")
+
+	# Limpa
+	if FileAccess.file_exists(acct_file):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(acct_file))
+	sp.queue_free()
+	print("     ✓ Exclusão de personagem, resumo com dinheiro e formatação de tempo validados com sucesso")

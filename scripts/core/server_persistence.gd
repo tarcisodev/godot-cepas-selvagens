@@ -120,6 +120,8 @@ static func serialize_player(player: Node) -> Dictionary:
 	var wallet = player.get("wallet")
 	if wallet and "money" in wallet:
 		dict["money"] = int(wallet.money)
+	if "play_time" in player:
+		dict["play_time"] = float(player.get("play_time"))
 
 	# Inventário
 	var inv = player.get("inventory")
@@ -156,6 +158,8 @@ static func apply_player_data(player: Node, data: Dictionary) -> void:
 		var wallet = player.get("wallet")
 		if wallet and wallet.has_method("set_money"):
 			wallet.set_money(int(data["money"]))
+	if data.has("play_time") and "play_time" in player:
+		player.set("play_time", float(data["play_time"]))
 
 	if data.has("inventory"):
 		var inv = player.get("inventory")
@@ -253,7 +257,19 @@ func login_account(username: String, pass_hash_or_raw: String) -> Dictionary:
 		return {"success": false, "message": "Senha incorreta."}
 
 	var chars: Array = data.get("characters", [])
-	return {"success": true, "message": "Login efetuado com sucesso!", "characters": chars}
+	var chars_data: Array = []
+	for cname in chars:
+		chars_data.append(get_character_summary(str(cname)))
+	return {"success": true, "message": "Login efetuado com sucesso!", "characters": chars, "characters_data": chars_data}
+
+## Retorna o resumo do personagem (nome, saldo, tempo jogado) para telas de seleção
+func get_character_summary(char_name: String) -> Dictionary:
+	var p_data := load_player_data(char_name)
+	return {
+		"name": char_name,
+		"money": int(p_data.get("money", 50)),
+		"play_time": float(p_data.get("play_time", 0.0))
+	}
 
 ## Vincula um personagem à conta
 func create_character_for_account(username: String, char_name: String, dna_dict: Dictionary) -> Dictionary:
@@ -277,6 +293,7 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 		"rotation_y": 0.0,
 		"health": 100.0,
 		"money": 50,
+		"play_time": 0.0,
 		"dna": dna_dict
 	}
 	save_player_data(clean_char, initial_player_data)
@@ -300,3 +317,47 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 			fw.close()
 
 	return {"success": true, "message": "Personagem criado com sucesso!", "character": initial_player_data}
+
+## Remove o vínculo do personagem da conta e apaga o save do disco
+func delete_character_for_account(username: String, char_name: String) -> Dictionary:
+	var clean_char := char_name.strip_edges()
+	var clean_user := username.strip_edges()
+	var safe_user := clean_user.validate_filename().to_lower()
+	var acct_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	if not FileAccess.file_exists(acct_path):
+		return {"success": false, "message": "Conta inexistente."}
+
+	var f := FileAccess.open(acct_path, FileAccess.READ)
+	if f == null:
+		return {"success": false, "message": "Erro ao acessar arquivo de conta."}
+	var text := f.get_as_text()
+	f.close()
+
+	var json := JSON.new()
+	if json.parse(text) != OK or not (json.data is Dictionary):
+		return {"success": false, "message": "Dados de conta corrompidos."}
+	var acct_data: Dictionary = json.data as Dictionary
+
+	var chars: Array = acct_data.get("characters", [])
+	if not chars.has(clean_char):
+		return {"success": false, "message": "Personagem não pertence a esta conta."}
+
+	chars.erase(clean_char)
+	acct_data["characters"] = chars
+
+	var fw := FileAccess.open(acct_path, FileAccess.WRITE)
+	if fw:
+		fw.store_string(JSON.stringify(acct_data, "\t"))
+		fw.close()
+
+	# Exclui o arquivo de save do jogador
+	var safe_char := clean_char.validate_filename()
+	var p_path := "%s/%s.json" % [PLAYERS_DIR, safe_char]
+	if FileAccess.file_exists(p_path):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(p_path))
+
+	return {
+		"success": true,
+		"message": "Personagem '%s' excluído com sucesso." % clean_char,
+		"characters": chars
+	}

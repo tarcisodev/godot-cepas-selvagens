@@ -70,6 +70,8 @@ var family: _FamilyComponent
 ## Matrizes reprodutivas capturadas para o Cercado do Rancho (GDD-04 §2)
 var livestock: Array[_CreatureDNA] = []
 const MAX_LIVESTOCK: int = 12
+## Tempo total jogado com este personagem em segundos
+var play_time: float = 0.0
 
 func add_livestock(dna: _CreatureDNA) -> bool:
 	if livestock.size() >= MAX_LIVESTOCK:
@@ -382,6 +384,7 @@ func _setup_combat_audio() -> void:
 		add_child(dodge_player)
 
 func _physics_process(delta: float) -> void:
+	play_time += delta
 	_update_oxygen(delta)
 	if mounted_on:
 		_process_mounted()
