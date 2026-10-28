@@ -129,13 +129,23 @@ func open(p_player: _Player, p_guild: _GuildData = null) -> void:
 			current_guild = g_comp.get_guild_data()
 	
 	visible = true
+	add_to_group("open_menus")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	_refresh_screen()
 
 func close() -> void:
 	visible = false
+	remove_from_group("open_menus")
+	if is_inside_tree() and get_tree().get_nodes_in_group("open_menus").is_empty():
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
+	if not visible:
+		return
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
+		close()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
 		close()
 		get_viewport().set_input_as_handled()
 

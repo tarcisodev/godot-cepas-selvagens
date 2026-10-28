@@ -248,6 +248,8 @@ func _build_ui() -> void:
 func open(p_player: _Player) -> void:
 	player = p_player
 	visible = true
+	add_to_group("open_menus")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
 	selected_base_stack.clear()
 	selected_side_stacks.clear()
 	_feedback_label.text = ""
@@ -255,11 +257,19 @@ func open(p_player: _Player) -> void:
 
 func close() -> void:
 	visible = false
+	remove_from_group("open_menus")
+	if is_inside_tree() and get_tree().get_nodes_in_group("open_menus").is_empty():
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 	selected_base_stack.clear()
 	selected_side_stacks.clear()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if visible and event.is_action_pressed("ui_cancel"):
+	if not visible:
+		return
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
+		close()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_E:
 		close()
 		get_viewport().set_input_as_handled()
 
