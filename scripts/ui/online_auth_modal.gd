@@ -327,9 +327,15 @@ func _populate_characters(characters: Array) -> void:
 func _on_new_character_pressed() -> void:
 	get_tree().change_scene_to_file(CHARACTER_CREATION_SCENE)
 
-func _on_entered_world(success: bool, _data: Dictionary) -> void:
+func _on_entered_world(success: bool, data: Dictionary) -> void:
 	if success:
-		get_tree().change_scene_to_file(WORLD_SCENE)
+		var net = _net()
+		var cname: String = str(net.get("current_character")) if net else ""
+		var sg := get_node_or_null("/root/SaveGame")
+		if sg and not cname.is_empty():
+			sg.enter_online_world(cname, data)
+		else:
+			get_tree().change_scene_to_file(WORLD_SCENE)
 	else:
 		_set_status("❌ Falha ao entrar no mundo com o personagem selecionado.", Color(1, 0.4, 0.4))
 
