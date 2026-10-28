@@ -34,6 +34,14 @@ const DEFAULTS: Dictionary = {
 		"vsync": true,
 		"show_tips": true,
 	},
+	# Tela 18+ (B34): confirmação por dispositivo; nunca guarda data de nascimento
+	"legal": {
+		"age_confirmed": false,
+	},
+	# Cutscenes (B34): já viu a intro neste dispositivo? Libera Pular e Extras › Memórias
+	"cutscenes": {
+		"intro_watched_once": false,
+	},
 }
 
 # Nome do bus de áudio de cada chave de volume
