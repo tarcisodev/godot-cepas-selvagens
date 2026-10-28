@@ -65,9 +65,11 @@ func _on_confirmed(dna: CharacterDNA) -> void:
 		return
 
 	var dna_dict: Dictionary = dna.to_dict()
+	_show_status("Criando personagem no servidor...")
 	# Conecta antes de enviar: no host a resposta é emitida na mesma chamada
 	net.character_created.connect(func(success: bool, message: String, _cdata: Dictionary):
 		if success:
+			_show_status("Entrando no mundo...")
 			net.send_enter_world_request(final_name)
 			# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
 			get_node("/root/SaveGame").enter_online_world(final_name, {}, dna)
@@ -77,14 +79,24 @@ func _on_confirmed(dna: CharacterDNA) -> void:
 	, CONNECT_ONE_SHOT)
 	net.send_create_character_request(final_name, dna_dict)
 
+func _show_status(message: String) -> void:
+	if _error_lbl == null:
+		_error_lbl = Label.new()
+		_error_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
+		_error_lbl.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_error_lbl.add_theme_font_size_override("font_size", 16)
+		add_child(_error_lbl)
+	_error_lbl.add_theme_color_override("font_color", Color(0.7, 0.95, 0.7))
+	_error_lbl.text = "⏳ %s" % message
+
 func _show_error(message: String) -> void:
 	if _error_lbl == null:
 		_error_lbl = Label.new()
 		_error_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
 		_error_lbl.grow_horizontal = Control.GROW_DIRECTION_BOTH
 		_error_lbl.add_theme_font_size_override("font_size", 16)
-		_error_lbl.add_theme_color_override("font_color", Color(1, 0.5, 0.4))
 		add_child(_error_lbl)
+	_error_lbl.add_theme_color_override("font_color", Color(1, 0.5, 0.4))
 	_error_lbl.text = "❌ %s" % message
 
 func _back() -> void:

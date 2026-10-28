@@ -50,6 +50,7 @@ var peer: MultiplayerPeer = null
 
 ## Sessão do jogador autenticado
 var current_account: String = ""
+var _pending_auth_username: String = ""
 var current_character: String = ""
 ## No servidor: peer_id -> username
 var peer_accounts: Dictionary = {}
@@ -502,6 +503,7 @@ func _on_server_disconnected() -> void:
 
 ## Envia solicitação de Login ou Registro para o servidor
 func send_auth_request(mode: String, username: String, password_raw: String, client_version: String = GAME_VERSION) -> void:
+	_pending_auth_username = username.strip_edges()
 	if client_version != GAME_VERSION:
 		var msg := "Versão incompatível do jogo (Cliente: %s | Servidor: %s). Por favor, atualize o jogo para entrar no playtest." % [
 			client_version if not client_version.is_empty() else "desconhecida",
@@ -582,10 +584,14 @@ func rpc_request_auth(mode: String, username: String, pass_hash_or_raw: String, 
 		print("[NetworkManager] Conta '%s' autenticada com sucesso (Peer: %d, IP: %s)" % [username, sender_id, ip])
 	else:
 		print("[Security] Falha de autenticação para conta '%s' do IP %s: %s" % [username, ip, res.get("message", "")])
-	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []))
+	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []), username if ok else "")
 
 @rpc("authority", "call_remote", "reliable")
-func rpc_response_auth(success: bool, message: String, characters: Array) -> void:
+func rpc_response_auth(success: bool, message: String, characters: Array, auth_account: String = "") -> void:
+	if success:
+		current_account = auth_account if not auth_account.is_empty() else _pending_auth_username
+	else:
+		current_account = ""
 	auth_result.emit(success, message, characters)
 
 @rpc("any_peer", "call_remote", "reliable")
