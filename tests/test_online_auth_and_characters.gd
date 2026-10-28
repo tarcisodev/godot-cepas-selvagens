@@ -20,6 +20,8 @@ func _run() -> void:
 
 	_test_account_registration_and_login()
 	_test_character_creation_and_binding()
+	_test_autosave_keeps_character_identity()
+	_test_host_creates_character_on_own_server()
 	_test_websocket_peer_init()
 
 	print("\n🎉 TODOS OS TESTES DE AUTENTICAÇÃO E WEBSOCKET PASSARAM COM SUCESSO!")
@@ -99,8 +101,83 @@ func _test_character_creation_and_binding() -> void:
 	sp.queue_free()
 	print("     ✓ Criação de múltiplos personagens vinculados à conta validada com sucesso")
 
+func _test_autosave_keeps_character_identity() -> void:
+	print("  3. Verificando que o autosave não apaga DNA e conta do personagem...")
+	var sp = ServerPersistenceClass.new()
+	root.add_child(sp)
+
+	var user := "AutosaveTester"
+	var char_name := "Persistente_Beta"
+	var test_dna := {"skin_color": "ffe0b2", "hair_id": 3}
+	_cleanup_account(user, [char_name])
+	sp.register_account(user, "SenhaSegura123!")
+	var res: Dictionary = sp.create_character_for_account(user, char_name, test_dna)
+	assert(res.get("success", false), "Personagem deve ser criado")
+
+	# Autosave grava só posição/vida: o resto precisa sobreviver
+	sp.update_player_data(char_name, {"position": [5.0, 1.0, 5.0], "health": 80.0})
+	var data: Dictionary = sp.load_player_data(char_name)
+	var saved_dna: Dictionary = data.get("dna", {})
+	# JSON devolve números como float: compara campo a campo
+	assert(saved_dna.get("skin_color", "") == "ffe0b2" and int(saved_dna.get("hair_id", -1)) == 3, "DNA deve continuar salvo após o autosave")
+	assert(data.get("account", "") == user, "Conta deve continuar vinculada após o autosave")
+	assert(float(data.get("health", 0.0)) == 80.0, "Estado novo deve ser gravado")
+
+	_cleanup_account(user, [char_name])
+	sp.queue_free()
+	print("     ✓ Autosave mescla o estado sem perder DNA e conta")
+
+func _test_host_creates_character_on_own_server() -> void:
+	print("  4. Verificando criação de personagem pelo host do PC...")
+	var sp = root.get_node_or_null("/root/ServerPersistence")
+	var created_sp: bool = false
+	if sp == null:
+		sp = ServerPersistenceClass.new()
+		sp.name = "ServerPersistence"
+		root.add_child(sp)
+		created_sp = true
+	var net = root.get_node_or_null("/root/NetworkManager")
+	var created_net: bool = false
+	if net == null:
+		net = NetworkManagerClass.new()
+		root.add_child(net)
+		created_net = true
+
+	var user := "HostTester"
+	var char_name := "Anfitriao_Beta"
+	_cleanup_account(user, [char_name])
+	assert(net.start_server(9878, 8, false) == OK, "Servidor do host deve iniciar")
+	net.send_auth_request("register", user, "SenhaSegura123!")
+	assert(net.current_account == user, "Host deve ficar autenticado na própria conta")
+
+	# No host a resposta sai na mesma chamada: quem escuta precisa conectar antes
+	var got := {"ok": false}
+	net.character_created.connect(func(success: bool, _m: String, _c: Dictionary): got["ok"] = success, CONNECT_ONE_SHOT)
+	net.send_create_character_request(char_name, {"hair_id": 1})
+	assert(got["ok"], "Host deve receber character_created com sucesso")
+	var chars: Array = sp.login_account(user, "SenhaSegura123!").get("characters", [])
+	assert(chars.has(char_name), "Personagem do host deve ficar gravado na conta")
+
+	_cleanup_account(user, [char_name])
+	net.current_account = ""
+	net.cleanup_peer()
+	net.setup_offline_host()
+	if created_net:
+		net.queue_free()
+	if created_sp:
+		sp.queue_free()
+	print("     ✓ Host cria e persiste personagem no próprio servidor")
+
+func _cleanup_account(user: String, char_names: Array) -> void:
+	var files: Array = ["%s/%s.json" % [ServerPersistenceClass.ACCOUNTS_DIR, user.to_lower()]]
+	for c in char_names:
+		files.append("%s/%s.json" % [ServerPersistenceClass.PLAYERS_DIR, String(c).validate_filename()])
+	for f in files:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
 func _test_websocket_peer_init() -> void:
-	print("  3. Verificando inicialização de WebSocketMultiplayerPeer para Cloudflare Tunnel...")
+	print("  5. Verificando inicialização de WebSocketMultiplayerPeer para Cloudflare Tunnel...")
 	var net = root.get_node_or_null("/root/NetworkManager")
 	var created_net: bool = false
 	if net == null:

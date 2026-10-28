@@ -111,10 +111,15 @@ static func serialize_player(player: Node) -> Dictionary:
 		dict["health"] = pools.get("current_health")
 		dict["posture"] = pools.get("current_posture")
 
+	# Aparência: sem ela o personagem volta com o DNA padrão no próximo login
+	var visual = player.get("character_visual")
+	if visual and visual.get("dna"):
+		dict["dna"] = visual.dna.to_dict()
+
 	# Carteira
 	var wallet = player.get("wallet")
-	if wallet and wallet.has_method("get_balance"):
-		dict["money"] = wallet.get_balance()
+	if wallet and "money" in wallet:
+		dict["money"] = int(wallet.money)
 
 	# Inventário
 	var inv = player.get("inventory")
@@ -149,8 +154,8 @@ static func apply_player_data(player: Node, data: Dictionary) -> void:
 
 	if data.has("money"):
 		var wallet = player.get("wallet")
-		if wallet and wallet.has_method("set_balance"):
-			wallet.set_balance(int(data["money"]))
+		if wallet and wallet.has_method("set_money"):
+			wallet.set_money(int(data["money"]))
 
 	if data.has("inventory"):
 		var inv = player.get("inventory")
@@ -166,8 +171,13 @@ func autosave_all_active_players() -> void:
 		if p_name.is_empty() and player.has_meta("player_name"):
 			p_name = player.get_meta("player_name")
 		if not p_name.is_empty():
-			var data := serialize_player(player)
-			save_player_data(p_name, data)
+			update_player_data(p_name, serialize_player(player))
+
+## Mescla o estado novo no save existente: preserva nome, conta e DNA gravados na criação
+func update_player_data(player_name: String, data: Dictionary) -> bool:
+	var merged := load_player_data(player_name)
+	merged.merge(data, true)
+	return save_player_data(player_name, merged)
 
 func _on_peer_left(peer_id: int) -> void:
 	if _net == null:
@@ -180,8 +190,7 @@ func _on_peer_left(peer_id: int) -> void:
 			var remotes: Dictionary = _net.get("remote_avatars") if "remote_avatars" in _net else {}
 			var avatar: Node = remotes.get(peer_id)
 			if avatar != null:
-				var data := serialize_player(avatar)
-				save_player_data(p_name, data)
+				update_player_data(p_name, serialize_player(avatar))
 				print("[ServerPersistence] Progresso salvo para '%s' ao desconectar." % p_name)
 
 ## Hasheia senha com salt seguro do jogo
