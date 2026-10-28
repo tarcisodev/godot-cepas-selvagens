@@ -195,6 +195,16 @@ func test_hud_opacity_tooltips_expand_and_lock() -> void:
 	assert(is_equal_approx(card_sb.bg_color.a, WorldHUD.PANEL_BG_ALPHA), "HUD superior esquerdo com fundo levemente transparente")
 	assert(is_equal_approx(nav_sb.bg_color.a, WorldHUD.PANEL_BG_ALPHA), "Barra inferior com fundo levemente transparente")
 	assert(is_equal_approx(hud.health_bar.modulate.a, 1.0) and is_equal_approx(hud.time_label.modulate.a, 1.0), "Barras de status e textos permanecem 100% opacos")
+	var hp_fg := hud.health_bar.get_theme_stylebox("fill") as StyleBoxFlat
+	assert(hp_fg != null, "HealthBar possui StyleBoxFlat no fill")
+	assert(hp_fg.border_width_top == 0 and hp_fg.border_width_bottom == 0 and hp_fg.border_width_left == 0 and hp_fg.border_width_right == 0, "Fill da HealthBar não possui bordas/traços espúrios")
+	assert(hp_fg.corner_radius_top_right == 0 and hp_fg.corner_radius_bottom_right == 0, "Fill da HealthBar tem corte reto à direita para medidor preciso")
+	assert(hud.health_bar.custom_minimum_size.y >= 16.0, "HealthBar tem altura legível para texto de PV")
+	assert(hud.poise_bar.custom_minimum_size.y >= 7.0, "PoiseBar tem altura suficiente para não parecer um fio/traço")
+	assert(not hud.health_bar.tooltip_text.is_empty(), "HealthBar possui tooltip informativo")
+	assert(not hud.vigor_bar.tooltip_text.is_empty(), "VigorBar possui tooltip informativo")
+	assert(not hud.ether_bar.tooltip_text.is_empty(), "EtherBar possui tooltip informativo")
+	assert(not hud.poise_bar.tooltip_text.is_empty(), "PoiseBar possui tooltip informativo")
 
 	# 2. Barra de Ações Minimalista: sem Labels constantes na HBox, apenas TextureButtons com tooltip_text, KeyBadge "(Tecla)" e HoverBanner
 	assert(hud.shortcut_buttons.size() == WorldHUD.ACTION_SHORTCUTS.size(), "Todos os atalhos foram criados como TextureButton")

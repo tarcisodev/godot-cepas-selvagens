@@ -17,7 +17,7 @@ const _CustomCursor = preload("res://scripts/ui/custom_cursor.gd")
 
 const GLOBAL_THEME_PATH: String = "res://resources/ui/global_theme.tres"
 const PANEL_BG_ALPHA: float = 0.62
-const HUD_BAR_WIDTH: float = 215.0
+const HUD_BAR_WIDTH: float = 220.0
 
 const ACTION_SHORTCUTS: Array[Dictionary] = [
 	{"id": &"map", "key": "(M)", "tooltip": "[M] Mapa", "hover": "🗺️ Mapa Mundial (M)", "color": Color(0.45, 0.86, 0.68)},
@@ -129,7 +129,10 @@ func _decorate_hud() -> void:
 		margin.remove_child(vbox)
 		margin.add_child(card)
 		card.add_child(vbox)
-		vbox.add_theme_constant_override("separation", 4)
+		vbox.add_theme_constant_override("separation", 5)
+		var status_bars := vbox.get_node_or_null("StatusBars") as VBoxContainer
+		if status_bars:
+			status_bars.add_theme_constant_override("separation", 4)
 
 	if time_label:
 		time_label.modulate = Color(1, 1, 1, 1)
@@ -153,10 +156,10 @@ func _decorate_hud() -> void:
 		mls.outline_color = Color(0.02, 0.03, 0.04, 0.92)
 		mode_label.label_settings = mls
 
-	_style_bar(health_bar, Color(0.86, 0.22, 0.25, 1.0), Color(0.18, 0.05, 0.06, 0.92), 13, true)
-	_style_bar(ether_bar, Color(0.24, 0.64, 0.96, 1.0), Color(0.05, 0.13, 0.22, 0.92), 7, false)
-	_style_bar(vigor_bar, Color(0.26, 0.80, 0.48, 1.0), Color(0.05, 0.16, 0.10, 0.92), 7, false)
-	_style_bar(poise_bar, Color(0.94, 0.76, 0.28, 1.0), Color(0.18, 0.14, 0.05, 0.92), 4, false)
+	_style_bar(health_bar, Color(0.88, 0.22, 0.26, 1.0), Color(0.15, 0.04, 0.05, 0.95), 16, true, Color(0.32, 0.08, 0.10, 0.85), "❤️ Vida (PV): Integridade física. Zera = desmaio/morte.")
+	_style_bar(ether_bar, Color(0.22, 0.62, 0.96, 1.0), Color(0.04, 0.10, 0.18, 0.95), 9, false, Color(0.08, 0.20, 0.34, 0.85), "🔷 Éter (PE): Energia arcana para feitiços e habilidades ativas.")
+	_style_bar(vigor_bar, Color(0.25, 0.82, 0.48, 1.0), Color(0.04, 0.14, 0.08, 0.95), 9, false, Color(0.08, 0.26, 0.14, 0.85), "⚡ Vigor (ST): Estamina para correr, esquivar, golpear e nadar.")
+	_style_bar(poise_bar, Color(0.92, 0.74, 0.24, 1.0), Color(0.14, 0.10, 0.04, 0.95), 7, false, Color(0.30, 0.22, 0.07, 0.85), "🛡️ Postura (EQ): Equilíbrio e estabilidade em combate. Evita atordoamento.")
 
 	if tips_container:
 		var tip_lbl := tips_container.get_node_or_null("ControlsTip") as Label
@@ -169,42 +172,56 @@ func _decorate_hud() -> void:
 	_build_ability_bar()
 	_build_quick_nav_pills()
 
-func _style_bar(bar: ProgressBar, fill_col: Color, bg_col: Color, height: float, show_hp_text: bool) -> void:
+func _style_bar(bar: ProgressBar, fill_col: Color, bg_col: Color, height: float, show_hp_text: bool, border_col: Color = Color.TRANSPARENT, tooltip: String = "") -> void:
 	if bar == null:
 		return
 	bar.modulate = Color(1, 1, 1, 1)
 	bar.self_modulate = Color(1, 1, 1, 1)
 	bar.custom_minimum_size = Vector2(HUD_BAR_WIDTH, height)
 	bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	var radius := maxi(2, int(height * 0.45))
+	if not tooltip.is_empty():
+		bar.tooltip_text = tooltip
+
+	var radius: int = 3
 
 	var bg := StyleBoxFlat.new()
 	bg.bg_color = bg_col
-	bg.border_color = Color(0.04, 0.06, 0.05, 0.85)
+	bg.border_color = border_col if border_col != Color.TRANSPARENT else Color(0.14, 0.18, 0.16, 0.9)
 	bg.set_border_width_all(1)
 	bg.set_corner_radius_all(radius)
 
 	var fg := StyleBoxFlat.new()
 	fg.bg_color = fill_col
-	fg.border_color = fill_col.lightened(0.28)
-	fg.border_width_top = 1
-	fg.set_corner_radius_all(radius)
+	# Sem borda superior nem traços estranhos no preenchimento
+	fg.set_border_width_all(0)
+	# Cantos esquerdos acompanham o raio da moldura; cantos direitos retos para corte limpo e preciso do medidor
+	fg.corner_radius_top_left = maxi(1, radius - 1)
+	fg.corner_radius_bottom_left = maxi(1, radius - 1)
+	fg.corner_radius_top_right = 0
+	fg.corner_radius_bottom_right = 0
 
 	bar.add_theme_stylebox_override("background", bg)
 	bar.add_theme_stylebox_override("fill", fg)
 
 	if show_hp_text:
-		_health_text = Label.new()
-		_health_text.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_health_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_health_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		var hp_ls := LabelSettings.new()
-		hp_ls.font_size = 10
-		hp_ls.font_color = Color(1.0, 0.98, 0.95, 1.0)
-		hp_ls.outline_size = 3
-		hp_ls.outline_color = Color(0.0, 0.0, 0.0, 0.92)
-		_health_text.label_settings = hp_ls
-		bar.add_child(_health_text)
+		if _health_text == null:
+			_health_text = Label.new()
+			_health_text.name = "HealthText"
+			_health_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+			_health_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			_health_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			_health_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var hp_ls := LabelSettings.new()
+			hp_ls.font_size = 11
+			hp_ls.font_color = Color(1.0, 0.98, 0.94, 1.0)
+			hp_ls.outline_size = 3
+			hp_ls.outline_color = Color(0.04, 0.04, 0.05, 0.95)
+			hp_ls.shadow_color = Color(0, 0, 0, 0.7)
+			hp_ls.shadow_size = 1
+			hp_ls.shadow_offset = Vector2(0, 1)
+			_health_text.label_settings = hp_ls
+			bar.add_child(_health_text)
+		_health_text.text = "%.0f / %.0f" % [bar.value, bar.max_value]
 
 ## Barra de Ações Minimalista: TextureButtons com a tecla entre parênteses "(M)" +
 ## banner instantâneo de hover + controles de Expansão (Tween) e Cadeado (Lock/Unlock).
@@ -377,6 +394,9 @@ func set_hud_locked(locked: bool) -> void:
 	for p in [explorer_card, quick_nav_panel, _horn_panel]:
 		if p != null and is_instance_valid(p):
 			p.mouse_filter = panel_filter
+	for b in [health_bar, ether_bar, vigor_bar, poise_bar, _oxygen_bar]:
+		if b != null and is_instance_valid(b):
+			b.mouse_filter = panel_filter
 	for p in _ability_panels:
 		if p != null and is_instance_valid(p):
 			p.mouse_filter = panel_filter
@@ -793,14 +813,12 @@ func _build_oxygen_ui() -> void:
 	if bars:
 		_oxygen_bar = ProgressBar.new()
 		_oxygen_bar.name = "OxygenBar"
-		_oxygen_bar.modulate = Color(0.55, 0.85, 1.0, 1.0)
-		_oxygen_bar.custom_minimum_size = Vector2(HUD_BAR_WIDTH, 5)
-		_oxygen_bar.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 		_oxygen_bar.show_percentage = false
 		_oxygen_bar.max_value = Player.OXYGEN_MAX
 		_oxygen_bar.value = Player.OXYGEN_MAX
 		_oxygen_bar.visible = false
 		bars.add_child(_oxygen_bar)
+		_style_bar(_oxygen_bar, Color(0.35, 0.88, 0.95, 1.0), Color(0.03, 0.12, 0.16, 0.95), 7, false, Color(0.06, 0.24, 0.28, 0.85), "🫧 Oxigênio: Fôlego restante submerso.")
 	_underwater_tint = ColorRect.new()
 	_underwater_tint.color = Color(0.05, 0.25, 0.32, 0.45)
 	_underwater_tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -814,7 +832,8 @@ func _on_oxygen_changed(current: float, max_val: float) -> void:
 		_oxygen_bar.max_value = max_val
 		_oxygen_bar.value = current
 		_oxygen_bar.visible = current < max_val
-		_oxygen_bar.modulate = Color(1.0, 0.35, 0.3) if current < max_val * 0.25 else Color(0.55, 0.85, 1.0, 1.0)
+		_oxygen_bar.tooltip_text = "🫧 Fôlego: %.0f / %.0f" % [ceilf(current), max_val]
+		_oxygen_bar.modulate = Color(1.0, 0.35, 0.3) if current < max_val * 0.25 else Color(1, 1, 1, 1)
 
 func _update_underwater_tint() -> void:
 	if _underwater_tint == null or not is_inside_tree():
@@ -889,6 +908,7 @@ func _on_health_changed(current: float, max_val: float) -> void:
 	if health_bar:
 		health_bar.max_value = max_val
 		health_bar.value = current
+		health_bar.tooltip_text = "❤️ Vida: %.0f / %.0f (PV)" % [ceilf(current), max_val]
 	if _health_text:
 		_health_text.text = "%.0f / %.0f" % [ceilf(current), max_val]
 
@@ -896,16 +916,19 @@ func _on_ether_changed(current: float, max_val: float) -> void:
 	if ether_bar:
 		ether_bar.max_value = max_val
 		ether_bar.value = current
+		ether_bar.tooltip_text = "🔷 Éter: %.0f / %.0f (PE)" % [ceilf(current), max_val]
 
 func _on_vigor_changed(current: float, max_val: float) -> void:
 	if vigor_bar:
 		vigor_bar.max_value = max_val
 		vigor_bar.value = current
+		vigor_bar.tooltip_text = "⚡ Vigor: %.0f / %.0f (ST)" % [ceilf(current), max_val]
 
 func _on_poise_changed(current: float, max_val: float) -> void:
 	if poise_bar:
 		poise_bar.max_value = max_val
 		poise_bar.value = current
+		poise_bar.tooltip_text = "🛡️ Postura: %.0f / %.0f (EQ)" % [ceilf(current), max_val]
 
 # ---------------------------------------------------------------- habilidades de armadura (GDD-12 §6.3)
 

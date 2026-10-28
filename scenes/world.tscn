@@ -218,29 +218,29 @@ layout_mode = 2
 theme_override_constants/separation = 4
 
 [node name="HealthBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
-modulate = Color(0.88, 0.28, 0.28, 0.95)
-custom_minimum_size = Vector2(220, 9)
+modulate = Color(1, 1, 1, 1)
+custom_minimum_size = Vector2(220, 16)
 layout_mode = 2
 value = 100.0
 show_percentage = false
 
 [node name="EtherBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
-modulate = Color(0.28, 0.62, 0.95, 0.95)
-custom_minimum_size = Vector2(220, 7)
+modulate = Color(1, 1, 1, 1)
+custom_minimum_size = Vector2(220, 9)
 layout_mode = 2
 value = 100.0
 show_percentage = false
 
 [node name="VigorBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
-modulate = Color(0.32, 0.82, 0.52, 0.95)
-custom_minimum_size = Vector2(220, 7)
+modulate = Color(1, 1, 1, 1)
+custom_minimum_size = Vector2(220, 9)
 layout_mode = 2
 value = 100.0
 show_percentage = false
 
 [node name="PoiseBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/StatusBars"]
-modulate = Color(0.92, 0.78, 0.32, 0.9)
-custom_minimum_size = Vector2(220, 5)
+modulate = Color(1, 1, 1, 1)
+custom_minimum_size = Vector2(220, 7)
 layout_mode = 2
 value = 100.0
 show_percentage = false
