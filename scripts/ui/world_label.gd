@@ -124,7 +124,12 @@ func _update() -> void:
 				a = minf(fade_in, clampf((FAR - d) / FADE, 0.0, 1.0))
 		Kind.PROMPT:
 			text = full_text
-			a = 1.0 if _focused_prompt() == self else 0.0
+			if _focused_prompt() == self:
+				# Proximity fade suave: surge gradualmente nos últimos metros até o alvo
+				var prompt_fade_dist: float = minf(FADE, use_range * 0.45)
+				a = clampf((use_range - d) / prompt_fade_dist, 0.0, 1.0)
+			else:
+				a = 0.0
 		Kind.SIGN:
 			text = full_text
 			a = clampf((sign_range - d) / (FADE * 4.0), 0.0, 1.0)
