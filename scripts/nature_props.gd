@@ -5,6 +5,7 @@ class_name NatureProps
 ## Substituído por modelos estilizados 3D reais (Stylized Nature & KayKit Tools).
 
 const RiverClass = preload("res://scripts/river_system.gd")
+const _CityHub = preload("res://scripts/city_hub.gd")
 
 @export var landscape: MeshInstance3D
 @export var riparian_tree_count: int = 70
@@ -85,21 +86,26 @@ func _spawn_resting_camp() -> void:
 
 	# Escalas trazem os kits (KayKit vem grande) para tamanho humano.
 	# Canto da forja (à direita de quem chega do spawn)
+	# Ajuste do relevo para cada objeto acompanhar o declive do chão
+	var _prop_y := func(dx: float, dz: float, model_offset: float = 0.0) -> float:
+		return (_get_ground_y(camp_x + dx, camp_z + dz) - ground_y) + model_offset
+
 	var anvil: Node3D = ANVIL_SCENE.instantiate()
-	anvil.position = Vector3(1.0, 0.0, 0.6)
+	anvil.position = Vector3(1.0, _prop_y.call(1.0, 0.6), 0.6)
 	anvil.scale = Vector3.ONE * 0.5
 	anvil.rotation.y = deg_to_rad(20.0)
 	camp.add_child(anvil)
 
 	var grind: Node3D = GRINDSTONE_SCENE.instantiate()
-	grind.position = Vector3(2.1, 0.0, -0.5)
+	grind.position = Vector3(2.1, _prop_y.call(2.1, -0.5, 0.36), -0.5)
 	grind.rotation.y = deg_to_rad(-45.0)
 	grind.scale = Vector3.ONE * 0.48
 	camp.add_child(grind)
 
 	# Lanterna iluminando o acampamento
 	var lantern: Node3D = LANTERN_SCENE.instantiate()
-	lantern.position = Vector3(0.1, 0.0, 1.6)
+	var lantern_y: float = _prop_y.call(0.1, 1.6)
+	lantern.position = Vector3(0.1, lantern_y, 1.6)
 	lantern.scale = Vector3.ONE * 0.4
 	camp.add_child(lantern)
 
@@ -107,44 +113,45 @@ func _spawn_resting_camp() -> void:
 	lantern_light.light_color = Color(1.0, 0.72, 0.42)
 	lantern_light.light_energy = 1.4
 	lantern_light.omni_range = 7.0
-	lantern_light.position = Vector3(0.1, 0.45, 1.6)
+	lantern_light.position = Vector3(0.1, lantern_y + 0.45, 1.6)
 	camp.add_child(lantern_light)
 
 	# Bancada rústica de botânica / alquimia, com os projetos de forja em cima
 	var bench: Node3D = WORKBENCH_SCENE.instantiate()
-	bench.position = Vector3(-1.3, 0.0, 0.2)
+	var bench_y: float = _prop_y.call(-1.3, 0.2)
+	bench.position = Vector3(-1.3, bench_y, 0.2)
 	bench.rotation.y = deg_to_rad(65.0)
 	bench.scale = Vector3.ONE * 0.8
 	camp.add_child(bench)
 
 	var bp: Node3D = BLUEPRINT_SCENE.instantiate()
-	bp.position = Vector3(-1.3, 0.72, 0.2)
+	bp.position = Vector3(-1.3, bench_y + 0.72, 0.2)
 	bp.rotation.y = deg_to_rad(65.0)
 	bp.scale = Vector3.ONE * 0.3
 	camp.add_child(bp)
 
 	# Caldeirão de extratos e infusões
 	var cauldron: Node3D = CAULDRON_SCENE.instantiate()
-	cauldron.position = Vector3(-0.4, 0.0, -1.5)
+	cauldron.position = Vector3(-0.4, _prop_y.call(-0.4, -1.5), -1.5)
 	cauldron.scale = Vector3.ONE * 0.85
 	camp.add_child(cauldron)
 
 	# Baú de madeira para sementes e materiais coletados
 	var chest: Node3D = CHEST_SCENE.instantiate()
-	chest.position = Vector3(-2.5, 0.0, -1.0)
+	chest.position = Vector3(-2.5, _prop_y.call(-2.5, -1.0), -1.0)
 	chest.rotation.y = deg_to_rad(25.0)
 	chest.scale = Vector3.ONE * 0.7
 	camp.add_child(chest)
 
 	# Caixote e barril de suprimentos
 	var crate: Node3D = CRATE_SCENE.instantiate()
-	crate.position = Vector3(2.7, 0.0, 1.4)
+	crate.position = Vector3(2.7, _prop_y.call(2.7, 1.4), 1.4)
 	crate.rotation.y = deg_to_rad(-15.0)
 	crate.scale = Vector3.ONE * 0.75
 	camp.add_child(crate)
 
 	var barrel: Node3D = BARREL_SCENE.instantiate()
-	barrel.position = Vector3(3.3, 0.0, 0.7)
+	barrel.position = Vector3(3.3, _prop_y.call(3.3, 0.7), 0.7)
 	camp.add_child(barrel)
 
 	add_child(camp)
@@ -165,7 +172,7 @@ func _spawn_trees() -> void:
 		var dist: float = rng.randf_range(hw + 1.5, hw + 15.0)
 		var x: float = rx + (side * dist)
 
-		if CityHub.in_village(x, z):
+		if _CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)
@@ -181,7 +188,7 @@ func _spawn_trees() -> void:
 		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
-		if dist_river < 15.0 or CityHub.in_village(x, z):
+		if dist_river < 15.0 or _CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)
@@ -224,7 +231,7 @@ func _spawn_bushes() -> void:
 	for i in range(bush_count):
 		var x: float = rng.randf_range(-WorldBounds.HALF * 0.88, WorldBounds.HALF * 0.88)
 		var z: float = rng.randf_range(-WorldBounds.HALF * 0.88, WorldBounds.HALF * 0.88)
-		if CityHub.in_village(x, z) or RiverClass.get_distance_to_river(x, z) < 4.0:
+		if _CityHub.in_village(x, z) or RiverClass.get_distance_to_river(x, z) < 4.0:
 			continue
 		var ground_y: float = _get_ground_y(x, z)
 		if ground_y > 14.0 or RiverClass.is_in_water(Vector3(x, ground_y, z)) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
@@ -265,7 +272,7 @@ func _spawn_rocks() -> void:
 		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
-		if dist_river < 3.5 or CityHub.in_village(x, z):
+		if dist_river < 3.5 or _CityHub.in_village(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)

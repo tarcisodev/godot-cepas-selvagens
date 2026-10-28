@@ -193,9 +193,55 @@ func _process(_delta: float) -> void:
 	# Altura do solo
 	var world_node := get_parent()
 	var landscape = world_node.get_node_or_null("Landscape") if world_node else null
+	var ground_y: float = 0.0
 	if landscape and landscape.has_method("get_height_at"):
-		target_pos.y = landscape.get_height_at(target_pos.x, target_pos.z)
+		ground_y = landscape.get_height_at(target_pos.x, target_pos.z)
 	
+	var highest_surface_y: float = ground_y
+	var current_entry: Dictionary = catalog[current_piece_index]
+	var is_placing_floor: bool = current_entry.get("type") == BuildablePieceClass.PieceType.PISO_MADEIRA
+
+	# 1. Raycast físico direto contra estruturas sólidas (ex.: cama ou baú sobre piso de madeira)
+	if is_inside_tree() and get_world_3d() and get_world_3d().direct_space_state:
+		var space := get_world_3d().direct_space_state
+		var start := Vector3(target_pos.x, max(p_pos.y + 4.0, ground_y + 4.0), target_pos.z)
+		var finish := Vector3(target_pos.x, ground_y - 2.0, target_pos.z)
+		var query := PhysicsRayQueryParameters3D.create(start, finish)
+		if player is CollisionObject3D:
+			query.exclude = [player.get_rid()]
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty():
+			var collider = hit.get("collider")
+			if collider is BuildablePiece or (collider is Node and collider.is_in_group("built_structures")):
+				var hit_y: float = hit["position"].y
+				if hit_y > highest_surface_y:
+					highest_surface_y = hit_y
+
+	# 2. Varredura direta em built_structures (garante detecção mesmo se a física ainda não rodou tick)
+	var tree := get_tree()
+	if tree:
+		var structures := tree.get_nodes_in_group("built_structures")
+		for node in structures:
+			var piece := node as BuildablePiece
+			if piece == null or piece.is_queued_for_deletion():
+				continue
+			var p_pos3 := piece.global_position
+			var dx: float = abs(target_pos.x - p_pos3.x)
+			var dz: float = abs(target_pos.z - p_pos3.z)
+
+			if piece.piece_type == BuildablePieceClass.PieceType.PISO_MADEIRA:
+				# Pisos têm 2.0 x 2.0 m
+				if dx <= 1.05 and dz <= 1.05:
+					var floor_top: float = p_pos3.y + 0.12
+					if floor_top > highest_surface_y:
+						highest_surface_y = floor_top
+
+				# Alinhamento coplanar para pisos adjacentes (mantém decks e plataformas retos)
+				if is_placing_floor and dx <= 2.2 and dz <= 2.2:
+					if highest_surface_y <= ground_y:
+						highest_surface_y = p_pos3.y
+
+	target_pos.y = highest_surface_y
 	ghost_root.global_position = target_pos
 	ghost_root.rotation.y = _ghost_yaw
 	

@@ -349,10 +349,11 @@ func _build_plaza() -> void:
 	cart.rotation.y = deg_to_rad(-45.0)
 	cart.scale = Vector3.ONE * 0.75
 	add_child(cart)
-	for b in [[BANNER1_SCENE, Vector2(-0.5, -3.2)], [BANNER2_SCENE, Vector2(3.5, -3.2)]]:
+	for b in [[BANNER1_SCENE, Vector2(-0.5, -3.2), 1.24], [BANNER2_SCENE, Vector2(3.5, -3.2), 0.99]]:
 		var banner := (b[0] as PackedScene).instantiate() as Node3D
 		var p: Vector2 = b[1]
-		banner.position = Vector3(p.x, _get_ground_y(p.x, p.y), p.y)
+		var y_off: float = b[2]
+		banner.position = Vector3(p.x, _get_ground_y(p.x, p.y) + y_off, p.y)
 		banner.scale = Vector3.ONE * 0.8
 		add_child(banner)
 
@@ -399,7 +400,7 @@ func _build_plaza() -> void:
 func _build_activity_pockets() -> void:
 	# --- 1. Boutique de Cosméticos do Estilista Astral (Bolsa Leste / Margem do Rio) ---
 	var stall := STALL_SCENE.instantiate() as Node3D
-	stall.position = Vector3(7.5, _get_ground_y(7.5, 2.0), 2.0)
+	stall.position = Vector3(5.8, _get_ground_y(5.8, 2.0), 2.0)
 	stall.rotation.y = deg_to_rad(-65.0)
 	stall.scale = Vector3.ONE * 0.9
 	add_child(stall)
@@ -413,12 +414,12 @@ func _build_activity_pockets() -> void:
 	rug_mat.albedo_color = Color(0.55, 0.20, 0.35)
 	rug_mat.roughness = 0.85
 	rug.material_override = rug_mat
-	rug.position = Vector3(6.8, _get_ground_y(6.8, 2.0) + 0.02, 2.0)
+	rug.position = Vector3(5.1, _get_ground_y(5.1, 2.0) + 0.02, 2.0)
 	rug.rotation.y = deg_to_rad(-65.0)
 	add_child(rug)
 
 	var chest := CHEST_SCENE.instantiate() as Node3D
-	chest.position = Vector3(8.2, _get_ground_y(8.2, 2.8), 2.8)
+	chest.position = Vector3(6.5, _get_ground_y(6.5, 2.8), 2.8)
 	chest.rotation.y = deg_to_rad(-110.0)
 	chest.scale = Vector3.ONE * 0.65
 	add_child(chest)

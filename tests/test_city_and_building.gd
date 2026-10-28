@@ -28,6 +28,7 @@ func _run() -> void:
 	test_city_hub_structures_and_npcs()
 	await test_territory_rules_gdd08()
 	test_structures_save_roundtrip()
+	test_unburied_props_and_floor_snapping()
 
 	print("\n🎉 TODOS OS TESTES DE CIDADE E CONSTRUÇÃO PASSARAM COM SUCESSO!")
 	print("========================================================\n")
@@ -301,3 +302,63 @@ func test_structures_save_roundtrip() -> void:
 	world.free()
 	zm.free()
 	print("  ✓ Totens e peças sobrevivem ao save/load com tipo, dono, posição e rotação!")
+
+func test_unburied_props_and_floor_snapping() -> void:
+	print("\n[8/8] Validando elevação de banners e snapping de peças sobre pisos...")
+	# 1. Banners na Vila da Esperança não estão enterrados
+	var city := CityHubClass.new()
+	root.add_child(city)
+	var found_elevated_banner := false
+	for child in city.get_children():
+		var n3d := child as Node3D
+		if n3d and (n3d.name.contains("Banner") or n3d.position.z == -3.2):
+			assert(n3d.position.y >= 0.9, "Banners devem ter elevação positiva para não enterrar o mastro (atual: %f)" % n3d.position.y)
+			found_elevated_banner = true
+	assert(found_elevated_banner, "Pelo menos um banner verificado na praça")
+	city.free()
+
+	# 2. Snapping do BuildingSystem em cima de piso existente
+	var zm := ZoneManagerClass.new()
+	root.add_child(zm)
+	var player: Player = PlayerScene.instantiate() as Player
+	player.position = Vector3(40.0, 0.0, 40.0)
+	root.add_child(player)
+	player._setup_components()
+
+	# Cria um piso de madeira elevado em Y = 2.0
+	var floor_piece := BuildablePieceClass.new()
+	floor_piece.piece_type = BuildablePieceClass.PieceType.PISO_MADEIRA
+	floor_piece.position = Vector3(40.0, 2.0, 40.0)
+	root.add_child(floor_piece)
+
+	var bs := BuildingSystemClass.new()
+	bs.player = player
+	bs.zone_manager = zm
+	root.add_child(bs)
+	bs.set_building_mode(true)
+
+	# Simula posicionamento sobre o piso
+	player.position = Vector3(40.0, 2.12, 43.0)
+	for i in bs.catalog.size():
+		if bs.catalog[i].get("id") == &"cama":
+			bs.current_piece_index = i
+			break
+	bs._process(0.016)
+
+	assert(bs.ghost_root.global_position.y >= 2.11, "Peça posicionada sobre piso deve apoiar no topo da madeira (Y >= 2.12, atual: %f)" % bs.ghost_root.global_position.y)
+
+	# 3. Piso adjacente alinha a altura com o piso existente
+	for i in bs.catalog.size():
+		if bs.catalog[i].get("id") == &"piso_madeira":
+			bs.current_piece_index = i
+			break
+	player.position = Vector3(42.0, 0.0, 43.0)
+	bs._process(0.016)
+	assert(absf(bs.ghost_root.global_position.y - 2.0) < 0.01, "Piso adjacente deve alinhar altura com o piso vizinho (Y == 2.0, atual: %f)" % bs.ghost_root.global_position.y)
+
+	bs.set_building_mode(false)
+	bs.free()
+	floor_piece.free()
+	player.free()
+	zm.free()
+	print("  ✓ Elevação de banners e snapping de pisos/móveis 100% validados!")
