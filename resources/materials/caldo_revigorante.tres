@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"caldo_revigorante"
+display_name = "Caldo Revigorante de Rinolito"
+description = "Caldo fervido lentamente com carne e tutano de ossos nobres. Concede o buff Postura de Pedra (+25 de Postura máxima e +15% de recuperação de postura por 20 min)."
+category = 5
+icon = "🥣"
+color = Color(0.72, 0.60, 0.45, 1)
+unit_weight = 0.9
+max_gather_quality = 5
+restore_health = 60.0
+restore_vigor = 30.0
+food_buff_id = &"postura_de_pedra"
+food_buff_duration = 1200.0
+food_buff_name = "Postura de Pedra"
+base_value = 24

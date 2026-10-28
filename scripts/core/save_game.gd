@@ -142,6 +142,9 @@ func collect(player: Node) -> Dictionary:
 	var cards = player.get("card_collection")
 	if cards:
 		data["cards"] = cards.get_unlocked_ids().map(func(id): return String(id))
+	var eco_comp = player.get("ecology")
+	if eco_comp and eco_comp.has_method("to_dict"):
+		data["ecology_knowledge"] = eco_comp.to_dict()
 	var objectives := _objectives()
 	if objectives:
 		data["objectives"] = objectives.get_state()
@@ -154,6 +157,9 @@ func collect(player: Node) -> Dictionary:
 		var bp: Vector3 = _get_pos(bed)
 		data["bed"] = [bp.x, bp.y, bp.z]
 	if player.is_inside_tree():
+		var map_scr = player.get_tree().root.find_child("WorldMapScreen", true, false)
+		if map_scr and map_scr.has_method("get_markers_data"):
+			data["map_markers"] = map_scr.get_markers_data()
 		data["structures"] = BuildingSystemClass.collect_structures(player.get_tree())
 		var city := player.get_tree().get_first_node_in_group("city_hub")
 		if city:
@@ -231,6 +237,16 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	if cards:
 		for id in data.get("cards", []):
 			cards.unlock_card(StringName(id), false)
+
+	if data.has("ecology_knowledge"):
+		var eco_comp = player.get("ecology")
+		if eco_comp and eco_comp.has_method("from_dict"):
+			eco_comp.from_dict(data["ecology_knowledge"])
+
+	if data.has("map_markers") and player.is_inside_tree():
+		var map_scr = player.get_tree().root.find_child("WorldMapScreen", true, false)
+		if map_scr and map_scr.has_method("load_markers_data"):
+			map_scr.load_markers_data(data["map_markers"])
 
 	if data.has("position"):
 		var pos: Array = data["position"]

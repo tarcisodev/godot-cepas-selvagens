@@ -41,6 +41,8 @@ var progress: float = 0.0
 var stress: float = 0.0
 ## Plantada num Canteiro de Cultivo: solo regado e adubado fixo (GDD-10 §9)
 var garden: bool = false
+## Adubada com Adubo de Monstro (fertilizante mineralizado)
+var is_fertilized: bool = false
 ## Quem plantou (vazio = nasceu sozinha)
 var planted_by: String = ""
 
@@ -66,6 +68,15 @@ func _ready() -> void:
 func lifespan() -> float:
 	return TIMES[dna.kind][6] * (1.2 if dna.mutant else 1.0)
 
+## Aplica Adubo de Monstro: acelera crescimento em +50% e potencializa mutações
+func fertilize() -> bool:
+	if is_fertilized:
+		return false
+	is_fertilized = true
+	if is_inside_tree() and dna and dna.kind == PlantDNA.Kind.PINHEIRA:
+		_sparkle()
+	return true
+
 ## Um passo de vida: `cell` = {"moisture", "nutrients"} da célula; `light` = é dia.
 ## Devolve o que a planta tirou do solo e o que aconteceu: {"water", "food", "event"},
 ## event = "", "grew", "seeds" ou "died".
@@ -86,9 +97,10 @@ func life_tick(days: float, cell: Dictionary, light: bool) -> Dictionary:
 		return out
 	stress = maxf(0.0, stress - days * 0.5)
 	var growing := stage < Stage.ADULTA
+	var growth_mult := 1.5 if is_fertilized else 1.0
 	out.water = days * (0.25 if growing else 0.12)
 	out.food = days * (0.12 if growing else 0.05)
-	progress += days / float(TIMES[dna.kind][stage])
+	progress += (days * growth_mult) / float(TIMES[dna.kind][stage])
 	if progress >= 1.0:
 		progress = 0.0
 		if stage == Stage.FRUTO:

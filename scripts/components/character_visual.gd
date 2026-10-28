@@ -67,6 +67,8 @@ func _build() -> void:
 	model.name = "Model"
 	# Os modelos do kit olham para +Z; no Godot o "frente" do player é -Z.
 	model.rotation.y = PI
+	if dna:
+		model.scale = Vector3.ONE * dna.stage_scale()
 	add_child(model)
 	skeleton = _find_skeleton(model)
 

@@ -22,6 +22,10 @@ var _skeleton_seen: Skeleton3D
 func _ready() -> void:
 	if inventory:
 		inventory.equipment_changed.connect(func(_s, _n): refresh())
+		var p_node: Node = inventory.get_parent()
+		var g_comp: Node = p_node.get("guild") if p_node else null
+		if g_comp and g_comp.has_signal("occasion_changed"):
+			g_comp.occasion_changed.connect(func(_o): refresh())
 	refresh.call_deferred()
 
 func _process(_delta: float) -> void:
@@ -236,8 +240,25 @@ func _cape(item: ForgedItem) -> void:
 	bm.size = Vector3(0.44, 0.78, 0.025)
 	cloth.mesh = bm
 	cloth.rotation.x = -0.12
+
+	# Heráldica de Guilda (GDD-15 §4): se em uniforme de Gala ou Guerra, tinge com as cores do clã!
+	var p_node: Node = inventory.get_parent() if inventory else null
+	var g_comp: Node = p_node.get("guild") if p_node else null
+	var heraldry: Dictionary = g_comp.call("get_heraldry_override") if g_comp and g_comp.has_method("get_heraldry_override") else {}
+	if not heraldry.is_empty():
+		color = heraldry.get("primary_color", color)
+
 	cloth.material_override = _mat(color, 0.85 if item.family == &"couro" else 0.95)
 	root.add_child(cloth)
+
+	if not heraldry.is_empty():
+		var emblem_lbl := Label3D.new()
+		emblem_lbl.text = heraldry.get("emblem_icon", "⚔️")
+		emblem_lbl.font_size = 24
+		emblem_lbl.outline_size = 4
+		emblem_lbl.modulate = heraldry.get("secondary_color", Color.GOLD)
+		emblem_lbl.position = Vector3(0, -0.05, -0.02)
+		cloth.add_child(emblem_lbl)
 	var clasp := MeshInstance3D.new()
 	var tm := BoxMesh.new()
 	tm.size = Vector3(0.46, 0.07, 0.04)

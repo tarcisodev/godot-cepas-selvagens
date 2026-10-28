@@ -98,7 +98,9 @@ Na bancada culinária ou caldeirão, o jogador insere uma **Base** (Carne ou Pei
 
 ---
 
-## 6. Próximos Passos de Implementação
-- [ ] Modelo procedural do espeto de fogueira com animação de giro.
-- [ ] Minigame de timing (barra de progresso com zona ideal verde e zona preta queimada).
-- [ ] Tabela de receitas culinárias (`recipes_cooking.gd`) e integração com o inventário.
+## 6. Implementação (Bloco B25)
+- [x] Modelo e interface tátil do espeto de fogueira com indicador do ponto doce (`RoastSpitMinigame`).
+- [x] Minigame de timing (barra com malpassada, zona no ponto perfeita e zona queimada).
+- [x] Banco de dados de receitas culinárias (`CookingSystem`), tela do caldeirão (`CookingScreen`) e integração completa com inventário.
+- [x] Componente de buffs de comida (`FoodBuffComponent`) com integração de modificadores no `StatsComponent` (ADR-0001).
+- [x] Estação do caldeirão (`CookingStation`) na praça da vila e peça construível no Rancho (`PieceType.CALDEIRAO`).

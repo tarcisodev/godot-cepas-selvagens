@@ -177,6 +177,12 @@ func _on_capture_choice(choice: StringName) -> void:
 			if add_owned_mount(c.dna):
 				_say("🐎 %s levado ao estábulo! (%d/%d)" % [c.dna.species_name(), owned.size(), MAX_OWNED])
 			c.take_away()
+		&"rancho":
+			if _pending_player != null and _pending_player.has_method("add_livestock"):
+				_pending_player.add_livestock(c.dna)
+			else:
+				_say("🏡 %s enviado ao Rancho como matriz reprodutiva!" % c.dna.species_name())
+			c.take_away()
 		_:
 			_say("🌿 Você soltou o %s" % c.dna.species_name())
 			c.take_away()
@@ -209,6 +215,20 @@ func spawn_offspring(a: WildCreature, b: WildCreature) -> bool:
 	c.thirst = 0.3
 	c.breed_cooldown = WildCreature.BREED_COOLDOWN
 	return true
+
+## Filhote nascido de gestação por DNA de pai e mãe (GDD-14)
+func spawn_from_dna(mother_dna: CreatureDNA, father_dna: CreatureDNA, pos: Vector3, roam: float) -> WildCreature:
+	if population(mother_dna.species) >= POP_MAX.get(mother_dna.species, 10):
+		return null
+	var c := _add_wild(mother_dna.species, pos, roam)
+	c.dna = CreatureDNA.cross(mother_dna, father_dna, _rng.randi())
+	c.body.dna = c.dna
+	c.body.build()
+	c.age_days = 0.0
+	c.hunger = 0.3
+	c.thirst = 0.3
+	c.breed_cooldown = WildCreature.BREED_COOLDOWN
+	return c
 
 # ---------------------------------------------------------------- save da natureza (GDD-10)
 

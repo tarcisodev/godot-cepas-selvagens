@@ -13,4 +13,7 @@ color = Color(0.65, 0.38, 0.2, 1)
 unit_weight = 0.5
 max_gather_quality = 2
 restore_vigor = 60.0
+food_buff_id = &"bem_alimentado"
+food_buff_duration = 600.0
+food_buff_name = "Bem Alimentado"
 base_value = 5

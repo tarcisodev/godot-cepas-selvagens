@@ -77,7 +77,9 @@ Na sede da guilda há o **Armário de Trajes**:
 
 ---
 
-## 6. Próximos Passos
-- [ ] Modelar a peça `BuildablePiece.TOTEM_GUILDA` no sistema de construção.
-- [ ] Criar gerador de texturas de estandarte com cores e brasão vetorial.
-- [ ] Implementar overlay de brasão na Capa e no Escudo (`ForgedItem.Slot.CAPE` e `OFF_HAND`).
+## 6. Implementação (Bloco B26)
+- [x] Peça `BuildablePiece.TOTEM_GUILDA` com estandarte e território circular de 40m a 80m.
+- [x] Estandarte 3D procedural com flâmula animada ao vento, cores heráldicas e brasão (`GuildBanner3D`).
+- [x] Sistema de heráldica e cargos (`GuildData` e `GuildSystem`).
+- [x] Armário de trajes com alternância de ocasiões (`PERSONAL`, `GALA`, `WAR`) e overlay de brasão na Capa (`GearVisual`).
+- [x] Interface completa da guilda (`GuildScreen`) com doações comunitárias e gestão de membros.

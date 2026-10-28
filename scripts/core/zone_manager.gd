@@ -108,7 +108,14 @@ func get_zone_name_at(pos: Vector3) -> String:
 		ZoneType.CLAIMED:
 			var totem := get_claim_at(pos)
 			var owner_name: String = totem.get("owner_name") if totem and "owner_name" in totem else "Andarilho"
-			return "🏕️ Território de %s" % owner_name
+			var status_str := ""
+			if totem and "status" in totem:
+				match totem.get("status"):
+					ClaimTotemClass.Status.VULNERABLE:
+						status_str = " [Vulnerável]"
+					ClaimTotemClass.Status.ABANDONED:
+						status_str = " [Ruína Abandonada]"
+			return "🏕️ Território de %s%s" % [owner_name, status_str]
 		_:
 			var reg := WorldSettlements.get_settlement_or_region_at(pos)
 			if not reg.is_empty():
@@ -160,14 +167,42 @@ func can_build_at(pos: Vector3, piece_type: StringName = &"piece", player_name: 
 			"zone": zone
 		}
 	
-	# Validação de posse do Totem (se houver dono)
-	var owner_of_claim: String = claim.get("owner_name") if "owner_name" in claim else ""
-	if not owner_of_claim.is_empty() and not player_name.is_empty() and owner_of_claim != player_name:
-		return {
-			"allowed": false,
-			"reason": "Propriedade Privada: Território pertence a %s." % owner_of_claim,
-			"zone": zone
-		}
+	# Validação de posse e manutenção do Totem (GDD-08 §4, §8, GDD-05 §5)
+	if claim.has_method("can_player_build"):
+		if not claim.can_player_build(player_name):
+			var c_status = claim.get("status")
+			if c_status == ClaimTotemClass.Status.ABANDONED:
+				return {
+					"allowed": false,
+					"reason": "Ruína Abandonada: Manutenção territorial vencida. Desmanche a ruína antes de erguer novas estruturas.",
+					"zone": zone
+				}
+			elif c_status == ClaimTotemClass.Status.VULNERABLE:
+				return {
+					"allowed": false,
+					"reason": "Território Vulnerável: Cofre zerado. Abasteça o totem de território para voltar a construir.",
+					"zone": zone
+				}
+			return {
+				"allowed": false,
+				"reason": "Propriedade Privada: Território pertence a %s." % claim.get("owner_name"),
+				"zone": zone
+			}
+	elif claim.has_method("can_member_build"):
+		if not claim.can_member_build(player_name):
+			return {
+				"allowed": false,
+				"reason": "Território de Guilda: Apenas membros autorizados podem construir aqui.",
+				"zone": zone
+			}
+	else:
+		var owner_of_claim: String = claim.get("owner_name") if "owner_name" in claim else ""
+		if not owner_of_claim.is_empty() and not player_name.is_empty() and owner_of_claim != player_name:
+			return {
+				"allowed": false,
+				"reason": "Propriedade Privada: Território pertence a %s." % owner_of_claim,
+				"zone": zone
+			}
 	
 	return { "allowed": true, "reason": "Construção permitida dentro do território!", "zone": zone }
 

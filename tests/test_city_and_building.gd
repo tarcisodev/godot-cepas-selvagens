@@ -227,9 +227,9 @@ func test_territory_rules_gdd08() -> void:
 	var neighbor_ok := zm.can_build_at(Vector3(50.0, 0.0, 85.0), &"claim_totem", "Vizinho")
 	assert(neighbor_ok["allowed"], "Com 7 m de folga o vizinho pode fincar (motivo: %s)" % neighbor_ok["reason"])
 	
-	# Catálogo único: totem + 10 peças (com Fogueira, Banco e Cama), custos iguais aos de BuildablePiece
+	# Catálogo único: totem + peças (com Fogueira, Banco, Cama e Caldeirão), custos iguais aos de BuildablePiece
 	var catalog := BuildingSystemClass.build_catalog()
-	assert(catalog.size() == 11, "Catálogo deve ter totem + 10 peças (tem %d)" % catalog.size())
+	assert(catalog.size() == BuildablePieceClass.PieceType.size() + 1, "Catálogo deve ter totem + peças (tem %d)" % catalog.size())
 	assert(catalog[0]["is_totem"], "Tecla 1 = totem")
 	assert(catalog[7]["id"] == &"bancada", "Bancada do Rancho entrou no catálogo")
 	assert(catalog[2]["costs"] == BuildablePieceClass.PIECE_CONFIG[BuildablePieceClass.PieceType.PAREDE_MADEIRA]["costs"], "Custos vêm de PIECE_CONFIG")

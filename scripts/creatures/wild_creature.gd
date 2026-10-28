@@ -1,6 +1,8 @@
 class_name WildCreature
 extends Node3D
 
+const _VultureFlock3D = preload("res://scripts/creatures/vulture_flock_3d.gd")
+
 ## Bicho selvagem procedural (GDD-09 §4 e GDD-03 §9): corpo CreatureBody + comportamento por plano.
 ## Quadrúpede pasta e foge; ave voa em círculos; peixe nada no rio. Bichos de caça (Trotador,
 ## Planador, Saltarelo) têm Vida e hurtbox: apanham, fogem, ficam Exaustos abaixo de 20% e podem
@@ -46,6 +48,7 @@ var state: State = State.WANDER
 var stats: StatsComponent
 var pools: PoolsComponent
 var harvest_queue: Array[Dictionary] = []
+var _vultures: _VultureFlock3D
 ## Prioridade online (GDD-03 §9.2): quem prendeu tem 60 s sobre o bicho
 var trapped_by: Node = null
 ## Vida e necessidades (0–1)
@@ -54,6 +57,10 @@ var thirst: float = 0.2
 var age_days: float = 4.0
 var lifespan_days: float = 15.0
 var breed_cooldown: float = 0.0
+var is_pregnant: bool = false
+var pregnancy_days: float = 0.0
+const GESTATION_DAYS: float = 0.8
+var mate_dna: CreatureDNA = null
 var _starving: float = 0.0
 ## Ação de necessidade em curso: "", "drink", "eat", "graze"
 var _need: String = ""
@@ -177,6 +184,22 @@ func trap(by: Node) -> bool:
 	_show_rope(true)
 	return true
 
+## [Armadilha de Mandíbula] Prende a criatura pelo mecanismo de ferro por tempo determinado
+func force_trap(by: Node, duration: float = 8.0) -> bool:
+	if not is_alive() or state == State.CAPTURED or state == State.DEAD:
+		return false
+	state = State.TRAPPED
+	trapped_by = by
+	_timer = duration
+	_show_rope(true)
+	return true
+
+## [Isca Odorífera] Direciona a criatura em direção ao cheiro da isca se estiver passeando
+func set_bait_attraction(bait_pos: Vector3) -> void:
+	if state == State.WANDER:
+		_target = bait_pos
+		_wait = 0.0
+
 ## [Sedativo] Começa 3 s de sedação; o caçador precisa ficar parado e sem levar dano
 func start_sedation(player: Node3D) -> bool:
 	if state != State.TRAPPED:
@@ -232,6 +255,9 @@ func _die(careful: bool) -> void:
 	harvest_queue = _loot(careful)
 	add_to_group("harvestable")
 	_timer = CORPSE_LIFETIME
+	if dna.plan() != CreatureDNA.Plan.FISH:
+		_vultures = _VultureFlock3D.new()
+		add_child(_vultures)
 	body.rotation.z = PI * 0.5 if dna.plan() != CreatureDNA.Plan.FISH else 0.0
 	if dna.plan() == CreatureDNA.Plan.BIRD:
 		global_position.y = _ground(global_position.x, global_position.z)
@@ -289,7 +315,11 @@ func _remove() -> void:
 	if state == State.DEAD:
 		var eco := get_tree().get_first_node_in_group("ecology") if is_inside_tree() else null
 		if eco:
-			eco.deposit(global_position, 0.25)
+			if _vultures and is_instance_valid(_vultures):
+				_vultures.disperse()
+				if get_parent():
+					_vultures.reparent(get_parent())
+			eco.deposit(global_position, 0.80)
 	remove_from_group("harvestable")
 	remove_from_group("fish")
 	remove_from_group("wild_creatures")
@@ -381,7 +411,20 @@ func _live(delta: float) -> bool:
 	hunger = minf(1.0, hunger + days * HUNGER_RATE)
 	thirst = minf(1.0, thirst + days * THIRST_RATE)
 	breed_cooldown = maxf(0.0, breed_cooldown - days)
-	body.scale = Vector3.ONE * clampf(0.55 + 0.45 * age_days / ADULT_AGE, 0.55, 1.0)
+	if age_days < 0.6:
+		dna.stage = CreatureDNA.LifeStage.BABY
+	elif age_days < ADULT_AGE:
+		dna.stage = CreatureDNA.LifeStage.JUVENILE
+	elif age_days < lifespan_days * 0.8:
+		dna.stage = CreatureDNA.LifeStage.ADULT
+	else:
+		dna.stage = CreatureDNA.LifeStage.ELDER
+	body.scale = Vector3.ONE * clampf(0.55 + 0.45 * age_days / ADULT_AGE, 0.45, 1.0) * (0.95 if dna.stage == CreatureDNA.LifeStage.ELDER else 1.0)
+
+	if is_pregnant:
+		pregnancy_days += days
+		if pregnancy_days >= GESTATION_DAYS:
+			give_birth()
 	_starving = _starving + days if hunger >= 1.0 or thirst >= 1.0 else 0.0
 	if age_days > lifespan_days or _starving > 1.0:
 		_die(false)
@@ -543,11 +586,33 @@ func _forage(delta: float) -> bool:
 	return true
 
 ## Adulto, alimentado, sem filhote recente, com um par da mesma espécie por perto
+func start_pregnancy(p_mate_dna: CreatureDNA) -> void:
+	if not dna.is_female() or is_pregnant:
+		return
+	is_pregnant = true
+	pregnancy_days = 0.0
+	mate_dna = p_mate_dna
+
+func give_birth() -> WildCreature:
+	if not is_pregnant:
+		return null
+	is_pregnant = false
+	pregnancy_days = 0.0
+	breed_cooldown = BREED_COOLDOWN
+	var spawner := get_parent()
+	var child: WildCreature = null
+	if spawner and spawner.has_method("spawn_from_dna"):
+		child = spawner.spawn_from_dna(dna, mate_dna if mate_dna else dna, global_position, roam_radius)
+	elif spawner and spawner.has_method("spawn_offspring"):
+		spawner.spawn_offspring(self, self)
+	mate_dna = null
+	return child
+
 func _try_breed() -> void:
-	if age_days < ADULT_AGE or breed_cooldown > 0.0 or hunger > 0.4 or thirst > 0.4:
+	if age_days < ADULT_AGE or breed_cooldown > 0.0 or hunger > 0.4 or thirst > 0.4 or is_pregnant:
 		return
 	var spawner := get_parent()
-	if spawner == null or not spawner.has_method("spawn_offspring"):
+	if spawner == null:
 		return
 	for n in get_tree().get_nodes_in_group("wild_creatures"):
 		var other := n as WildCreature
@@ -555,11 +620,16 @@ func _try_breed() -> void:
 			continue
 		if other.age_days < ADULT_AGE or other.breed_cooldown > 0.0 or other.global_position.distance_to(global_position) > 8.0:
 			continue
-		if spawner.spawn_offspring(self, other):
-			breed_cooldown = BREED_COOLDOWN
-			other.breed_cooldown = BREED_COOLDOWN
-			hunger += 0.2
-		return
+		if (dna.is_female() and other.dna.is_male()) or (dna.is_male() and other.dna.is_female()):
+			var female: WildCreature = self if dna.is_female() else other
+			var male: WildCreature = other if dna.is_female() else self
+			if not female.is_pregnant:
+				female.start_pregnancy(male.dna)
+				breed_cooldown = BREED_COOLDOWN
+				other.breed_cooldown = BREED_COOLDOWN
+				hunger += 0.15
+				other.hunger += 0.15
+				return
 
 func _exhausted_walk(delta: float) -> void:
 	# Exausto: arrasta-se devagar (a ave pousa), não foge mais
@@ -738,8 +808,9 @@ func _show_rope(on: bool) -> void:
 	if on and _rope == null:
 		_rope = MeshInstance3D.new()
 		var torus := TorusMesh.new()
-		torus.inner_radius = dna.body_size() * 0.32
-		torus.outer_radius = dna.body_size() * 0.38
+		var b_size: float = dna.body_size() if dna != null else 1.0
+		torus.inner_radius = b_size * 0.32
+		torus.outer_radius = b_size * 0.38
 		_rope.mesh = torus
 		_rope.position.y = 0.25
 		var m := StandardMaterial3D.new()

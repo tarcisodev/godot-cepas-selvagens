@@ -9,7 +9,10 @@ const BuildablePieceClass = preload("res://scripts/buildable_piece.gd")
 const ClaimTotemClass = preload("res://scripts/claim_totem.gd")
 const ZoneManagerClass = preload("res://scripts/core/zone_manager.gd")
 
-@export var player: Player
+signal structure_placed(piece: Node3D)
+signal structure_dismantled(piece: Node3D)
+
+@export var player: Node
 @export var zone_manager: Node
 @export var snap_grid: float = 1.0
 
@@ -182,7 +185,8 @@ func _process(_delta: float) -> void:
 	_ghost_yaw = snappedf(cam_yaw, PI * 0.5) + current_rotation_y
 	
 	# Posiciona na frente do jogador com snap
-	var target_pos := player.global_position + (forward * 3.0)
+	var p_pos: Vector3 = (player as Node3D).global_position if player is Node3D else Vector3.ZERO
+	var target_pos: Vector3 = p_pos + (forward * 3.0)
 	target_pos.x = roundf(target_pos.x / snap_grid) * snap_grid
 	target_pos.z = roundf(target_pos.z / snap_grid) * snap_grid
 	
@@ -220,10 +224,11 @@ func _validate_and_update_hud(pos: Vector3) -> Dictionary:
 	# Verifica materiais no inventário
 	var has_mats: bool = true
 	var missing: Array[String] = []
-	if player and player.inventory:
+	var inv = player.get("inventory") if player and "inventory" in player else null
+	if inv:
 		for mat_id in entry["costs"]:
 			var req: int = entry["costs"][mat_id]
-			var count: int = player.inventory.get_material_count(mat_id)
+			var count: int = inv.get_material_count(mat_id)
 			if count < req:
 				has_mats = false
 				missing.append("%dx %s (%d/%d)" % [req, mat_id.capitalize(), count, req])
@@ -261,8 +266,9 @@ func _try_place_piece() -> bool:
 	var pos: Vector3 = check["pos"]
 	
 	# Consome materiais
-	if player and player.inventory:
-		var ok := player.inventory.consume_materials(entry["costs"])
+	var inv2 = player.get("inventory") if player and "inventory" in player else null
+	if inv2:
+		var ok: bool = inv2.consume_materials(entry["costs"])
 		if not ok:
 			return false
 	
@@ -278,6 +284,7 @@ func _try_place_piece() -> bool:
 	node.position = pos
 	node.rotation.y = _ghost_yaw
 	get_parent().add_child(node)
+	structure_placed.emit(node)
 
 	_notify("✨ Construído: %s" % entry["name"])
 	return true
@@ -301,18 +308,32 @@ func try_dismantle_at(pos: Vector3) -> bool:
 	if best == null:
 		_notify("Nada para desmontar aqui")
 		return false
+	var is_ruin: bool = false
+	if best is ClaimTotemClass:
+		if best.get("status") == ClaimTotemClass.Status.ABANDONED:
+			is_ruin = true
+	else:
+		var zm := _zone_manager()
+		var claim = zm.get_claim_at(best.global_position) if zm else null
+		if claim and claim.get("status") == ClaimTotemClass.Status.ABANDONED:
+			is_ruin = true
+
 	var owner_of: String = best.get("owner_name")
-	if not owner_of.is_empty() and owner_of != me:
+	if not is_ruin and not owner_of.is_empty() and owner_of != me:
 		_notify("❌ Propriedade de %s" % owner_of)
 		return false
 	if best is ClaimTotemClass and _pieces_inside(best) > 0:
 		_notify("❌ Desmonte as construções do território antes do totem")
 		return false
-	var refunds: Dictionary = best.call("dismantle", player)
+	structure_dismantled.emit(best)
+	var refunds: Dictionary = best.call("dismantle", player, is_ruin)
 	var parts: Array[String] = []
 	for mat_id in refunds:
 		parts.append("%dx %s" % [refunds[mat_id], String(mat_id).capitalize()])
-	_notify("🔨 Desmontado • Devolvido: %s" % (" · ".join(parts) if not parts.is_empty() else "nada"))
+	if is_ruin:
+		_notify("⛏️ Ruína Desmanchada • Sucateado: %s" % (" · ".join(parts) if not parts.is_empty() else "nada"))
+	else:
+		_notify("🔨 Desmontado • Devolvido: %s" % (" · ".join(parts) if not parts.is_empty() else "nada"))
 	return true
 
 func _pieces_inside(totem: Node3D) -> int:
@@ -369,7 +390,9 @@ static func collect_structures(tree: SceneTree) -> Array:
 				"position": [p.x, p.y, p.z],
 				"rotation_y": s.rotation.y
 			}
-			if s is BuildablePieceClass:
+			if s is ClaimTotemClass:
+				entry["totem_data"] = s.call("to_dict")
+			elif s is BuildablePieceClass:
 				entry["type"] = BuildablePieceClass.PieceType.keys()[s.get("piece_type")]
 			out.append(entry)
 	return out
@@ -382,6 +405,8 @@ static func restore_structures(parent: Node, list: Array) -> void:
 		var node: Node3D
 		if entry.get("kind") == "totem":
 			node = ClaimTotemClass.new()
+			if entry.has("totem_data") and entry["totem_data"] is Dictionary:
+				node.call("from_dict", entry["totem_data"])
 		else:
 			var type_name := str(entry.get("type", ""))
 			if not BuildablePieceClass.PieceType.has(type_name):

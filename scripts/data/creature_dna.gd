@@ -7,6 +7,8 @@ extends Resource
 
 enum Plan { QUADRUPED, BIRD, FISH }
 enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO, RINOLITO, LOBO, TATU }
+enum Gender { MALE, FEMALE }
+enum LifeStage { BABY, JUVENILE, ADULT, ELDER }
 
 ## Tabela das espécies do slice: plano de corpo, tamanho máximo (m), cores e proporções
 const SPECIES: Dictionary = {
@@ -77,6 +79,25 @@ const SPECIES: Dictionary = {
 @export var alleles: Dictionary = {"porte": ["T", "t"], "chifre": ["c", "c"], "padrao": ["p", "p"]}
 @export var base_color: Color = Color(0.55, 0.38, 0.24)
 @export var belly_color: Color = Color(0.86, 0.78, 0.64)
+@export var gender: Gender = Gender.MALE
+@export var stage: LifeStage = LifeStage.ADULT
+
+func stage_scale() -> float:
+	match stage:
+		LifeStage.BABY: return 0.45
+		LifeStage.JUVENILE: return 0.75
+		LifeStage.ADULT: return 1.00
+		LifeStage.ELDER: return 0.95
+	return 1.00
+
+func is_female() -> bool:
+	return gender == Gender.FEMALE
+
+func is_male() -> bool:
+	return gender == Gender.MALE
+
+func is_fertile() -> bool:
+	return stage == LifeStage.ADULT
 
 static func randomized(p_species: Species, p_seed: int) -> CreatureDNA:
 	var rng := RandomNumberGenerator.new()
@@ -84,6 +105,8 @@ static func randomized(p_species: Species, p_seed: int) -> CreatureDNA:
 	var d := CreatureDNA.new()
 	d.species = p_species
 	d.dna_seed = p_seed
+	d.gender = Gender.MALE if rng.randf() < 0.5 else Gender.FEMALE
+	d.stage = LifeStage.ADULT
 	d.alleles = {
 		"porte": [_allele(rng, "T", "t", 0.55), _allele(rng, "T", "t", 0.55)],
 		"chifre": [_allele(rng, "C", "c", 0.45), _allele(rng, "C", "c", 0.45)],
@@ -95,16 +118,18 @@ static func randomized(p_species: Species, p_seed: int) -> CreatureDNA:
 	return d
 
 ## Cruza dois DNAs (GDD-04): cada filho herda um alelo de cada pai, com 3% de mutação
-static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int) -> CreatureDNA:
+static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int, p_mutation_chance: float = 0.03) -> CreatureDNA:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = p_seed
 	var child := CreatureDNA.new()
 	child.species = a.species
 	child.dna_seed = p_seed
+	child.gender = Gender.MALE if rng.randf() < 0.5 else Gender.FEMALE
+	child.stage = LifeStage.BABY
 	for gene in a.alleles:
 		var pick: Array = [a.alleles[gene][rng.randi() % 2], b.alleles[gene][rng.randi() % 2]]
 		for i in 2:
-			if rng.randf() < 0.03:
+			if rng.randf() < p_mutation_chance:
 				pick[i] = "*"
 		child.alleles[gene] = pick
 	child.base_color = a.base_color.lerp(b.base_color, rng.randf())
@@ -112,13 +137,15 @@ static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int) -> CreatureDNA:
 	return child
 
 func to_dict() -> Dictionary:
-	return {"species": int(species), "seed": dna_seed, "alleles": alleles.duplicate(true),
+	return {"species": int(species), "seed": dna_seed, "gender": int(gender), "stage": int(stage), "alleles": alleles.duplicate(true),
 		"base": base_color.to_html(), "belly": belly_color.to_html()}
 
 static func from_dict(d: Dictionary) -> CreatureDNA:
 	var out := CreatureDNA.new()
 	out.species = int(d.get("species", 0)) as Species
 	out.dna_seed = int(d.get("seed", 0))
+	out.gender = int(d.get("gender", 0)) as Gender
+	out.stage = int(d.get("stage", 2)) as LifeStage
 	var al: Dictionary = d.get("alleles", {})
 	for gene in al:
 		out.alleles[gene] = Array(al[gene]).map(func(x): return str(x))
@@ -149,7 +176,8 @@ func size_factor() -> float:
 
 ## Tamanho em metros (comprimento do corpo)
 func body_size() -> float:
-	return float(info()["size"]) * size_factor()
+	var dimorphism := 1.05 if gender == Gender.MALE else 0.98
+	return float(info()["size"]) * size_factor() * stage_scale() * dimorphism
 
 func has_horns() -> bool:
 	return _dominant("chifre", "C")

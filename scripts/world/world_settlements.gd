@@ -158,17 +158,22 @@ static func in_any_settlement(x: float, z: float, margin: float = 1.0) -> bool:
 	return false
 
 ## Teleporta o jogador com segurança para um assentamento (Viagem Rápida)
-func fast_travel_to(settlement_id: StringName, player: Player = null) -> bool:
+func fast_travel_to(settlement_id: StringName, player: Node = null) -> bool:
 	if player == null and is_inside_tree():
 		player = get_tree().get_first_node_in_group("player") as Player
 	if player == null:
+		return false
+	if player.has_meta("carrying_trade_pack") and player.get_meta("carrying_trade_pack") != null:
+		if player.has_signal("posture_changed"):
+			player.posture_changed.emit("🚫 Viagem Rápida bloqueada: Fardo Comercial nas costas! Viaje fisicamente pelas estradas.")
 		return false
 	for s in SETTLEMENTS:
 		if s.id == settlement_id and s.get("can_fast_travel", false):
 			var target: Vector3 = s.pos + s.get("spawn_offset", Vector3.ZERO)
 			target.y = _ground_y(target.x, target.z) + 0.6
 			player.global_position = target
-			player.velocity = Vector3.ZERO
+			if "velocity" in player:
+				player.velocity = Vector3.ZERO
 			if player.has_signal("posture_changed"):
 				player.posture_changed.emit("⚡ Viagem Rápida: chegou em %s!" % s.name)
 			return true
