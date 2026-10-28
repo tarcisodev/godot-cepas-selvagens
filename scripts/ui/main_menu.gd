@@ -109,7 +109,16 @@ func _make_button(text: String, callback: Callable) -> Button:
 	return b
 
 func _open_auth(host_mode: bool) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 25
+	add_child(layer)
+
 	var modal: Control = OnlineAuthModalClass.new()
 	if "is_host_mode" in modal:
 		modal.set("is_host_mode", host_mode)
-	add_child(modal)
+	layer.add_child(modal)
+	modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal.tree_exited.connect(func():
+		if is_instance_valid(layer):
+			layer.queue_free()
+	)

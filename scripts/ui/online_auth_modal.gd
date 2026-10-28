@@ -37,7 +37,7 @@ var _is_connecting: bool = false
 var _pending_mode: String = "login"
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_ui()
 	_connect_net_signals()
 
@@ -56,11 +56,11 @@ func _net() -> Node:
 func _build_ui() -> void:
 	var overlay := ColorRect.new()
 	overlay.color = Color(0.04, 0.06, 0.05, 0.92)
-	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(overlay)
 
 	var center := CenterContainer.new()
-	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
 	_panel = PanelContainer.new()
@@ -179,6 +179,30 @@ func _build_ui() -> void:
 		_adv_port_input.text = str(NetworkManagerAutoload.DEFAULT_PORT)
 		_adv_port_input.placeholder_text = str(NetworkManagerAutoload.DEFAULT_PORT)
 		_adv_box.add_child(_adv_port_input)
+
+		var quick_hbox := HBoxContainer.new()
+		quick_hbox.add_theme_constant_override("separation", 6)
+		_adv_box.add_child(quick_hbox)
+
+		var local_btn := Button.new()
+		local_btn.text = "🏠 Local (127.0.0.1)"
+		local_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		local_btn.add_theme_font_size_override("font_size", 11)
+		local_btn.pressed.connect(func():
+			_adv_host_input.text = "127.0.0.1"
+			_adv_port_input.text = str(NetworkManagerAutoload.DEFAULT_PORT)
+		)
+		quick_hbox.add_child(local_btn)
+
+		var official_btn := Button.new()
+		official_btn.text = "🌐 Servidor Oficial"
+		official_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		official_btn.add_theme_font_size_override("font_size", 11)
+		official_btn.pressed.connect(func():
+			_adv_host_input.text = NetworkManagerAutoload.DEFAULT_HOST
+			_adv_port_input.text = str(NetworkManagerAutoload.DEFAULT_PORT)
+		)
+		quick_hbox.add_child(official_btn)
 
 	var btn_hbox := HBoxContainer.new()
 	btn_hbox.add_theme_constant_override("separation", 10)

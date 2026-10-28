@@ -148,6 +148,10 @@ func _test_online_auth_modal_defaults_and_adv_toggle() -> void:
 	modal._adv_toggle_btn.pressed.emit()
 	assert(not modal._adv_box.visible, "Clicar novamente deve ocultar a gaveta")
 
+	# 4.4 Centralização e preset full rect
+	assert(modal.anchor_right == 1.0 and modal.anchor_bottom == 1.0, "modal deve ter ancoragem FULL_RECT")
+	assert(modal.offset_right == 0.0 and modal.offset_bottom == 0.0, "modal deve ter offsets zerados para centralizar")
+
 	modal.queue_free()
 	print("     ✓ Conexão padrão jogar.tarciso.dev:8787 e gaveta avançada dev validadas")
 
