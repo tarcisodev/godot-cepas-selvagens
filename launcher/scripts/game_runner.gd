@@ -2,6 +2,7 @@ class_name GameRunner
 extends RefCounted
 
 ## Localiza e executa o binário do jogo Cepas Selvagens de forma desacoplada.
+## Fornece detecção ativa de processos em execução para proteção de integridade.
 
 static func is_game_installed(executable_path: String) -> bool:
 	return FileAccess.file_exists(find_actual_executable(executable_path))
@@ -29,6 +30,39 @@ static func find_actual_executable(hint_path: String) -> String:
 			return p
 	
 	return ""
+
+## Detecta se o jogo está atualmente aberto / em execução no sistema.
+## Impede que atualizações sobrescrevam binários bloqueados pelo SO.
+static func is_game_running(executable_path: String) -> bool:
+	var actual: String = find_actual_executable(executable_path)
+	if actual.is_empty():
+		return false
+	
+	# Verificação 1: No Windows, arquivos executáveis em execução não podem ser abertos para escrita (lock exclusivo do kernel)
+	var file := FileAccess.open(actual, FileAccess.READ_WRITE)
+	if file == null:
+		var err := FileAccess.get_open_error()
+		if err == ERR_FILE_CANT_OPEN or err == ERR_UNAUTHORIZED:
+			return true
+	else:
+		file.close()
+	
+	# Verificação 2: Consulta direta à lista de tarefas do sistema operacional
+	var exe_name: String = actual.get_file()
+	if OS.get_name() == "Windows":
+		var output: Array = []
+		var code := OS.execute("tasklist.exe", ["/FI", "IMAGENAME eq %s" % exe_name, "/NH"], output, true)
+		if code == 0 and not output.is_empty():
+			var out_str: String = output[0]
+			if exe_name.to_lower() in out_str.to_lower() and not ("Nenhuma tarefa" in out_str or "No tasks" in out_str):
+				return true
+	elif OS.get_name() in ["Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD"]:
+		var output: Array = []
+		var code := OS.execute("pgrep", ["-f", exe_name], output, true)
+		if code == 0 and not output.is_empty():
+			return true
+	
+	return false
 
 static func launch_game(executable_path: String, extra_args: PackedStringArray = PackedStringArray()) -> Dictionary:
 	var result := {

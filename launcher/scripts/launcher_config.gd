@@ -2,6 +2,7 @@ class_name LauncherConfig
 extends RefCounted
 
 ## Configurações e caminhos locais do Launcher de Cepas Selvagens.
+## Garante integridade das URLs oficiais travando repo e manifesto em builds de produção.
 
 const CONFIG_FILE: String = "user://launcher_settings.json"
 const VERSION_FILE: String = "version.json"
@@ -21,6 +22,9 @@ var close_launcher_on_play: bool = true
 
 func _init() -> void:
 	load_settings()
+
+func is_repo_locked() -> bool:
+	return not OS.is_debug_build()
 
 func get_settings_path() -> String:
 	return CONFIG_FILE
@@ -91,10 +95,16 @@ func load_settings() -> void:
 	if json.parse(file.get_as_text()) == OK and json.data is Dictionary:
 		var d: Dictionary = json.data
 		game_directory = str(d.get("game_directory", game_directory))
-		custom_manifest_url = str(d.get("custom_manifest_url", custom_manifest_url))
-		github_repo = str(d.get("github_repo", github_repo))
 		auto_play_on_ready = bool(d.get("auto_play_on_ready", auto_play_on_ready))
 		close_launcher_on_play = bool(d.get("close_launcher_on_play", close_launcher_on_play))
+		
+		# Trava de segurança: github_repo e custom_manifest_url só aceitam override em build de debug
+		if OS.is_debug_build():
+			custom_manifest_url = str(d.get("custom_manifest_url", custom_manifest_url))
+			github_repo = str(d.get("github_repo", github_repo))
+		else:
+			custom_manifest_url = ""
+			github_repo = DEFAULT_GITHUB_REPO
 	file.close()
 
 func save_settings() -> void:
@@ -104,10 +114,13 @@ func save_settings() -> void:
 	
 	var data := {
 		"game_directory": game_directory,
-		"custom_manifest_url": custom_manifest_url,
-		"github_repo": github_repo,
 		"auto_play_on_ready": auto_play_on_ready,
 		"close_launcher_on_play": close_launcher_on_play
 	}
+	
+	if OS.is_debug_build():
+		data["custom_manifest_url"] = custom_manifest_url
+		data["github_repo"] = github_repo
+	
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()

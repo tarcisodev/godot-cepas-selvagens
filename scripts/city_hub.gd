@@ -5,8 +5,19 @@ extends Node3D
 ## Monta a praça (placa, estrada, carroça), as obras (TownProject), o Quadro de Obras e os
 ## NPCs com corpo procedural (TownNPC). Guarda a Reputação da Vila e o estado das obras no save.
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
+const PEBBLE_SCENE = preload("res://assets/models/nature/Pebble_Round_1.gltf")
+const STALL_SCENE = preload("res://assets/models/props/fantasy/Stall_Empty.gltf")
+const WORKBENCH_SCENE = preload("res://assets/models/props/fantasy/Workbench.gltf")
+const CAULDRON_SCENE = preload("res://assets/models/props/fantasy/Cauldron.gltf")
+const POTION1_SCENE = preload("res://assets/models/props/fantasy/Potion_1.gltf")
+const POTION2_SCENE = preload("res://assets/models/props/fantasy/Potion_2.gltf")
+const CHEST_SCENE = preload("res://assets/models/props/fantasy/Chest_Wood.gltf")
+const FENCE_SCENE = preload("res://assets/models/village/Prop_WoodenFence_Single.gltf")
+const CRATE_APPLE_SCENE = preload("res://assets/models/props/fantasy/FarmCrate_Apple.gltf")
+const CRATE_CARROT_SCENE = preload("res://assets/models/props/fantasy/FarmCrate_Carrot.gltf")
 const BANNER1_SCENE = preload("res://assets/models/props/fantasy/Banner_1.gltf")
 const BANNER2_SCENE = preload("res://assets/models/props/fantasy/Banner_2.gltf")
 const AXE_SCENE = preload("res://assets/models/tools/axe.gltf")
@@ -76,6 +87,7 @@ func _ready() -> void:
 	_fill_contracts()
 	_build_town_sign()
 	_build_plaza()
+	_build_activity_pockets()
 	_build_projects()
 	_build_board()
 	_spawn_city_npcs()
@@ -323,22 +335,18 @@ func _worker_spot(p: TownProject) -> Vector2:
 # ---------------------------------------------------------------- praça e NPCs
 
 func _build_town_sign() -> void:
-	var sign_label := Label3D.new()
+	var sign_label := _WorldLabel.make(_WorldLabel.Kind.SIGN, "")
 	sign_label.name = "TownSign"
-	sign_label.text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
-	sign_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign_label.font_size = 28
-	sign_label.outline_size = 6
-	sign_label.outline_modulate = Color(0, 0, 0, 0.9)
+	sign_label.full_text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
 	sign_label.modulate = Color(1.0, 0.9, 0.6)
-	sign_label.visibility_range_end = 30.0
+	sign_label.sign_range = 30.0
 	sign_label.position = Vector3(1.5, _get_ground_y(1.5, -7.5) + 3.6, -7.5)
 	add_child(sign_label)
 
 func _build_plaza() -> void:
 	var cart := CART_SCENE.instantiate() as Node3D
-	cart.position = Vector3(6.5, _get_ground_y(6.5, 6.2), 6.2)
-	cart.rotation.y = deg_to_rad(-60.0)
+	cart.position = Vector3(6.2, _get_ground_y(6.2, 8.5), 8.5)
+	cart.rotation.y = deg_to_rad(-45.0)
 	cart.scale = Vector3.ONE * 0.75
 	add_child(cart)
 	for b in [[BANNER1_SCENE, Vector2(-1.8, -3.2)], [BANNER2_SCENE, Vector2(4.8, -3.2)]]:
@@ -347,15 +355,130 @@ func _build_plaza() -> void:
 		banner.position = Vector3(p.x, _get_ground_y(p.x, p.y), p.y)
 		banner.scale = Vector3.ONE * 0.8
 		add_child(banner)
-	# Estrada do portão norte até a praça e o mercado
-	var points: Array[Vector2] = [Vector2(1.5, -8.5), Vector2(1.5, -6.5), Vector2(1.5, -4.5), Vector2(1.5, -2.5), Vector2(1.5, -0.5), Vector2(1.5, 1.5), Vector2(1.5, 3.5), Vector2(2.5, 5.0), Vector2(3.8, 6.8), Vector2(4.8, 8.4)]
+
+	# Estrada do portão norte até a praça e o mercado com ancoragem de terra batida e seixos
+	var dirt_mat := StandardMaterial3D.new()
+	dirt_mat.albedo_color = Color(0.33, 0.27, 0.18)
+	dirt_mat.roughness = 0.95
+
+	var points: Array[Vector2] = [
+		Vector2(1.5, -8.5), Vector2(1.5, -6.5), Vector2(1.5, -4.5),
+		Vector2(1.5, -2.5), Vector2(1.5, -0.5), Vector2(1.5, 1.5),
+		Vector2(1.5, 3.5), Vector2(2.5, 5.0), Vector2(3.8, 6.8), Vector2(4.8, 8.4)
+	]
 	for i in points.size():
 		var p: Vector2 = points[i]
+		var gy := _get_ground_y(p.x, p.y)
+
+		# Ancoragem de terreno: base de terra batida mais larga que a pedra
+		var dirt_base := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(2.1, 0.06, 2.1)
+		dirt_base.mesh = bm
+		dirt_base.material_override = dirt_mat
+		dirt_base.position = Vector3(p.x, gy - 0.015, p.y)
+		dirt_base.rotation.y = deg_to_rad(float(i * 15))
+		add_child(dirt_base)
+
+		# Calçamento de pedras
 		var road := PATH_SCENE.instantiate() as Node3D
-		road.position = Vector3(p.x, _get_ground_y(p.x, p.y) + 0.03, p.y)
+		road.position = Vector3(p.x, gy + 0.03, p.y)
 		road.scale = Vector3.ONE * 0.85
 		road.rotation.y = deg_to_rad(float(i * 15))
 		add_child(road)
+
+		# Seixos nas bordas exteriores que integram organicamente pedra, terra e grama
+		var side_offset := 1.2 if (i % 2 == 0) else -1.2
+		var pebble := PEBBLE_SCENE.instantiate() as Node3D
+		if pebble:
+			pebble.position = Vector3(p.x + side_offset, _get_ground_y(p.x + side_offset, p.y), p.y)
+			pebble.scale = Vector3.ONE * (0.32 + (i % 3) * 0.06)
+			pebble.rotation.y = float(i) * 1.3
+			add_child(pebble)
+
+func _build_activity_pockets() -> void:
+	# --- 1. Boutique de Cosméticos do Estilista Astral (Bolsa Leste / Margem do Rio) ---
+	var stall := STALL_SCENE.instantiate() as Node3D
+	stall.position = Vector3(7.2, _get_ground_y(7.2, -2.4), -2.4)
+	stall.rotation.y = deg_to_rad(-65.0)
+	stall.scale = Vector3.ONE * 0.9
+	add_child(stall)
+
+	# Tapete decorativo de veludo que acolhe o cliente
+	var rug := MeshInstance3D.new()
+	var rm := BoxMesh.new()
+	rm.size = Vector3(2.4, 0.02, 1.8)
+	rug.mesh = rm
+	var rug_mat := StandardMaterial3D.new()
+	rug_mat.albedo_color = Color(0.55, 0.20, 0.35)
+	rug_mat.roughness = 0.85
+	rug.material_override = rug_mat
+	rug.position = Vector3(6.5, _get_ground_y(6.5, -2.1) + 0.02, -2.1)
+	rug.rotation.y = deg_to_rad(-65.0)
+	add_child(rug)
+
+	var chest := CHEST_SCENE.instantiate() as Node3D
+	chest.position = Vector3(7.8, _get_ground_y(7.8, -1.6), -1.6)
+	chest.rotation.y = deg_to_rad(-110.0)
+	chest.scale = Vector3.ONE * 0.65
+	add_child(chest)
+
+	# --- 2. Ateliê Botânico da Alquimista (Bolsa Noroeste) ---
+	var bench := WORKBENCH_SCENE.instantiate() as Node3D
+	bench.position = Vector3(-3.8, _get_ground_y(-3.8, -3.2), -3.2)
+	bench.rotation.y = deg_to_rad(45.0)
+	bench.scale = Vector3.ONE * 0.85
+	add_child(bench)
+
+	var cauldron := CAULDRON_SCENE.instantiate() as Node3D
+	cauldron.position = Vector3(-4.6, _get_ground_y(-4.6, -2.8), -2.8)
+	cauldron.scale = Vector3.ONE * 0.75
+	add_child(cauldron)
+
+	var pot1 := POTION1_SCENE.instantiate() as Node3D
+	pot1.position = Vector3(-3.6, _get_ground_y(-3.6, -3.2) + 0.78, -3.3)
+	pot1.scale = Vector3.ONE * 0.65
+	add_child(pot1)
+
+	var pot2 := POTION2_SCENE.instantiate() as Node3D
+	pot2.position = Vector3(-3.9, _get_ground_y(-3.9, -3.2) + 0.78, -3.1)
+	pot2.scale = Vector3.ONE * 0.65
+	add_child(pot2)
+
+	# --- 3. Área Agrícola e Cercas Rústicas (Bolsa Dedicada no Fundo da Vila) ---
+	# Cercado de madeira rústica delimitando o cultivo no quadrante sul
+	var fence_spots: Array[Vector3] = [
+		Vector3(-2.2, 0, 12.8),
+		Vector3(-0.2, 0, 12.8),
+		Vector3(1.8, 0, 12.8)
+	]
+	for fp in fence_spots:
+		var fence := FENCE_SCENE.instantiate() as Node3D
+		fence.position = Vector3(fp.x, _get_ground_y(fp.x, fp.z), fp.z)
+		fence.rotation.y = deg_to_rad(90.0)
+		fence.scale = Vector3.ONE * 0.95
+		add_child(fence)
+
+	var bed := MeshInstance3D.new()
+	var bed_mesh := BoxMesh.new()
+	bed_mesh.size = Vector3(4.2, 0.12, 2.2)
+	bed.mesh = bed_mesh
+	var soil_mat := StandardMaterial3D.new()
+	soil_mat.albedo_color = Color(0.24, 0.18, 0.12)
+	soil_mat.roughness = 0.95
+	bed.material_override = soil_mat
+	bed.position = Vector3(-0.2, _get_ground_y(-0.2, 14.0) + 0.05, 14.0)
+	add_child(bed)
+
+	var apple_crate := CRATE_APPLE_SCENE.instantiate() as Node3D
+	apple_crate.position = Vector3(-2.7, _get_ground_y(-2.7, 13.8), 13.8)
+	apple_crate.scale = Vector3.ONE * 0.8
+	add_child(apple_crate)
+
+	var carrot_crate := CRATE_CARROT_SCENE.instantiate() as Node3D
+	carrot_crate.position = Vector3(2.3, _get_ground_y(2.3, 13.9), 13.9)
+	carrot_crate.scale = Vector3.ONE * 0.8
+	add_child(carrot_crate)
 
 func _build_board() -> void:
 	# Quadro de Obras: placa de madeira ao lado do Mestre Construtor
@@ -428,6 +551,7 @@ func _spawn_city_npcs() -> void:
 	builder.name = "MestreConstrutor"
 	builder.dna = BUILDER_DNA
 	builder.display_name = "Mestre Construtor"
+	builder.icon = "🔨"
 	builder.prompt = "[E] Quadro de Obras"
 	builder.idle_anim = &"Idle_FoldArms"
 	builder.position = Vector3(4.4, _get_ground_y(4.4, 0.4), 0.4)
@@ -438,26 +562,28 @@ func _spawn_city_npcs() -> void:
 	alchemist.name = "Alquimista"
 	alchemist.dna = ALCHEMIST_DNA
 	alchemist.display_name = "Alquimista Botânica"
+	alchemist.icon = "⚗️"
 	alchemist.idle_anim = &"Idle_Talking"
-	alchemist.prompt = "[E] Loja de poções"
+	alchemist.prompt = "[E] Loja de Poções"
 	alchemist.talked.connect(open_shop)
-	alchemist.position = Vector3(-1.2, _get_ground_y(-1.2, -2.8), -2.8)
+	alchemist.position = Vector3(-3.0, _get_ground_y(-3.0, -2.6), -2.6)
 	add_child(alchemist)
 
 	var merchant := TownNPC.new()
 	merchant.name = "Mercadora"
 	merchant.display_name = "Mercadora"
+	merchant.icon = "💰"
 	merchant.idle_anim = &"Idle_Talking"
-	merchant.prompt = "[E] Mercado: encomendas e vendas"
+	merchant.prompt = "[E] Mercado: Encomendas e Vendas"
 	merchant.talked.connect(open_market)
-	merchant.position = Vector3(3.2, _get_ground_y(3.2, 10.6), 10.6)
+	merchant.position = Vector3(4.6, _get_ground_y(4.6, 9.4), 9.4)
 	add_child(merchant)
 
 	# Mesa do Duelo de Cepas na porta da Taverna (GDD-07 §7)
 	var cards := TavernTable.new()
 	cards.name = "MesaDeCartas"
 	cards.city = self
-	cards.position = Vector3(-2.6, _get_ground_y(-2.6, 7.4), 7.4)
+	cards.position = Vector3(-3.4, _get_ground_y(-3.4, 7.2), 7.2)
 	cards.rotation.y = PI * 0.5
 	add_child(cards)
 
@@ -473,10 +599,11 @@ func _spawn_city_npcs() -> void:
 	var couturier := TownNPC.new()
 	couturier.name = "EstilistaAstral"
 	couturier.dna = couturier_dna
-	couturier.display_name = "✨ Estilista Astral (Cosméticos)"
+	couturier.display_name = "Estilista Astral"
+	couturier.icon = "✨"
 	couturier.idle_anim = &"Idle_Talking"
 	couturier.prompt = "[E] Loja de Cosméticos [F9]"
-	couturier.position = Vector3(3.6, _get_ground_y(3.6, -2.2), -2.2)
+	couturier.position = Vector3(5.8, _get_ground_y(5.8, -1.8), -1.8)
 	couturier.talked.connect(open_cosmetics_shop)
 	add_child(couturier)
 
@@ -487,10 +614,11 @@ func _spawn_city_npcs() -> void:
 	var chronicler := TownNPC.new()
 	chronicler.name = "CronistaDoMural"
 	chronicler.dna = chronicler_dna
-	chronicler.display_name = "💬 Mural de Feedback & Guia"
+	chronicler.display_name = "Mural de Feedback & Guia"
+	chronicler.icon = "📜"
 	chronicler.idle_anim = &"Idle_FoldArms"
 	chronicler.prompt = "[E] Deixar Feedback [F8] / Guia [J]"
-	chronicler.position = Vector3(-2.4, _get_ground_y(-2.4, 1.8), 1.8)
+	chronicler.position = Vector3(-2.6, _get_ground_y(-2.6, 1.8), 1.8)
 	chronicler.talked.connect(open_feedback_modal)
 	add_child(chronicler)
 

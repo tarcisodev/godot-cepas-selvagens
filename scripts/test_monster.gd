@@ -134,27 +134,116 @@ func _build_components() -> void:
 	add_child(hitbox)
 
 func _build_model() -> void:
-	if model_scene == null:
-		return
-	model = model_scene.instantiate() as Node3D
-	model.name = "Model"
-	model.scale = Vector3.ONE * model_scale
-	# Os modelos olham para +Z; a frente do monstro é -Z, como no player
-	model.rotation.y = PI
-	add_child(model)
-	anim_player = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-	for anim in [anim_idle, anim_move]:
-		var full := _resolve(anim)
-		if full != &"":
-			anim_player.get_animation(full).loop_mode = Animation.LOOP_LINEAR
-	for m in model.find_children("*", "GeometryInstance3D", true, false):
-		_meshes.append(m as GeometryInstance3D)
+	if model_scene != null:
+		model = model_scene.instantiate() as Node3D
+		model.name = "Model"
+		model.scale = Vector3.ONE * model_scale
+		model.rotation.y = PI
+		add_child(model)
+		anim_player = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		for anim in [anim_idle, anim_move]:
+			var full := _resolve(anim)
+			if full != &"":
+				anim_player.get_animation(full).loop_mode = Animation.LOOP_LINEAR
+		for m in model.find_children("*", "GeometryInstance3D", true, false):
+			_meshes.append(m as GeometryInstance3D)
+	else:
+		_build_procedural_model()
 
 	_hit_mat = StandardMaterial3D.new()
 	_hit_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_hit_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_hit_mat.albedo_color = Color(1, 1, 1, 0.55)
 	_play(anim_idle)
+
+func _build_procedural_model() -> void:
+	model = Node3D.new()
+	model.name = "Model"
+	add_child(model)
+
+	var mesh_inst := MeshInstance3D.new()
+	mesh_inst.name = "BodyMesh"
+
+	var mat := StandardMaterial3D.new()
+	mat.roughness = 0.5
+
+	var lower_name := display_name.to_lower()
+	if lower_name.contains("slime"):
+		var sph := SphereMesh.new()
+		sph.radius = body_radius
+		sph.height = body_height
+		mesh_inst.mesh = sph
+		mesh_inst.position.y = body_height * 0.5
+		mat.albedo_color = Color(0.2, 0.85, 0.35, 0.85)
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.roughness = 0.15
+	elif lower_name.contains("morcego") or lower_name.contains("bat"):
+		var prism := PrismMesh.new()
+		prism.size = Vector3(body_radius * 2.2, body_height * 0.4, body_radius * 1.2)
+		mesh_inst.mesh = prism
+		mesh_inst.position.y = body_height * 0.5
+		mat.albedo_color = Color(0.25, 0.2, 0.3)
+	else:
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = body_radius * 0.7
+		cyl.bottom_radius = body_radius * 0.9
+		cyl.height = body_height
+		mesh_inst.mesh = cyl
+		mesh_inst.position.y = body_height * 0.5
+		mat.albedo_color = Color(0.85, 0.82, 0.75)
+
+	mesh_inst.material_override = mat
+	model.add_child(mesh_inst)
+	_meshes.append(mesh_inst)
+
+	anim_player = AnimationPlayer.new()
+	anim_player.name = "AnimationPlayer"
+	model.add_child(anim_player)
+	var anim_lib := AnimationLibrary.new()
+
+	var idle_name: StringName = anim_idle if anim_idle != &"" else &"Idle"
+	var move_name: StringName = anim_move if anim_move != &"" else &"Walk"
+	var attack_name: StringName = anim_attack if anim_attack != &"" else &"Attack"
+	var death_name: StringName = anim_death if anim_death != &"" else &"Death"
+
+	var idle_anim := Animation.new()
+	idle_anim.loop_mode = Animation.LOOP_LINEAR
+	idle_anim.length = 1.0
+	var t_idle := idle_anim.add_track(Animation.TYPE_VALUE)
+	idle_anim.track_set_path(t_idle, "BodyMesh:scale")
+	idle_anim.track_insert_key(t_idle, 0.0, Vector3.ONE)
+	idle_anim.track_insert_key(t_idle, 0.5, Vector3(1.06, 0.94, 1.06))
+	idle_anim.track_insert_key(t_idle, 1.0, Vector3.ONE)
+	anim_lib.add_animation(idle_name, idle_anim)
+
+	var move_anim := Animation.new()
+	move_anim.loop_mode = Animation.LOOP_LINEAR
+	move_anim.length = 0.6
+	var t_move := move_anim.add_track(Animation.TYPE_VALUE)
+	move_anim.track_set_path(t_move, "BodyMesh:position:y")
+	move_anim.track_insert_key(t_move, 0.0, mesh_inst.position.y)
+	move_anim.track_insert_key(t_move, 0.3, mesh_inst.position.y + 0.12)
+	move_anim.track_insert_key(t_move, 0.6, mesh_inst.position.y)
+	anim_lib.add_animation(move_name, move_anim)
+
+	var atk_anim := Animation.new()
+	atk_anim.length = maxf(0.5, windup_time + attack_active)
+	var t_atk := atk_anim.add_track(Animation.TYPE_VALUE)
+	atk_anim.track_set_path(t_atk, "BodyMesh:scale")
+	atk_anim.track_insert_key(t_atk, 0.0, Vector3.ONE)
+	atk_anim.track_insert_key(t_atk, windup_time * 0.8, Vector3(1.15, 0.85, 1.15))
+	atk_anim.track_insert_key(t_atk, windup_time, Vector3(0.9, 1.15, 0.9))
+	anim_lib.add_animation(attack_name, atk_anim)
+
+	var death_anim := Animation.new()
+	death_anim.length = 1.0
+	var t_death := death_anim.add_track(Animation.TYPE_VALUE)
+	death_anim.track_set_path(t_death, "BodyMesh:scale")
+	death_anim.track_insert_key(t_death, 0.0, Vector3.ONE)
+	death_anim.track_insert_key(t_death, 0.4, Vector3(1.3, 0.15, 1.3))
+	anim_lib.add_animation(death_name, death_anim)
+
+	anim_player.add_animation_library("", anim_lib)
 
 func _build_labels() -> void:
 	status_label = Label3D.new()

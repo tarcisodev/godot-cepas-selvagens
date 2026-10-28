@@ -15,7 +15,8 @@ const USE_RANGE: float = 3.5
 ## Acesa (a fogueira do slice não apaga; lenha e chuva ficam para depois)
 @export var lit: bool = true
 
-var _flames: Array[MeshInstance3D] = []
+var _flames: Array[CPUParticles3D] = []  # chama, fagulhas e fumaça
+var _embers_bed: MeshInstance3D
 var _light: OmniLight3D
 var _t: float = 0.0
 var _prompt: Label3D
@@ -57,22 +58,28 @@ func _build() -> void:
 		stick.position = Vector3(0, 0.08, 0)
 		stick.rotation = Vector3(deg_to_rad(80.0), TAU * i / 3.0, 0)
 		add_child(stick)
-	for i in 2:
-		var flame := MeshInstance3D.new()
-		var fm := CylinderMesh.new()
-		fm.top_radius = 0.0
-		fm.bottom_radius = 0.17 - i * 0.06
-		fm.height = 0.55 - i * 0.15
-		fm.radial_segments = 7
-		flame.mesh = fm
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.albedo_color = Color(1.0, 0.55, 0.15) if i == 0 else Color(1.0, 0.85, 0.35)
-		flame.material_override = m
-		flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		flame.position = Vector3(0, 0.12 + fm.height * 0.5, 0)
-		add_child(flame)
-		_flames.append(flame)
+	# Brasa no meio da lenha: o que fica quando a chama baixa
+	_embers_bed = MeshInstance3D.new()
+	var bed := SphereMesh.new()
+	bed.radius = 0.2
+	bed.height = 0.1
+	bed.radial_segments = 8
+	bed.rings = 3
+	_embers_bed.mesh = bed
+	var bed_mat := StandardMaterial3D.new()
+	bed_mat.albedo_color = Color(0.15, 0.05, 0.02)
+	bed_mat.emission_enabled = true
+	bed_mat.emission = Color(1.0, 0.35, 0.08)
+	bed_mat.emission_energy_multiplier = 2.5
+	_embers_bed.material_override = bed_mat
+	_embers_bed.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_embers_bed.position.y = 0.06
+	add_child(_embers_bed)
+	_flames.append(_make_flame())
+	_flames.append(_make_sparks())
+	_flames.append(_make_smoke())
+	for p in _flames:
+		add_child(p)
 	_light = OmniLight3D.new()
 	_light.light_color = Color(1.0, 0.62, 0.3)
 	_light.omni_range = 7.0
@@ -114,7 +121,10 @@ func _setup_minigame() -> void:
 
 func _set_lit_visuals() -> void:
 	for f in _flames:
+		f.emitting = lit
 		f.visible = lit
+	if _embers_bed:
+		_embers_bed.visible = lit
 	if _light:
 		_light.visible = lit
 
@@ -122,7 +132,120 @@ func talk_to(player_node: Node) -> void:
 	if _minigame:
 		_minigame.open(player_node as _Player)
 
-## Chama tremendo e monitora proximidade do jogador
+## Mesmo desenho de partícula da chama da tocha (TorchComponent), em escala de fogueira.
+static var _soft_dot: GradientTexture2D
+
+## Mancha redonda de borda suave: sem ela a partícula aparece como um quadrado.
+static func _soft_texture() -> GradientTexture2D:
+	if _soft_dot == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 1))
+		g.set_color(1, Color(1, 1, 1, 0))
+		g.add_point(0.35, Color(1, 1, 1, 0.75))
+		_soft_dot = GradientTexture2D.new()
+		_soft_dot.gradient = g
+		_soft_dot.fill = GradientTexture2D.FILL_RADIAL
+		_soft_dot.fill_from = Vector2(0.5, 0.5)
+		_soft_dot.fill_to = Vector2(0.5, 0.0)
+		_soft_dot.width = 64
+		_soft_dot.height = 64
+	return _soft_dot
+
+static func _particle_quad(size: Vector2, additive: bool) -> QuadMesh:
+	var quad := QuadMesh.new()
+	quad.size = size
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = _soft_texture()
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.vertex_color_use_as_albedo = true
+	if additive:
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	quad.material = m
+	return quad
+
+static func _curve(start: float, end: float) -> Curve:
+	var c := Curve.new()
+	c.add_point(Vector2(0, start))
+	c.add_point(Vector2(1, end))
+	return c
+
+static func _ramp(from: Color, mid: Color, to: Color) -> Gradient:
+	var g := Gradient.new()
+	g.set_color(0, from)
+	g.set_color(1, to)
+	g.add_point(0.4, mid)
+	return g
+
+func _make_flame() -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.name = "Flame"
+	p.amount = 28
+	p.lifetime = 0.6
+	p.local_coords = false
+	p.position.y = 0.14
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.13
+	p.direction = Vector3.UP
+	p.spread = 10.0
+	p.gravity = Vector3(0, 1.4, 0)
+	p.initial_velocity_min = 0.3
+	p.initial_velocity_max = 0.6
+	p.scale_amount_min = 0.8
+	p.scale_amount_max = 1.2
+	p.scale_amount_curve = _curve(1.0, 0.1)
+	p.color_ramp = _ramp(Color(1.0, 0.75, 0.3, 0.55), Color(1.0, 0.42, 0.1, 0.45), Color(0.6, 0.1, 0.02, 0.0))
+	p.mesh = _particle_quad(Vector2(0.32, 0.42), true)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+func _make_sparks() -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.name = "Sparks"
+	p.amount = 8
+	p.lifetime = 1.4
+	p.local_coords = false
+	p.position.y = 0.3
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.12
+	p.direction = Vector3.UP
+	p.spread = 25.0
+	p.gravity = Vector3(0, 0.4, 0)
+	p.initial_velocity_min = 0.6
+	p.initial_velocity_max = 1.2
+	p.damping_min = 0.4
+	p.damping_max = 0.8
+	p.scale_amount_curve = _curve(1.0, 0.0)
+	p.color_ramp = _ramp(Color(1.0, 0.8, 0.35, 1.0), Color(1.0, 0.45, 0.1, 1.0), Color(0.8, 0.2, 0.05, 0.0))
+	p.mesh = _particle_quad(Vector2(0.035, 0.035), true)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+## Fumaça com luz (não aditiva): de dia é cinza, à noite pega o laranja da própria fogueira.
+func _make_smoke() -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.name = "Smoke"
+	p.amount = 10
+	p.lifetime = 3.5
+	p.local_coords = false
+	p.position.y = 0.75
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.1
+	p.direction = Vector3.UP
+	p.spread = 8.0
+	p.gravity = Vector3(0.15, 0.25, 0)  # vento leve
+	p.initial_velocity_min = 0.35
+	p.initial_velocity_max = 0.55
+	p.angle_min = -180.0
+	p.angle_max = 180.0
+	p.scale_amount_curve = _curve(0.4, 1.0)
+	p.color_ramp = _ramp(Color(0.45, 0.43, 0.42, 0.0), Color(0.42, 0.4, 0.4, 0.42), Color(0.5, 0.5, 0.5, 0.0))
+	p.mesh = _particle_quad(Vector2(0.7, 0.7), false)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return p
+
+## Luz tremendo (só desenho; a regra de descanso lê `lit`)
 func _process(delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node3D if is_inside_tree() else null
 	if _prompt:
@@ -131,7 +254,4 @@ func _process(delta: float) -> void:
 	if not lit:
 		return
 	_t += delta
-	for i in _flames.size():
-		var k := 1.0 + sin(_t * (9.0 + i * 3.0) + i) * 0.08 + sin(_t * 23.0) * 0.04
-		_flames[i].scale = Vector3(1.0, k, 1.0)
 	_light.light_energy = 1.5 + sin(_t * 11.0) * 0.15 + sin(_t * 27.0) * 0.08

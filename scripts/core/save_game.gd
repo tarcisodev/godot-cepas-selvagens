@@ -4,10 +4,12 @@ extends Node
 # Guarda: nome, posição, hora e dia, aparência (DNA), materiais, peças forjadas e equipadas, maestrias, cartas, objetivos
 # construções (totens e peças), obras da vila com a Reputação, montarias e a natureza
 # (plantas, bichos, solo, clima e cheia do rio).
-# "Continuar" na tela de título marca `load_on_enter`; quando o mundo entra na árvore,
-# o save é aplicado. Com o mundo aberto, salva sozinho a cada AUTOSAVE_SECONDS.
+# O jogo é só online: o personagem entra pelo login (`enter_online_world`) e o estado dele
+# vive no ServerPersistence. Este arquivo local ainda é gravado a cada AUTOSAVE_SECONDS,
+# mas não é mais carregado ao entrar (o mundo do host ainda não persiste no servidor).
 
 const BuildingSystemClass = preload("res://scripts/building_system.gd")
+const ServerPersistenceClass = preload("res://scripts/core/server_persistence.gd")
 
 const SAVE_PATH: String = "user://savegame.json"
 const SAVE_VERSION: int = 1
@@ -25,6 +27,9 @@ var _new_character: CharacterDNA = null
 var _show_new_game_welcome: bool = false
 var _autosave_timer: float = AUTOSAVE_SECONDS
 var _applied_to: Node = null
+## Personagem de conta (B24) entrando no mundo: dados do servidor a aplicar no player.
+var _pending_online: bool = false
+var _pending_server_data: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -46,6 +51,14 @@ func _process(delta: float) -> void:
 			_show_new_game_welcome = false
 			_grant_starter_explorer_kit(player)
 		save_game()
+	# Personagem de conta (host ou cliente): aplica o estado do servidor e marca o nome
+	# para o autosave do ServerPersistence achar o player
+	if _pending_online and player.is_node_ready():
+		_pending_online = false
+		player.set_meta("player_name", character_name)
+		if not _pending_server_data.is_empty():
+			ServerPersistenceClass.apply_player_data(player, _pending_server_data)
+			_pending_server_data = {}
 	_autosave_timer -= delta
 	if _autosave_timer <= 0.0:
 		_autosave_timer = AUTOSAVE_SECONDS
@@ -54,16 +67,26 @@ func _process(delta: float) -> void:
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
-func delete_save() -> void:
-	if has_save():
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
-
-## Começa um jogo novo com o personagem montado na tela de criação.
-func start_new_game(dna: CharacterDNA, p_name: String) -> void:
-	_new_character = dna
+## Entra no mundo com um personagem de conta (B24). `new_dna` vem da criação de personagem;
+## sem ele, veste o DNA salvo no servidor (`server_data`) e reaplica o resto do estado.
+func enter_online_world(p_name: String, server_data: Dictionary, new_dna: CharacterDNA = null) -> void:
 	character_name = p_name
-	_show_new_game_welcome = true
-	enter_world(false)
+	_pending_online = true
+	_pending_server_data = {}
+	if new_dna:
+		_new_character = new_dna
+		_show_new_game_welcome = true
+		var objectives := _objectives()
+		if objectives:
+			objectives.reset()
+	else:
+		var dna_dict = server_data.get("dna", {})
+		if dna_dict is Dictionary and not dna_dict.is_empty():
+			_new_character = CharacterDNA.from_dict(dna_dict)
+		_pending_server_data = server_data
+	load_on_enter = false
+	get_tree().paused = false
+	get_tree().change_scene_to_file(WORLD_SCENE)
 
 func _grant_starter_explorer_kit(player: Node) -> void:
 	var wallet = player.get("wallet")
@@ -92,17 +115,6 @@ func dress_new_character(player: Node) -> void:
 ## Nome gravado no save (vazio se não houver).
 func saved_name() -> String:
 	return str(read_save().get("name", ""))
-
-## Abre o mundo; com `continue_game`, aplica o save ao entrar.
-func enter_world(continue_game: bool) -> void:
-	load_on_enter = continue_game and has_save()
-	if not continue_game:
-		delete_save()
-		var objectives := _objectives()
-		if objectives:
-			objectives.reset()
-	get_tree().paused = false
-	get_tree().change_scene_to_file(WORLD_SCENE)
 
 ## Monta o dicionário do progresso a partir do player e do mundo.
 func collect(player: Node) -> Dictionary:

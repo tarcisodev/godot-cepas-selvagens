@@ -1,6 +1,8 @@
 class_name TownProject
 extends Node3D
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 ## Obra da vila (GDD-08 §6.1): 3 etapas (Fundação → Estrutura → Acabamento), cada uma pedindo
 ## materiais comuns que os jogadores doam. Etapa completa muda o visual na hora:
 ## canteiro (estacas e caixotes) → piso de pedra → paredes com andaime → prédio pronto.
@@ -40,17 +42,12 @@ var stage: int = 0
 var deposited: Dictionary = {}
 
 var _visual: Node3D
-var _sign: Label3D
+var _sign: _WorldLabel
 var _scene_cache: Dictionary = {}
 
 func _ready() -> void:
 	add_to_group("town_projects")
-	_sign = Label3D.new()
-	_sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_sign.font_size = 15
-	_sign.outline_size = 4
-	_sign.outline_modulate = Color(0, 0, 0, 0.85)
-	_sign.visibility_range_end = 9.0
+	_sign = _WorldLabel.make(_WorldLabel.Kind.NAME, "", "🏗️")
 	add_child(_sign)
 	_snap_to_ground()
 	rebuild()
@@ -145,11 +142,11 @@ func _update_sign() -> void:
 	else:
 		_sign.position = Vector3(0, (WALL_TOP + 3.2) if stage >= 2 and kind == Kind.HOUSE else 3.0, 0)
 	if is_complete():
-		_sign.text = "%s %s" % [icon, display_name]
-		_sign.modulate = Color(0.85, 1.0, 0.85)
+		_sign.set_full_text("%s %s" % [icon, display_name])
+		_sign.icon = icon
 	else:
-		_sign.text = "🏗️ %s\n%s %d/3 · %d%%" % [display_name, STAGE_NAMES[stage], stage + 1, roundi(stage_progress() * 100.0)]
-		_sign.modulate = Color(1.0, 0.85, 0.5)
+		_sign.icon = "🏗️"
+		_sign.full_text = "🏗️ %s\n%s %d/3 · %d%%" % [display_name, STAGE_NAMES[stage], stage + 1, roundi(stage_progress() * 100.0)]
 
 func _half() -> Vector2:
 	return Vector2(modules.x, modules.y) * MODULE * 0.5

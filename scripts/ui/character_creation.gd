@@ -1,9 +1,9 @@
 extends Control
 class_name CharacterCreation
 
-## Criação de personagem do Novo jogo (B09): nome + aparência no AppearanceEditor.
-# "Começar jornada" entra no mundo com esse personagem; "Voltar" (ou Esc) retorna ao título
-# sem apagar o save, que só é substituído quando o jogo novo começa de fato.
+## Criação de personagem da conta online (B09/B24): nome + aparência no AppearanceEditor.
+# "Começar jornada" grava o personagem no servidor (remoto ou o hospedado no PC) e entra
+# no mundo com ele; "Voltar" (ou Esc) retorna ao título.
 
 const BACKGROUND: String = "res://assets/ui/menu_background.png"
 const MAIN_MENU: String = "res://scenes/main_menu.tscn"
@@ -11,6 +11,7 @@ const DEFAULT_DNA: String = "res://resources/characters/player_dna.tres"
 const DEFAULT_NAME := "Andarilho"
 
 var editor: AppearanceEditor
+var _error_lbl: Label
 
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -52,22 +53,39 @@ func _on_confirmed(dna: CharacterDNA) -> void:
 	var is_online: bool = false
 	if net != null and "state" in net:
 		var st = net.get("state")
-		if st == NetworkManagerAutoload.NetworkState.CONNECTED_CLIENT and not net.get("current_account").is_empty():
+		# Cliente conectado ou host hospedando no PC: o personagem vai para a conta no servidor
+		var networked: bool = st == NetworkManagerAutoload.NetworkState.CONNECTED_CLIENT \
+			or st == NetworkManagerAutoload.NetworkState.HOSTING_SERVER
+		if networked and not str(net.get("current_account")).is_empty():
 			is_online = true
 
-	if is_online:
-		var dna_dict: Dictionary = dna.to_dict()
-		net.send_create_character_request(final_name, dna_dict)
-		net.character_created.connect(func(success: bool, message: String, _cdata: Dictionary):
-			if success:
-				net.send_enter_world_request(final_name)
-				get_tree().change_scene_to_file("res://scenes/world.tscn")
-			else:
-				push_error("[CharacterCreation] Falha ao criar personagem online: %s" % message)
-		, CONNECT_ONE_SHOT)
-	else:
-		# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
-		get_node("/root/SaveGame").start_new_game(dna, final_name)
+	# Jogo só online: sem conta autenticada não há onde gravar o personagem
+	if not is_online:
+		_show_error("Sessão expirada: entre na sua conta novamente.")
+		return
+
+	var dna_dict: Dictionary = dna.to_dict()
+	# Conecta antes de enviar: no host a resposta é emitida na mesma chamada
+	net.character_created.connect(func(success: bool, message: String, _cdata: Dictionary):
+		if success:
+			net.send_enter_world_request(final_name)
+			# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
+			get_node("/root/SaveGame").enter_online_world(final_name, {}, dna)
+		else:
+			push_error("[CharacterCreation] Falha ao criar personagem online: %s" % message)
+			_show_error(message)
+	, CONNECT_ONE_SHOT)
+	net.send_create_character_request(final_name, dna_dict)
+
+func _show_error(message: String) -> void:
+	if _error_lbl == null:
+		_error_lbl = Label.new()
+		_error_lbl.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
+		_error_lbl.grow_horizontal = Control.GROW_DIRECTION_BOTH
+		_error_lbl.add_theme_font_size_override("font_size", 16)
+		_error_lbl.add_theme_color_override("font_color", Color(1, 0.5, 0.4))
+		add_child(_error_lbl)
+	_error_lbl.text = "❌ %s" % message
 
 func _back() -> void:
 	get_tree().change_scene_to_file(MAIN_MENU)

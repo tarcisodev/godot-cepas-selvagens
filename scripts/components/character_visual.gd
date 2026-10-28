@@ -10,7 +10,7 @@ const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 # então as bibliotecas tocam direto em qualquer personagem do kit.
 # Trocar o visual = trocar `model_scene` (Male_Ranger, Female_Ranger, Male_Peasant…).
 
-@export var model_scene: PackedScene = preload("res://assets/models/character/Male_Ranger.gltf")
+@export var model_scene: PackedScene = null
 ## Personagem procedural (B09); quando preenchido, substitui `model_scene`.
 ## O esqueleto vem da primeira biblioteca de `animation_sources`.
 @export var dna: CharacterDNA
@@ -56,6 +56,8 @@ func rebuild(new_dna: CharacterDNA) -> void:
 	_build()
 
 func _build() -> void:
+	if dna == null and model_scene == null:
+		dna = _CharacterDNA.new()
 	if dna and not animation_sources.is_empty():
 		model = ProceduralCharacterBuilder.build(dna, animation_sources[0])
 	elif model_scene:
