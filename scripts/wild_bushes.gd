@@ -41,7 +41,7 @@ func _spawn_berry_bushes() -> void:
 
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		var water_hw: float = RiverClass.get_water_half_width(z)
-		if dist_river < (water_hw + 1.5) or CityHub.in_village(x, z):
+		if dist_river < (water_hw + 1.5) or CityHub.in_village(x, z) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)

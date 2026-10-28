@@ -106,6 +106,22 @@ const LANDMARKS: Array[Dictionary] = [
 		"color": Color(0.96, 0.28, 0.32),
 		"kind": "boss",
 	},
+	{
+		"id": &"lago_cristalino",
+		"name": "💎 Lago Cristalino do Leste",
+		"subtitle": "Bacia de Águas Calmas & Afluente das Colinas",
+		"pos": Vector3(62.0, 0.0, 18.0),
+		"color": Color(0.28, 0.68, 0.92),
+		"kind": "nature",
+	},
+	{
+		"id": &"estuario_mar",
+		"name": "⚓ Estuário do Mar Aberto",
+		"subtitle": "Deságue das Águas do Vale no Mar do Sul",
+		"pos": Vector3(26.0, 0.0, 122.0),
+		"color": Color(0.24, 0.58, 0.85),
+		"kind": "nature",
+	},
 ]
 
 var _gifted_players: Dictionary = {}

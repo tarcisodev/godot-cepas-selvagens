@@ -565,8 +565,10 @@ class MapCanvasControl extends Control:
 
 		# 1. CAMADA TERRENO EM PERGAMINHO (MapImageBaker)
 		var landscape: Node = null
-		if is_inside_tree():
-			landscape = get_tree().current_scene.get_node_or_null("LandscapeGenerator") if get_tree().current_scene else null
+		if is_inside_tree() and get_tree().current_scene:
+			landscape = get_tree().current_scene.get_node_or_null("Landscape")
+			if not landscape:
+				landscape = get_tree().current_scene.get_node_or_null("LandscapeGenerator")
 		var baked_tex := _MapImageBaker.get_or_bake_map(landscape)
 
 		var top_left := _world_to_map(-WorldBounds.HALF, -WorldBounds.HALF, r)

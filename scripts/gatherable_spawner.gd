@@ -187,6 +187,8 @@ func _create_node(type: GatherableResourceClass.Type, x: float, z: float) -> Gat
 	if CityHub.in_village(x, z):
 		return null
 	var y: float = _get_ground_y(x, z)
+	if RiverClass.is_in_water(Vector3(x, y, z)) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
+		return null
 	var res := GatherableResourceClass.new()
 	res.type = type
 	res.position = Vector3(x, y, z)
