@@ -61,6 +61,7 @@ func _ready() -> void:
 	visible = false
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	z_index = 20
 	_build_ui()
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -329,21 +330,25 @@ func _build_ui() -> void:
 
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.offset_top = 8.0
+	center.offset_bottom = -72.0
 	center.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(center)
 
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(1120, 560)
+	panel.custom_minimum_size = Vector2(1140, 520)
 	panel.add_theme_stylebox_override("panel", _box(PANEL_BG, Color(1, 1, 1, 0.08), 14, 1))
 	center.add_child(panel)
 
 	var margin := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 14)
+	for side in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + side, 12)
+	for side in ["top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, 8)
 	panel.add_child(margin)
 
 	var root_box := VBoxContainer.new()
-	root_box.add_theme_constant_override("separation", 12)
+	root_box.add_theme_constant_override("separation", 8)
 	margin.add_child(root_box)
 
 	root_box.add_child(_build_header())
@@ -351,7 +356,7 @@ func _build_ui() -> void:
 
 	var body := HBoxContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 16)
+	body.add_theme_constant_override("separation", 14)
 	root_box.add_child(body)
 
 	_equipment = EquipmentPanel.new()
@@ -365,6 +370,7 @@ func _build_ui() -> void:
 	body.add_child(middle_col)
 
 	var grid_frame := PanelContainer.new()
+	grid_frame.custom_minimum_size = Vector2(470, 0)
 	grid_frame.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_frame.add_theme_stylebox_override("panel", _box(Color(0, 0, 0, 0.25), Color(1, 1, 1, 0.05), 10, 1))
@@ -419,9 +425,10 @@ func _build_drop_zone_bar() -> GroundDropZone:
 	zone.add_child(row)
 
 	var hint := Label.new()
-	hint.text = "📤 Arraste itens aqui (ou para fora da janela) para jogar no chão  ·  Clique Direito no item abre ações"
+	hint.text = "📤 Arraste para o chão  ·  [Dir.] Ações"
 	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hint.add_theme_font_size_override("font_size", 12)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.96, 0.84, 0.62))
 	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(hint)
@@ -544,14 +551,27 @@ func _build_toolbar() -> Control:
 
 func _build_detail_panel() -> Control:
 	var frame := PanelContainer.new()
-	frame.custom_minimum_size = Vector2(250, 0)
+	frame.custom_minimum_size = Vector2(240, 0)
+	frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	frame.add_theme_stylebox_override("panel", _box(Color(1, 1, 1, 0.03), Color(1, 1, 1, 0.06), 10, 1))
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	frame.add_child(scroll)
+
 	var m := MarginContainer.new()
-	for side in ["left", "right", "top", "bottom"]:
-		m.add_theme_constant_override("margin_" + side, 16)
-	frame.add_child(m)
+	m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for side in ["left", "right"]:
+		m.add_theme_constant_override("margin_" + side, 12)
+	for side in ["top", "bottom"]:
+		m.add_theme_constant_override("margin_" + side, 8)
+	scroll.add_child(m)
+
 	_detail = VBoxContainer.new()
-	_detail.add_theme_constant_override("separation", 8)
+	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_detail.add_theme_constant_override("separation", 6)
 	m.add_child(_detail)
 	return frame
 
@@ -699,13 +719,13 @@ func _show_detail(s: Dictionary) -> void:
 
 	var icon := Label.new()
 	icon.text = data.icon
-	icon.add_theme_font_size_override("font_size", 56)
+	icon.add_theme_font_size_override("font_size", 42)
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_detail.add_child(icon)
 
 	var name_l := Label.new()
 	name_l.text = data.display_name
-	name_l.add_theme_font_size_override("font_size", 20)
+	name_l.add_theme_font_size_override("font_size", 18)
 	name_l.add_theme_color_override("font_color", rarity.lightened(0.15))
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
