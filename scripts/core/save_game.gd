@@ -136,6 +136,8 @@ func collect(player: Node) -> Dictionary:
 	var wallet = player.get("wallet")
 	if wallet:
 		data["money"] = wallet.money
+	if "play_time" in player:
+		data["play_time"] = float(player.get("play_time"))
 	var mastery = player.get("mastery")
 	if mastery:
 		data["mastery"] = _keys_to_str(mastery._masteries)
@@ -214,6 +216,8 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var wallet = player.get("wallet")
 	if wallet and data.has("money"):
 		wallet.set_money(int(data["money"]))
+	if data.has("play_time") and "play_time" in player:
+		player.set("play_time", float(data["play_time"]))
 
 	var inv = player.get("inventory")
 	if inv:

@@ -6,12 +6,15 @@ extends Control
 
 const WORLD_SCENE: String = "res://scenes/world.tscn"
 const CHARACTER_CREATION_SCENE: String = "res://scenes/character_creation.tscn"
+const _WalletComponent = preload("res://scripts/components/wallet_component.gd")
 
 @export var is_host_mode: bool = false
 
 var _panel: PanelContainer
 var _title_lbl: Label
 var _status_lbl: Label
+var _confirm_overlay: ColorRect = null
+var _current_characters: Array = []
 
 # Campos de Auth
 var _url_input: LineEdit
@@ -49,6 +52,7 @@ func _connect_net_signals() -> void:
 	net.connection_lost.connect(_on_disconnected)
 	net.auth_result.connect(_on_auth_result)
 	net.entered_world.connect(_on_entered_world)
+	net.character_deleted.connect(_on_character_deleted)
 
 func _net() -> Node:
 	return get_node_or_null("/root/NetworkManager")
@@ -64,7 +68,7 @@ func _build_ui() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
-	_panel.custom_minimum_size = Vector2(440, 340)
+	_panel.custom_minimum_size = Vector2(480, 360)
 	center.add_child(_panel)
 
 	var margin := MarginContainer.new()
@@ -327,7 +331,19 @@ func _on_auth_result(success: bool, message: String, characters: Array) -> void:
 	_char_box.visible = true
 	_populate_characters(characters)
 
+static func format_play_time(total_seconds: float) -> String:
+	var secs: int = int(total_seconds)
+	if secs < 60:
+		return "%d seg" % secs if secs > 0 else "Recém-criado"
+	var mins: int = secs / 60
+	if mins < 60:
+		return "%d min" % mins
+	var hours: int = mins / 60
+	var rem_mins: int = mins % 60
+	return "%dh %02dmin" % [hours, rem_mins]
+
 func _populate_characters(characters: Array) -> void:
+	_current_characters = characters.duplicate()
 	for child in _char_list_container.get_children():
 		child.queue_free()
 
@@ -340,17 +356,185 @@ func _populate_characters(characters: Array) -> void:
 		_char_list_container.add_child(empty_lbl)
 		return
 
-	for cname in characters:
-		var char_btn := Button.new()
-		char_btn.text = "🗡️  %s  ▶  Jogar" % cname
-		char_btn.custom_minimum_size = Vector2(0, 42)
-		char_btn.pressed.connect(func():
+	var net = _net()
+	var chars_data: Array = net.get("current_characters_data") if (net and "current_characters_data" in net) else []
+	for cname_raw in _current_characters:
+		var cname: String = str(cname_raw)
+
+		# Busca dados de saldo e tempo jogado
+		var c_info: Dictionary = {}
+		for item in chars_data:
+			if item is Dictionary and item.get("name") == cname:
+				c_info = item
+				break
+		if c_info.is_empty():
+			var sp = get_node_or_null("/root/ServerPersistence")
+			if sp and sp.has_method("get_character_summary"):
+				c_info = sp.get_character_summary(cname)
+
+		var money: int = int(c_info.get("money", 50))
+		var play_time: float = float(c_info.get("play_time", 0.0))
+		var time_str: String = format_play_time(play_time)
+
+		# Card de Personagem
+		var card := PanelContainer.new()
+		var card_style := StyleBoxFlat.new()
+		card_style.bg_color = Color(0.12, 0.16, 0.14, 0.9)
+		card_style.border_color = Color(0.24, 0.34, 0.28)
+		card_style.border_width_left = 1
+		card_style.border_width_right = 1
+		card_style.border_width_top = 1
+		card_style.border_width_bottom = 1
+		card_style.corner_radius_top_left = 6
+		card_style.corner_radius_top_right = 6
+		card_style.corner_radius_bottom_left = 6
+		card_style.corner_radius_bottom_right = 6
+		card_style.content_margin_left = 12
+		card_style.content_margin_right = 12
+		card_style.content_margin_top = 8
+		card_style.content_margin_bottom = 8
+		card.add_theme_stylebox_override("panel", card_style)
+
+		var hbox := HBoxContainer.new()
+		hbox.add_theme_constant_override("separation", 10)
+		card.add_child(hbox)
+
+		# Coluna de Informações do Personagem
+		var info_vbox := VBoxContainer.new()
+		info_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_vbox.add_theme_constant_override("separation", 2)
+		hbox.add_child(info_vbox)
+
+		var name_lbl := Label.new()
+		name_lbl.text = "🗡️ %s" % cname
+		name_lbl.add_theme_font_size_override("font_size", 16)
+		name_lbl.add_theme_color_override("font_color", Color(0.96, 0.92, 0.78))
+		info_vbox.add_child(name_lbl)
+
+		var stats_hbox := HBoxContainer.new()
+		stats_hbox.add_theme_constant_override("separation", 10)
+		info_vbox.add_child(stats_hbox)
+
+		var time_lbl := Label.new()
+		time_lbl.text = "⏱️ %s" % time_str
+		time_lbl.add_theme_font_size_override("font_size", 12)
+		time_lbl.add_theme_color_override("font_color", Color(0.72, 0.85, 0.78))
+		stats_hbox.add_child(time_lbl)
+
+		var money_lbl := Label.new()
+		money_lbl.text = "💰 %s" % _WalletComponent.format(money)
+		money_lbl.add_theme_font_size_override("font_size", 12)
+		money_lbl.add_theme_color_override("font_color", Color(0.98, 0.88, 0.45))
+		stats_hbox.add_child(money_lbl)
+
+		# Coluna de Ações
+		var actions_hbox := HBoxContainer.new()
+		actions_hbox.add_theme_constant_override("separation", 6)
+		actions_hbox.alignment = BoxContainer.ALIGNMENT_END
+		hbox.add_child(actions_hbox)
+
+		var play_btn := Button.new()
+		play_btn.text = "▶ Jogar"
+		play_btn.custom_minimum_size = Vector2(80, 36)
+		play_btn.pressed.connect(func():
 			_set_status("Entrando no mundo com '%s'..." % cname, Color(0.8, 1, 0.8))
-			var net = _net()
 			if net != null:
 				net.send_enter_world_request(cname)
 		)
-		_char_list_container.add_child(char_btn)
+		actions_hbox.add_child(play_btn)
+
+		var del_btn := Button.new()
+		del_btn.text = "🗑️"
+		del_btn.tooltip_text = "Excluir personagem permanentemente"
+		del_btn.custom_minimum_size = Vector2(38, 36)
+		del_btn.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+		del_btn.pressed.connect(func():
+			_show_delete_confirmation(cname)
+		)
+		actions_hbox.add_child(del_btn)
+
+		_char_list_container.add_child(card)
+
+func _show_delete_confirmation(cname: String) -> void:
+	if _confirm_overlay != null:
+		_confirm_overlay.queue_free()
+
+	_confirm_overlay = ColorRect.new()
+	_confirm_overlay.color = Color(0, 0, 0, 0.75)
+	_confirm_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_confirm_overlay)
+
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_confirm_overlay.add_child(center)
+
+	var box := PanelContainer.new()
+	box.custom_minimum_size = Vector2(380, 180)
+	center.add_child(box)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_top", 16)
+	margin.add_theme_constant_override("margin_bottom", 16)
+	box.add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	margin.add_child(vbox)
+
+	var title := Label.new()
+	title.text = "⚠️  Excluir Personagem"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 18)
+	title.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	vbox.add_child(title)
+
+	var msg := Label.new()
+	msg.text = "Tem certeza que deseja excluir '%s'?\n\nTodo o progresso, tempo de jogo e dinheiro serão perdidos definitivamente." % cname
+	msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	msg.add_theme_font_size_override("font_size", 13)
+	vbox.add_child(msg)
+
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 10)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btn_row)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancelar"
+	cancel_btn.custom_minimum_size = Vector2(100, 38)
+	cancel_btn.pressed.connect(func():
+		_confirm_overlay.queue_free()
+		_confirm_overlay = null
+	)
+	btn_row.add_child(cancel_btn)
+
+	var delete_btn := Button.new()
+	delete_btn.text = "Sim, Excluir"
+	delete_btn.custom_minimum_size = Vector2(120, 38)
+	delete_btn.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	delete_btn.pressed.connect(func():
+		_confirm_overlay.queue_free()
+		_confirm_overlay = null
+		_execute_delete_character(cname)
+	)
+	btn_row.add_child(delete_btn)
+
+func _execute_delete_character(cname: String) -> void:
+	_set_status("Excluindo '%s' do servidor..." % cname, Color(1, 0.8, 0.4))
+	var net = _net()
+	if net != null:
+		net.send_delete_character_request(cname)
+
+func _on_character_deleted(success: bool, message: String, cname: String) -> void:
+	if success:
+		_set_status("✅ %s" % message, Color(0.6, 1, 0.6))
+		_current_characters.erase(cname)
+		_populate_characters(_current_characters)
+	else:
+		_set_status("❌ Falha ao excluir personagem: %s" % message, Color(1, 0.4, 0.4))
 
 func _on_new_character_pressed() -> void:
 	get_tree().change_scene_to_file(CHARACTER_CREATION_SCENE)
