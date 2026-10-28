@@ -72,6 +72,34 @@ func get_height_at(x: float, z: float) -> float:
 		var plateau_factor: float = clamp((waterfall_z - z) / 8.0, 0.0, 1.0)
 		h += plateau_factor * 8.2
 
+	# 3b. Lago Cristalino do Leste e Riacho Afluente
+	var l_ratio: float = RiverClass.get_valley_lake_dist_ratio(x, z)
+	if l_ratio < 1.0:
+		var l_depth: float = 2.4 * pow(maxf(0.0, 1.0 - l_ratio * l_ratio), 0.7)
+		var l_bed: float = RiverClass.LOWER_WATER_Y - 0.25 - l_depth
+		h = minf(h, l_bed)
+	elif l_ratio < 1.4:
+		var bank_t: float = smoothstep(1.0, 1.4, l_ratio)
+		h = minf(h, lerpf(RiverClass.LOWER_WATER_Y + 0.2, h, bank_t))
+
+	if RiverClass.is_in_tributary(x, z):
+		var stream_z: float = 18.0 + sin((x - 20.0) * 0.28) * 2.2
+		var t_trib: float = clampf(absf(z - stream_z) / 2.5, 0.0, 1.0)
+		var trib_bed: float = RiverClass.LOWER_WATER_Y - 0.25 - 1.2 * (1.0 - t_trib * t_trib)
+		h = minf(h, trib_bed)
+
+	# 3c. Mar Aberto e Praia ao Sul (Z >= Costa)
+	var coast_z: float = RiverClass.get_coast_z(x)
+	if z > (coast_z - 16.0):
+		var coast_t: float = (z - (coast_z - 16.0)) / 16.0
+		if z >= coast_z:
+			var sea_depth: float = clampf((z - coast_z) / 15.0, 0.0, 1.0)
+			var seabed: float = lerpf(-0.5, RiverClass.SEA_BED_Y, sea_depth) + sin(x * 0.05 + z * 0.05) * 0.3
+			h = minf(h, seabed)
+		else:
+			var beach_h: float = lerpf(h, -0.4, coast_t * coast_t)
+			h = minf(h, beach_h)
+
 	# 4. Leito do Rio e Cachoeira: corte em "U" com margem nítida.
 	# t = distância ao centro / meia-largura da água. t < 1: fundo em curva até `depth` abaixo
 	# da superfície; 1 ≤ t < BANK_END: barranco que sobe acima da água e encontra o relevo.
@@ -188,7 +216,27 @@ func _vertex_color(pos: Vector3) -> Color:
 	var water_hw: float = RiverClass.get_water_half_width(pos.z)
 	var water_y: float = RiverClass.get_water_height(pos.z)
 
-	if pos.y > 11.0:
+	if RiverClass.is_in_sea(pos.x, pos.z):
+		# Mar Aberto: leito marinho rochoso/lodoso ou areia molhada
+		if pos.y < (RiverClass.SEA_WATER_Y - 0.4):
+			col = Color(0.18, 0.20, 0.23)
+		else:
+			col = Color(0.74, 0.68, 0.52)
+	elif pos.z >= (RiverClass.get_coast_z(pos.x) - 6.0):
+		# Praia de areia dourada na costa
+		var sand_t: float = clampf((pos.z - (RiverClass.get_coast_z(pos.x) - 6.0)) / 6.0, 0.0, 1.0)
+		col = grass_color.lerp(Color(0.84, 0.77, 0.58), sand_t)
+	elif RiverClass.is_in_lake(pos.x, pos.z):
+		if pos.y < (RiverClass.LOWER_WATER_Y - 0.2):
+			col = riverbed_color
+		else:
+			col = lush_bank_color
+	elif RiverClass.is_in_tributary(pos.x, pos.z):
+		if pos.y < RiverClass.LOWER_WATER_Y:
+			col = riverbed_color
+		else:
+			col = lush_bank_color
+	elif pos.y > 11.0:
 		# Rocha exposta do Pico Majestoso
 		var t_rock: float = clamp((pos.y - 11.0) / 8.0, 0.0, 1.0)
 		col = grass_color.lerp(peak_rock_color, t_rock)
@@ -256,7 +304,7 @@ func _add_wall_shape(parent: StaticBody3D, center: Vector3, size: Vector3) -> vo
 func _build_river_and_waterfall() -> void:
 	# Remover água antiga se houver
 	for child in get_children():
-		if child.name in ["RiverWater", "Waterfall", "WaterfallSplash", "RiverRocks"]:
+		if child.name in ["RiverWater", "Waterfall", "WaterfallSplash", "RiverRocks", "SeaWater", "LakeWater"]:
 			child.queue_free()
 
 	# 1. Rio Horizontal (Superior, Lagoa e Inferior)
@@ -267,6 +315,7 @@ func _build_river_and_waterfall() -> void:
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
 	var half_z: float = terrain_size.y * 0.5
+	var half_x: float = terrain_size.x * 0.5
 	var segments_z: int = 140
 	var step_z: float = terrain_size.y / float(segments_z)
 
@@ -367,7 +416,59 @@ func _build_river_and_waterfall() -> void:
 
 	add_child(waterfall_instance)
 	_build_splash(Vector3(wf_x, bot_y + 0.2, wf_z + 1.8), wf_w)
+
+	# 3. Mar Aberto no Sul (deságue do rio)
+	_build_water_plane("SeaWater", -half_x, half_x, 114.0, half_z + 10.0, RiverClass.SEA_WATER_Y, 24, 12)
+
+	# 4. Superfície do Lago Cristalino (Vale do Leste)
+	_build_water_plane("LakeWater", 36.0, 88.0, -1.0, 37.0, RiverClass.LOWER_WATER_Y, 14, 12)
+
 	_scatter_river_rocks()
+
+## Cria malha plana de água subdividida para lagos e mar
+func _build_water_plane(node_name: String, min_x: float, max_x: float, min_z: float, max_z: float, y_pos: float, seg_x: int, seg_z: int) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+
+	var step_x := (max_x - min_x) / float(seg_x)
+	var step_z := (max_z - min_z) / float(seg_z)
+
+	for zi in seg_z:
+		var z0 := min_z + float(zi) * step_z
+		var z1 := z0 + step_z
+		for xi in seg_x:
+			var x0 := min_x + float(xi) * step_x
+			var x1 := x0 + step_x
+
+			var p0 := Vector3(x0, y_pos, z0)
+			var p1 := Vector3(x1, y_pos, z0)
+			var p2 := Vector3(x0, y_pos, z1)
+			var p3 := Vector3(x1, y_pos, z1)
+
+			st.set_uv(Vector2(float(xi), float(zi)))
+			st.add_vertex(p0)
+			st.set_uv(Vector2(float(xi + 1), float(zi)))
+			st.add_vertex(p1)
+			st.set_uv(Vector2(float(xi), float(zi + 1)))
+			st.add_vertex(p2)
+
+			st.set_uv(Vector2(float(xi + 1), float(zi)))
+			st.add_vertex(p1)
+			st.set_uv(Vector2(float(xi + 1), float(zi + 1)))
+			st.add_vertex(p3)
+			st.set_uv(Vector2(float(xi), float(zi + 1)))
+			st.add_vertex(p2)
+
+	st.generate_normals()
+	mi.mesh = st.commit()
+	var mat := ShaderMaterial.new()
+	mat.shader = RIVER_SHADER
+	mi.material_override = mat
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	return mi
 
 ## Respingo e névoa no pé da cachoeira
 func _build_splash(pos: Vector3, width: float) -> void:

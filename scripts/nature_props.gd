@@ -170,6 +170,8 @@ func _spawn_trees() -> void:
 
 		var ground_y: float = _get_ground_y(x, z)
 		var tree_pos: Vector3 = Vector3(x, ground_y, z)
+		if RiverClass.is_in_water(tree_pos) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
+			continue
 		spawned_tree_positions.append(tree_pos)
 		_build_tree(tree_pos, 1.1, TREE_SCENES, rng)
 
@@ -187,6 +189,8 @@ func _spawn_trees() -> void:
 			continue
 
 		var tree_pos: Vector3 = Vector3(x, ground_y, z)
+		if RiverClass.is_in_water(tree_pos) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
+			continue
 		spawned_tree_positions.append(tree_pos)
 		var chosen_scenes: Array = DEAD_TREE_SCENES if rng.randf() > 0.4 else TREE_SCENES
 		_build_tree(tree_pos, 0.95, chosen_scenes, rng)
@@ -223,7 +227,7 @@ func _spawn_bushes() -> void:
 		if CityHub.in_village(x, z) or RiverClass.get_distance_to_river(x, z) < 4.0:
 			continue
 		var ground_y: float = _get_ground_y(x, z)
-		if ground_y > 14.0:
+		if ground_y > 14.0 or RiverClass.is_in_water(Vector3(x, ground_y, z)) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
 			continue
 		var scene: PackedScene = BUSH_SCENES[rng.randi() % BUSH_SCENES.size()]
 		var bush: Node3D = scene.instantiate()
@@ -265,6 +269,8 @@ func _spawn_rocks() -> void:
 			continue
 
 		var ground_y: float = _get_ground_y(x, z)
+		if RiverClass.is_in_water(Vector3(x, ground_y, z)) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
+			continue
 		var scene: PackedScene = ROCK_SCENES[rng.randi() % ROCK_SCENES.size()]
 		var rock_node: Node3D = scene.instantiate()
 		var s: float = rng.randf_range(0.75, 1.6)

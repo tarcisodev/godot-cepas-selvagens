@@ -58,10 +58,10 @@ func _scatter(group_name: String, scenes: Array[PackedScene], count: int, scale_
 		var x: float = rng.randf_range(-spawn_radius, spawn_radius)
 		var z: float = rng.randf_range(-spawn_radius, spawn_radius)
 
-		# Não nasce no leito submerso
+		# Não nasce no leito submerso, lago ou mar
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		var water_hw: float = RiverClass.get_water_half_width(z)
-		if dist_river < (water_hw * river_margin):
+		if dist_river < (water_hw * river_margin) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
 			continue
 
 		var y: float = _get_ground_y(x, z)

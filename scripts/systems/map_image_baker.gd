@@ -21,6 +21,10 @@ const COLOR_BORDER_INK: Color = Color(0.32, 0.25, 0.18)
 
 static var _cached_map_texture: ImageTexture = null
 
+## Limpa o cache para forçar regeração
+static func clear_cache() -> void:
+	_cached_map_texture = null
+
 ## Retorna a textura de mapa gerada em cache ou cria uma nova
 static func get_or_bake_map(landscape: Node = null) -> ImageTexture:
 	if _cached_map_texture != null:
@@ -56,32 +60,68 @@ static func bake_map_texture(landscape: Node = null) -> ImageTexture:
 				h_east = _mock_height(wx + 0.8, wz)
 				h_south = _mock_height(wx, wz + 0.8)
 
-			# 1. Checagem de Rio e Água (RiverSystem)
+			# 1. Checagem de Hidrografia (Mar, Lago, Riacho Afluente, Rio Principal)
+			var is_sea: bool = RiverSystem.is_in_sea(wx, wz)
+			var coast_z: float = RiverSystem.get_coast_z(wx)
+			var is_beach: bool = not is_sea and wz >= (coast_z - 4.5)
+			var is_lake: bool = RiverSystem.is_in_lake(wx, wz)
+			var is_tributary: bool = RiverSystem.is_in_tributary(wx, wz)
 			var river_center: float = RiverSystem.get_river_center_x(wz)
 			var dist_river: float = abs(wx - river_center)
 			var water_half_w: float = RiverSystem.get_water_half_width(wz)
+			var is_river: bool = dist_river <= water_half_w
 
 			var pixel_color: Color
 
-			if dist_river <= water_half_w:
-				# Dentro do leito do rio ou lagoa da cachoeira
+			if is_sea:
+				# Mar Aberto / Oceano com curvas batimétricas náuticas
+				var coast_dist: float = wz - coast_z
+				if coast_dist < 2.0:
+					pixel_color = COLOR_WATER_EDGE
+				elif coast_dist < 10.0:
+					pixel_color = COLOR_WATER_RIVER
+				else:
+					pixel_color = COLOR_WATER_DEEP
+					var bathy: float = fposmod(coast_dist, 10.0)
+					if bathy < 0.65:
+						pixel_color = pixel_color.lerp(COLOR_WATER_EDGE, 0.45)
+			elif is_lake:
+				# Lago Cristalino ou bacia da cachoeira
+				var lake_ratio: float = RiverSystem.get_valley_lake_dist_ratio(wx, wz)
+				if lake_ratio > 0.86:
+					pixel_color = COLOR_WATER_EDGE
+				elif lake_ratio < 0.45:
+					pixel_color = COLOR_WATER_DEEP
+				else:
+					pixel_color = COLOR_WATER_RIVER
+			elif is_tributary:
+				# Riacho afluente
+				pixel_color = COLOR_WATER_RIVER
+			elif is_river:
+				# Rio Principal e Estuário no mar
 				var is_deep: bool = abs(wz - RiverSystem.WATERFALL_Z) < 8.0 or dist_river < water_half_w * 0.4
 				var base_water := COLOR_WATER_DEEP if is_deep else COLOR_WATER_RIVER
-				# Margem da água com linha de rebordo sutil
 				if dist_river >= water_half_w * 0.85:
 					pixel_color = COLOR_WATER_EDGE
 				else:
 					pixel_color = base_water
+			elif is_beach:
+				# Faixa de areia dourada na transição costeira
+				var beach_t: float = clampf((wz - (coast_z - 4.5)) / 4.5, 0.0, 1.0)
+				pixel_color = COLOR_PARCHMENT_LIGHT.lerp(Color(0.88, 0.81, 0.62), beach_t)
 			else:
 				# 2. Terreno em Pergaminho com Hillshading
-				# Gradiente de altura da terra
 				var height_factor: float = clampf((h + 5.0) / 35.0, 0.0, 1.0)
 				var base_parchment := COLOR_PARCHMENT_DARK.lerp(COLOR_PARCHMENT_LIGHT, height_factor)
 
 				# Cálculo da normal da superfície para relevo sombreado
 				var slope_x: float = (h_east - h) / 0.8
 				var slope_z: float = (h_south - h) / 0.8
-				var normal := Vector3(-slope_x, 1.0, -slope_z).normalized()
+				var normal := Vector3(-slope_x, 1.0, -slope_z)
+				if is_finite(normal.x) and is_finite(normal.y) and is_finite(normal.z) and normal.length_squared() > 0.001:
+					normal = normal.normalized()
+				else:
+					normal = Vector3.UP
 				var shade: float = clampf(normal.dot(light_dir), 0.55, 1.25)
 
 				pixel_color = base_parchment * shade
@@ -128,13 +168,57 @@ static func _safe_pixel(img: Image, x: int, y: int, color: Color) -> void:
 	if x >= 0 and x < MAP_RESOLUTION and y >= 0 and y < MAP_RESOLUTION:
 		img.set_pixel(x, y, color)
 
-## Função determinística de altura para testes e fallback
+## Função determinística de altura para testes e fallback (sem padrões artificiais xadrez)
 static func _mock_height(wx: float, wz: float) -> float:
+	var h: float = 0.0
+
+	# 1. Ondulações suaves naturais multi-harmônicas (orgânico contínuo)
+	var d_center: float = Vector2(wx, wz).length()
+	var clearing: float = clampf((d_center - 8.0) / 24.0, 0.0, 1.0)
+	var w1: float = sin(wx * 0.018 + wz * 0.012) * 2.8
+	var w2: float = cos(wx * 0.031 - wz * 0.024) * 1.6
+	var w3: float = sin((wx + wz) * 0.045) * 0.8
+	h += (w1 + w2 + w3) * clearing
+
+	# 2. O Grande Pico Noroeste
 	var dist_peak := Vector2(wx - (-28.0), wz - (-52.0)).length()
-	var h := 0.0
 	if dist_peak < 38.0:
 		h += pow(1.0 - (dist_peak / 38.0), 1.8) * 17.5
+
+	# Picos periféricos
+	for peak in [[95.0, 115.0, 45.0, 15.0], [135.0, -55.0, 55.0, 12.0], [-115.0, 95.0, 42.0, 10.0], [-130.0, -120.0, 50.0, 13.0]]:
+		var dp: float = Vector2(wx - peak[0], wz - peak[1]).length()
+		if dp < peak[2]:
+			h += pow(1.0 - dp / peak[2], 1.6) * peak[3]
+
+	# 3. Platô Norte e Escarpa da Cachoeira
 	if wz < RiverSystem.WATERFALL_Z:
 		h += clampf((RiverSystem.WATERFALL_Z - wz) / 8.0, 0.0, 1.0) * 8.2
-	h += sin(wx * 0.05) * cos(wz * 0.05) * 3.5
+
+	# 4. Descimento costeiro para o Mar no Sul
+	var coast_z: float = RiverSystem.get_coast_z(wx)
+	if wz > (coast_z - 16.0):
+		var sea_t: float = (wz - (coast_z - 16.0)) / 16.0
+		if wz >= coast_z:
+			var sea_depth: float = clampf((wz - coast_z) / 15.0, 0.0, 1.0)
+			h = minf(h, lerpf(-0.5, -4.5, sea_depth))
+		else:
+			h = minf(h, lerpf(h, -0.4, sea_t * sea_t))
+
+	# 5. Bacia do Lago do Vale
+	var l_ratio: float = RiverSystem.get_valley_lake_dist_ratio(wx, wz)
+	if l_ratio < 1.0:
+		var l_bed: float = RiverSystem.LOWER_WATER_Y - 0.3 - 2.4 * pow(maxf(0.0, 1.0 - l_ratio * l_ratio), 0.7)
+		h = minf(h, l_bed)
+
+	# 6. Leito do Rio Principal
+	var dist_river: float = RiverSystem.get_distance_to_river(wx, wz)
+	var water_hw: float = RiverSystem.get_water_half_width(wz)
+	if dist_river < water_hw * 1.6:
+		var t: float = dist_river / water_hw
+		var surface: float = RiverSystem.get_water_height(wz) - RiverSystem.flood
+		if t < 1.0:
+			var bed: float = surface - 0.25 - 2.8 * pow(maxf(0.0, 1.0 - t * t), 0.7)
+			h = minf(h, bed)
+
 	return h
