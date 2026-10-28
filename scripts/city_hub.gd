@@ -32,7 +32,7 @@ const _PhotoModeScreen = preload("res://scripts/ui/photo_mode_screen.gd")
 
 ## Centro e raio da vila (o ZoneManager usa os mesmos valores)
 const CENTER: Vector2 = Vector2(1.5, 4.5)
-const PALISADE_RADIUS: float = 13.5
+const PALISADE_RADIUS: float = 15.0
 
 signal reputation_changed(value: int)
 
@@ -231,7 +231,7 @@ func apply_state(state: Dictionary) -> void:
 func _build_projects() -> void:
 	_add_project({
 		"id": &"poco", "start": 0, "name": "Poço da Praça", "icon": "⛲", "kind": TownProject.Kind.WELL,
-		"pos": Vector2(-0.8, 2.6),
+		"pos": Vector2(-0.8, 2.0),
 		"purpose": "Água limpa no centro da vila. Quando houver cultivo e cura, é daqui que vem a água.",
 		"costs": [{&"pedra": 8}, {&"pedra": 10, &"madeira": 2}, {&"madeira": 4, &"fibra": 4}],
 	})
@@ -243,13 +243,13 @@ func _build_projects() -> void:
 	})
 	_add_project({
 		"id": &"mercado", "start": 1, "name": "Mercado", "icon": "🏪", "kind": TownProject.Kind.PAVILION,
-		"pos": Vector2(5.5, 11.0), "modules": Vector2i(2, 3), "yaw": 0.0,
+		"pos": Vector2(7.0, 10.5), "modules": Vector2i(2, 3), "yaw": 0.0,
 		"purpose": "Pavilhão coberto com bancas. Vai abrigar as ordens de compra e venda entre jogadores (GDD-05).",
 		"costs": [{&"pedra": 6, &"madeira": 4}, {&"madeira": 10, &"fibra": 4}, {&"folha": 10, &"fibra": 6, &"madeira": 4}],
 	})
 	_add_project({
 		"id": &"forja", "start": 2, "name": "Forja Pública", "icon": "⚒️", "kind": TownProject.Kind.HOUSE,
-		"pos": Vector2(-4.5, -1.5), "modules": Vector2i(2, 2), "brick": true, "chimney": true, "yaw": PI * 0.5,
+		"pos": Vector2(-5.5, -3.5), "modules": Vector2i(2, 2), "brick": true, "chimney": true, "yaw": PI * 0.5,
 		"purpose": "Forja de tijolo com chaminé. Vai permitir forjar e reparar equipamento na cidade (GDD-06).",
 		"costs": [{&"pedra": 10}, {&"pedra": 8, &"madeira": 6}, {&"ossos": 4, &"madeira": 6}],
 	})
@@ -340,16 +340,16 @@ func _build_town_sign() -> void:
 	sign_label.full_text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
 	sign_label.modulate = Color(1.0, 0.9, 0.6)
 	sign_label.sign_range = 30.0
-	sign_label.position = Vector3(1.5, _get_ground_y(1.5, -7.5) + 3.6, -7.5)
+	sign_label.position = Vector3(1.5, _get_ground_y(1.5, -9.0) + 3.6, -9.0)
 	add_child(sign_label)
 
 func _build_plaza() -> void:
 	var cart := CART_SCENE.instantiate() as Node3D
-	cart.position = Vector3(6.2, _get_ground_y(6.2, 8.5), 8.5)
+	cart.position = Vector3(3.0, _get_ground_y(3.0, 8.0), 8.0)
 	cart.rotation.y = deg_to_rad(-45.0)
 	cart.scale = Vector3.ONE * 0.75
 	add_child(cart)
-	for b in [[BANNER1_SCENE, Vector2(-1.8, -3.2)], [BANNER2_SCENE, Vector2(4.8, -3.2)]]:
+	for b in [[BANNER1_SCENE, Vector2(-0.5, -3.2)], [BANNER2_SCENE, Vector2(3.5, -3.2)]]:
 		var banner := (b[0] as PackedScene).instantiate() as Node3D
 		var p: Vector2 = b[1]
 		banner.position = Vector3(p.x, _get_ground_y(p.x, p.y), p.y)
@@ -362,7 +362,7 @@ func _build_plaza() -> void:
 	dirt_mat.roughness = 0.95
 
 	var points: Array[Vector2] = [
-		Vector2(1.5, -8.5), Vector2(1.5, -6.5), Vector2(1.5, -4.5),
+		Vector2(1.5, -10.5), Vector2(1.5, -8.5), Vector2(1.5, -6.5), Vector2(1.5, -4.5),
 		Vector2(1.5, -2.5), Vector2(1.5, -0.5), Vector2(1.5, 1.5),
 		Vector2(1.5, 3.5), Vector2(2.5, 5.0), Vector2(3.8, 6.8), Vector2(4.8, 8.4)
 	]
@@ -399,7 +399,7 @@ func _build_plaza() -> void:
 func _build_activity_pockets() -> void:
 	# --- 1. Boutique de Cosméticos do Estilista Astral (Bolsa Leste / Margem do Rio) ---
 	var stall := STALL_SCENE.instantiate() as Node3D
-	stall.position = Vector3(7.2, _get_ground_y(7.2, -2.4), -2.4)
+	stall.position = Vector3(7.5, _get_ground_y(7.5, 2.0), 2.0)
 	stall.rotation.y = deg_to_rad(-65.0)
 	stall.scale = Vector3.ONE * 0.9
 	add_child(stall)
@@ -413,44 +413,44 @@ func _build_activity_pockets() -> void:
 	rug_mat.albedo_color = Color(0.55, 0.20, 0.35)
 	rug_mat.roughness = 0.85
 	rug.material_override = rug_mat
-	rug.position = Vector3(6.5, _get_ground_y(6.5, -2.1) + 0.02, -2.1)
+	rug.position = Vector3(6.8, _get_ground_y(6.8, 2.0) + 0.02, 2.0)
 	rug.rotation.y = deg_to_rad(-65.0)
 	add_child(rug)
 
 	var chest := CHEST_SCENE.instantiate() as Node3D
-	chest.position = Vector3(7.8, _get_ground_y(7.8, -1.6), -1.6)
+	chest.position = Vector3(8.2, _get_ground_y(8.2, 2.8), 2.8)
 	chest.rotation.y = deg_to_rad(-110.0)
 	chest.scale = Vector3.ONE * 0.65
 	add_child(chest)
 
 	# --- 2. Ateliê Botânico da Alquimista (Bolsa Noroeste) ---
 	var bench := WORKBENCH_SCENE.instantiate() as Node3D
-	bench.position = Vector3(-3.8, _get_ground_y(-3.8, -3.2), -3.2)
+	bench.position = Vector3(0.5, _get_ground_y(0.5, -3.5), -3.5)
 	bench.rotation.y = deg_to_rad(45.0)
 	bench.scale = Vector3.ONE * 0.85
 	add_child(bench)
 
 	var cauldron := CAULDRON_SCENE.instantiate() as Node3D
-	cauldron.position = Vector3(-4.6, _get_ground_y(-4.6, -2.8), -2.8)
+	cauldron.position = Vector3(-0.3, _get_ground_y(-0.3, -3.5), -3.5)
 	cauldron.scale = Vector3.ONE * 0.75
 	add_child(cauldron)
 
 	var pot1 := POTION1_SCENE.instantiate() as Node3D
-	pot1.position = Vector3(-3.6, _get_ground_y(-3.6, -3.2) + 0.78, -3.3)
+	pot1.position = Vector3(0.7, _get_ground_y(0.7, -3.5) + 0.78, -3.6)
 	pot1.scale = Vector3.ONE * 0.65
 	add_child(pot1)
 
 	var pot2 := POTION2_SCENE.instantiate() as Node3D
-	pot2.position = Vector3(-3.9, _get_ground_y(-3.9, -3.2) + 0.78, -3.1)
+	pot2.position = Vector3(0.4, _get_ground_y(0.4, -3.5) + 0.78, -3.4)
 	pot2.scale = Vector3.ONE * 0.65
 	add_child(pot2)
 
 	# --- 3. Área Agrícola e Cercas Rústicas (Bolsa Dedicada no Fundo da Vila) ---
 	# Cercado de madeira rústica delimitando o cultivo no quadrante sul
 	var fence_spots: Array[Vector3] = [
-		Vector3(-2.2, 0, 12.8),
-		Vector3(-0.2, 0, 12.8),
-		Vector3(1.8, 0, 12.8)
+		Vector3(1.5, 0, 16.5),
+		Vector3(3.5, 0, 16.5),
+		Vector3(5.5, 0, 16.5)
 	]
 	for fp in fence_spots:
 		var fence := FENCE_SCENE.instantiate() as Node3D
@@ -467,16 +467,16 @@ func _build_activity_pockets() -> void:
 	soil_mat.albedo_color = Color(0.24, 0.18, 0.12)
 	soil_mat.roughness = 0.95
 	bed.material_override = soil_mat
-	bed.position = Vector3(-0.2, _get_ground_y(-0.2, 14.0) + 0.05, 14.0)
+	bed.position = Vector3(3.5, _get_ground_y(3.5, 17.5) + 0.05, 17.5)
 	add_child(bed)
 
 	var apple_crate := CRATE_APPLE_SCENE.instantiate() as Node3D
-	apple_crate.position = Vector3(-2.7, _get_ground_y(-2.7, 13.8), 13.8)
+	apple_crate.position = Vector3(1.2, _get_ground_y(1.2, 17.4), 17.4)
 	apple_crate.scale = Vector3.ONE * 0.8
 	add_child(apple_crate)
 
 	var carrot_crate := CRATE_CARROT_SCENE.instantiate() as Node3D
-	carrot_crate.position = Vector3(2.3, _get_ground_y(2.3, 13.9), 13.9)
+	carrot_crate.position = Vector3(5.8, _get_ground_y(5.8, 17.4), 17.4)
 	carrot_crate.scale = Vector3.ONE * 0.8
 	add_child(carrot_crate)
 
@@ -484,7 +484,7 @@ func _build_board() -> void:
 	# Quadro de Obras: placa de madeira ao lado do Mestre Construtor
 	var board: StaticBody3D = preload("res://scripts/town/town_board_sign.gd").new()
 	board.name = "QuadroDeObras"
-	board.position = Vector3(5.2, _get_ground_y(5.2, 1.4), 1.4)
+	board.position = Vector3(3.5, _get_ground_y(3.5, 3.8), 3.8)
 	board.rotation.y = deg_to_rad(-70.0)
 	board.set("city", self)
 	add_child(board)
@@ -493,34 +493,34 @@ func _build_board() -> void:
 	var anvil := ForgeStation.new()
 	anvil.name = "Bigorna"
 	anvil.city = self
-	anvil.position = Vector3(4.5, _get_ground_y(4.5, 4.6), 4.6)
+	anvil.position = Vector3(-3.0, _get_ground_y(-3.0, -3.5), -3.5)
 	add_child(anvil)
 
 	# Fogueira pública do acampamento: descanso de 2%/s e buff Descansado para todos (GDD-10 §10.2)
 	var fire := Campfire.new()
 	fire.name = "FogueiraDoAcampamento"
-	fire.position = Vector3(-0.6, _get_ground_y(-0.6, 5.6), 5.6)
+	fire.position = Vector3(0.0, _get_ground_y(0.0, 4.5), 4.5)
 	add_child(fire)
 
 	# Caldeirão Culinário público do acampamento (GDD-13 §4)
 	var cauldron := _CookingStation.new()
 	cauldron.name = "CaldeiraoPublico"
 	cauldron.city = self
-	cauldron.position = Vector3(1.8, _get_ground_y(1.8, 5.8), 5.8)
+	cauldron.position = Vector3(0.0, _get_ground_y(0.0, 7.5), 7.5)
 	add_child(cauldron)
 
 	# Capela da Vila da Esperança (GDD-14 §4.1)
 	var chapel := _VillageChapel.new()
 	chapel.name = "CapelaDaEsperanca"
 	chapel.city = self
-	chapel.position = Vector3(-5.2, _get_ground_y(-5.2, 2.0), 2.0)
+	chapel.position = Vector3(-1.5, _get_ground_y(-1.5, 14.0), 14.0)
 	add_child(chapel)
 
 	# Berçário da Cidade e Casa da Parteira (GDD-14 §4.3)
 	var nursery := _TownNursery.new()
 	nursery.name = "BercarioDaCidade"
 	nursery.city = self
-	nursery.position = Vector3(6.5, _get_ground_y(6.5, -2.5), -2.5)
+	nursery.position = Vector3(7.0, _get_ground_y(7.0, -4.0), -4.0)
 	add_child(nursery)
 
 	_board_layer = CanvasLayer.new()
@@ -538,7 +538,7 @@ func _build_board() -> void:
 	mission_board.name = "QuadroDeMissoes"
 	mission_board.city = self
 	mission_board.mission_system = mission_system
-	mission_board.position = Vector3(-3.2, _get_ground_y(-3.2, -3.0), -3.0)
+	mission_board.position = Vector3(-2.0, _get_ground_y(-2.0, 0.0), 0.0)
 	add_child(mission_board)
 
 	# Modo Foto [P] e Câmera de Reconhecimento
@@ -554,7 +554,7 @@ func _spawn_city_npcs() -> void:
 	builder.icon = "🔨"
 	builder.prompt = "[E] Quadro de Obras"
 	builder.idle_anim = &"Idle_FoldArms"
-	builder.position = Vector3(4.4, _get_ground_y(4.4, 0.4), 0.4)
+	builder.position = Vector3(3.5, _get_ground_y(3.5, 3.0), 3.0)
 	builder.talked.connect(open_board)
 	add_child(builder)
 
@@ -566,7 +566,7 @@ func _spawn_city_npcs() -> void:
 	alchemist.idle_anim = &"Idle_Talking"
 	alchemist.prompt = "[E] Loja de Poções"
 	alchemist.talked.connect(open_shop)
-	alchemist.position = Vector3(-3.0, _get_ground_y(-3.0, -2.6), -2.6)
+	alchemist.position = Vector3(0.5, _get_ground_y(0.5, -2.4), -2.4)
 	add_child(alchemist)
 
 	var merchant := TownNPC.new()
@@ -576,14 +576,14 @@ func _spawn_city_npcs() -> void:
 	merchant.idle_anim = &"Idle_Talking"
 	merchant.prompt = "[E] Mercado: Encomendas e Vendas"
 	merchant.talked.connect(open_market)
-	merchant.position = Vector3(4.6, _get_ground_y(4.6, 9.4), 9.4)
+	merchant.position = Vector3(4.5, _get_ground_y(4.5, 10.5), 10.5)
 	add_child(merchant)
 
 	# Mesa do Duelo de Cepas na porta da Taverna (GDD-07 §7)
 	var cards := TavernTable.new()
 	cards.name = "MesaDeCartas"
 	cards.city = self
-	cards.position = Vector3(-3.4, _get_ground_y(-3.4, 7.2), 7.2)
+	cards.position = Vector3(-3.5, _get_ground_y(-3.5, 5.0), 5.0)
 	cards.rotation.y = PI * 0.5
 	add_child(cards)
 
@@ -603,7 +603,7 @@ func _spawn_city_npcs() -> void:
 	couturier.icon = "✨"
 	couturier.idle_anim = &"Idle_Talking"
 	couturier.prompt = "[E] Loja de Cosméticos [F9]"
-	couturier.position = Vector3(5.8, _get_ground_y(5.8, -1.8), -1.8)
+	couturier.position = Vector3(6.0, _get_ground_y(6.0, 2.0), 2.0)
 	couturier.talked.connect(open_cosmetics_shop)
 	add_child(couturier)
 
@@ -618,7 +618,7 @@ func _spawn_city_npcs() -> void:
 	chronicler.icon = "📜"
 	chronicler.idle_anim = &"Idle_FoldArms"
 	chronicler.prompt = "[E] Deixar Feedback [F8] / Guia [J]"
-	chronicler.position = Vector3(-2.6, _get_ground_y(-2.6, 1.8), 1.8)
+	chronicler.position = Vector3(-1.0, _get_ground_y(-1.0, 2.5), 2.5)
 	chronicler.talked.connect(open_feedback_modal)
 	add_child(chronicler)
 
