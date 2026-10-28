@@ -382,19 +382,27 @@ func _head(md: MeshData) -> void:
 	var skin := dna.skin_color
 	var fem := dna.femininity
 	for sx in [1.0, -1.0]:
-		var eye := _face_point(0.36 * sx, 0.08, 0.004)
-		md.ellipsoid(eye, Vector3(0.019, 0.016, 0.01) * hs, Color("#f2ede4"), w, 8, 6)
-		md.ellipsoid(eye + Vector3(0.0, 0.0, 0.0075 * hs), Vector3(0.0105, 0.0115, 0.005) * hs, dna.eye_color.darkened(0.2), w, 8, 6)
-		if fem >= 0.5:
-			# Cílios superiores sutis para expressividade feminina
-			md.ellipsoid(eye + Vector3(0.004 * sx * hs, 0.011 * hs, 0.006 * hs), Vector3(0.020, 0.0035, 0.005) * hs, Color("#181210"), w, 6, 4)
-		var brow_h := lerpf(0.0065, 0.0048, fem)
-		md.ellipsoid(_face_point(0.37 * sx, 0.3 + 0.02 * fem, -0.004), Vector3(0.027, brow_h, 0.009) * hs, dna.hair_color.darkened(0.15), w, 8, 4)
+		# Olhos assentados na órbita ocular com profundidade natural (sem efeito esbugalhado)
+		var eye := _face_point(0.31 * sx, 0.09, 0.012)
+		md.ellipsoid(eye, Vector3(0.016, 0.013, 0.008) * hs, Color("#f0ebe2"), w, 8, 6)
+		# Íris com a cor dos olhos do DNA
+		md.ellipsoid(eye + Vector3(0.0, 0.0, 0.0035 * hs), Vector3(0.009, 0.010, 0.004) * hs, dna.eye_color, w, 8, 6)
+		# Pupila central escura para foco e expressividade
+		md.ellipsoid(eye + Vector3(0.0, 0.0, 0.0055 * hs), Vector3(0.0045, 0.005, 0.003) * hs, Color("#151210"), w, 6, 4)
+		# Ponto de brilho especular que dá vida ao olhar
+		md.ellipsoid(eye + Vector3(0.0025 * sx * hs, 0.003 * hs, 0.0065 * hs), Vector3(0.0022, 0.0022, 0.002) * hs, Color("#ffffff"), w, 4, 4)
+		# Contorno da pálpebra superior que emoldura o olho
+		md.ellipsoid(eye + Vector3(0.0, 0.009 * hs, 0.003 * hs), Vector3(0.017, 0.0035, 0.005) * hs, skin.darkened(0.12), w, 8, 4)
+		if fem >= 0.4:
+			# Cílios superiores elegantes para expressividade feminina
+			md.ellipsoid(eye + Vector3(0.002 * sx * hs, 0.0105 * hs, 0.0045 * hs), Vector3(0.0185, 0.0028, 0.005) * hs, Color("#181210"), w, 6, 4)
+		var brow_h := lerpf(0.0065, 0.0045, fem)
+		md.ellipsoid(_face_point(0.32 * sx, 0.28 + 0.02 * fem, -0.002), Vector3(0.024, brow_h, 0.007) * hs, dna.hair_color.darkened(0.15), w, 8, 4)
 		var ear := _head_point(PI * 0.5 * sx, PI * 0.52, 0.97)
 		md.ellipsoid(ear, Vector3(0.012, 0.029, 0.02) * hs, skin.darkened(0.04), w, 8, 6)
 	var nose := (0.8 + 0.5 * dna.nose_size) * lerpf(1.0, 0.88, fem)
-	md.ellipsoid(_face_point(0.0, -0.1, -0.012), Vector3(0.014, 0.027, 0.021) * nose * hs, skin.darkened(0.06), w, 8, 6)
-	var lip_col := skin.darkened(0.3).lerp(Color("#8a3b33"), 0.25) if fem < 0.5 else skin.darkened(0.2).lerp(Color("#bf4858"), 0.52)
+	md.ellipsoid(_face_point(0.0, -0.1, -0.010), Vector3(0.013, 0.025, 0.019) * nose * hs, skin.darkened(0.04), w, 8, 6)
+	var lip_col := skin.darkened(0.25).lerp(Color("#8a3b33"), 0.25) if fem < 0.5 else skin.darkened(0.15).lerp(Color("#bf4858"), 0.55)
 	var lip_h := lerpf(0.0055, 0.0072, fem)
 	md.ellipsoid(_face_point(0.0, -0.43, 0.002), Vector3(0.026, lip_h, 0.0065) * hs, lip_col, w, 8, 4)
 

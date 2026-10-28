@@ -21,8 +21,8 @@ const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 ]
 @export var weapon_scene: PackedScene = preload("res://assets/models/tools/axe.gltf")
 @export var weapon_bone: StringName = &"hand_r"
-## Encaixe da arma no osso da mão: cabo (eixo Y do modelo) passando pelo punho, cabeça para cima.
-@export var weapon_transform: Transform3D = Transform3D(Basis(Vector3.RIGHT, PI).scaled(Vector3.ONE * 0.7), Vector3(0.0, 0.05, 0.0))
+## Encaixe da arma no osso da mão: cabo (eixo Y do modelo) passando pelo punho, cabeça para cima e lâmina voltada para a frente.
+@export var weapon_transform: Transform3D = Transform3D(Basis(Vector3.FORWARD, PI).scaled(Vector3.ONE * 0.7), Vector3(0.0, 0.05, 0.0))
 @export var blend_time: float = 0.18
 
 var model: Node3D
