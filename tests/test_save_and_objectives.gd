@@ -12,6 +12,7 @@ func _initialize() -> void:
 	print("========================================================")
 	test_save_roundtrip()
 	test_objectives_state()
+	test_album_objective_check()
 	print("\n🎉 SAVE E OBJETIVOS VALIDADOS COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
@@ -80,3 +81,36 @@ func test_objectives_state() -> void:
 	assert(objectives.get_state().size() == objectives.STEPS.size(), "Estado salvável lista todos")
 	objectives.reset()
 	print("  ✓ Objetivos concluem em ordem, sem repetir")
+
+func test_album_objective_check() -> void:
+	print("\n[3/3] Conclusão do objetivo album ao abrir o CardAlbum...")
+	var objectives: Node = root.get_node("Objectives")
+	objectives.reset()
+	objectives.complete(&"find")
+	objectives.complete(&"break")
+	objectives.complete(&"harvest")
+	objectives.complete(&"forge")
+	assert(not objectives.is_done(&"album"), "Album começa não concluído")
+
+	var album := CanvasLayer.new()
+	album.name = "CardAlbum"
+	album.add_to_group("card_album")
+	album.visible = false
+	root.add_child(album)
+
+	var p := PlayerScene.instantiate() as Player
+	root.add_child(p)
+	p._setup_components()
+
+	objectives._check(p)
+	assert(not objectives.is_done(&"album"), "Com álbum fechado, não conclui")
+
+	album.visible = true
+	objectives._check(p)
+	assert(objectives.is_done(&"album"), "Com álbum visível, objetivo conclui!")
+	assert(objectives.done.size() == objectives.STEPS.size(), "Todos os 5 objetivos concluídos")
+
+	p.free()
+	album.free()
+	objectives.reset()
+	print("  ✓ Objetivo do álbum conclui com CardAlbum visível")

@@ -184,6 +184,7 @@ const TYPE_CONFIG: Dictionary = {
 }
 
 # Assets existentes
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 const PEBBLE_SCENE = preload("res://assets/models/nature/Pebble_Round_1.gltf")
 const PLANT_SCENE = preload("res://assets/models/nature/Plant_1.gltf")
 const FERN_SCENE = preload("res://assets/models/nature/Fern_1.gltf")
@@ -220,7 +221,7 @@ var hits_left: int = 1
 var is_collected: bool = false
 var _respawn_timer: float = 0.0
 
-var prompt_label: Label3D
+var prompt_label: _WorldLabel
 var visual_container: Node3D
 
 func _ready() -> void:
@@ -247,17 +248,12 @@ func _apply_config() -> void:
 
 func _build_prompt() -> void:
 	if prompt_label == null:
-		prompt_label = Label3D.new()
+		prompt_label = _WorldLabel.make(_WorldLabel.Kind.PROMPT, "")
 		prompt_label.name = "PromptLabel"
-		prompt_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		prompt_label.font_size = 20
-		prompt_label.outline_size = 4
-		prompt_label.outline_modulate = Color(0, 0, 0, 0.85)
-		prompt_label.modulate = Color(1.0, 0.95, 0.7)
-		prompt_label.visibility_range_end = 3.6
+		prompt_label.use_range = Player.HARVEST_RANGE
 		add_child(prompt_label)
-	
-	prompt_label.text = "[E] %s %s" % [action_name, display_name]
+
+	prompt_label.set_full_text("[E] %s %s" % [action_name, display_name])
 	prompt_label.position.y = _get_label_height()
 
 func _get_label_height() -> float:
@@ -486,7 +482,7 @@ func _set_visual_visible(vis: bool) -> void:
 	if visual_container:
 		visual_container.visible = vis
 	if prompt_label:
-		prompt_label.visible = vis
+		prompt_label.active = vis
 
 func respawn() -> void:
 	is_collected = false

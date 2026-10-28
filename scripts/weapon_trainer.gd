@@ -1,6 +1,8 @@
 class_name WeaponTrainer
 extends Node3D
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 ## Mestre de Armas do acampamento (B10, GDD-12 §7): [E] abre o menu e dá, de graça, as armas
 ## de treino (Q1) do estilo escolhido, já equipadas. As armas de verdade saem da bigorna.
 ## Conversar também cura e repõe os recursos, para voltar logo para os monstros.
@@ -8,7 +10,7 @@ extends Node3D
 @export var styles: Array[WeaponStyle] = []
 
 @onready var visual: CharacterVisual = $CharacterVisual
-@onready var prompt_label: Label3D = $PromptLabel
+var prompt_label: _WorldLabel
 
 var _player: Player
 var _layer: CanvasLayer
@@ -21,7 +23,8 @@ func _ready() -> void:
 	add_to_group("talkable")
 	if visual:
 		visual.play(&"Idle_FoldArms")
-	prompt_label.visible = false
+	_WorldLabel.replace($NameLabel, _WorldLabel.Kind.NAME, "⚔️")
+	prompt_label = _WorldLabel.replace($PromptLabel, _WorldLabel.Kind.PROMPT)
 	_snap_to_ground.call_deferred()
 	_build_menu()
 
@@ -32,7 +35,7 @@ func _snap_to_ground() -> void:
 
 func _process(_delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
-	prompt_label.visible = not is_open and player != null and player.global_position.distance_to(global_position) < Player.TALK_RANGE
+	prompt_label.active = not is_open
 	# Olha para quem chega perto
 	if player and player.global_position.distance_to(global_position) < 6.0:
 		var to_player: Vector3 = player.global_position - global_position

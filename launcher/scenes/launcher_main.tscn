@@ -1,0 +1,271 @@
+[gd_scene load_steps=8 format=3 uid="uid://cepas_launcher_main"]
+
+[ext_resource type="Script" path="res://scripts/launcher_controller.gd" id="1_ctrl"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bg"]
+bg_color = Color(0.08, 0.1, 0.09, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0.12, 0.15, 0.13, 0.95)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.26, 0.22, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_normal"]
+bg_color = Color(0.16, 0.52, 0.28, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_btn_hover"]
+bg_color = Color(0.2, 0.65, 0.35, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_bg"]
+bg_color = Color(0.06, 0.08, 0.07, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_progress_fill"]
+bg_color = Color(0.24, 0.75, 0.4, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[node name="LauncherMain" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ctrl")
+
+[node name="Background" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_bg")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="MainLayout" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Header" type="HBoxContainer" parent="Margin/MainLayout"]
+layout_mode = 2
+
+[node name="TitleBox" type="VBoxContainer" parent="Margin/MainLayout/Header"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="TitleLabel" type="Label" parent="Margin/MainLayout/Header/TitleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.92, 0.94, 0.9, 1)
+theme_override_font_sizes/font_size = 24
+text = "CEPAS SELVAGENS"
+
+[node name="SubtitleLabel" type="Label" parent="Margin/MainLayout/Header/TitleBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.65, 0.58, 1)
+theme_override_font_sizes/font_size = 12
+text = "Launcher & Atualizador Oficial • Playtest Multijogador"
+
+[node name="HeaderSpacer" type="Control" parent="Margin/MainLayout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HeaderButtons" type="HBoxContainer" parent="Margin/MainLayout/Header"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="CheckUpdatesButton" type="Button" parent="Margin/MainLayout/Header/HeaderButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "🔄 Checar Atualizações"
+
+[node name="OpenFolderButton" type="Button" parent="Margin/MainLayout/Header/HeaderButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "📁 Pasta do Jogo"
+
+[node name="WebsiteButton" type="Button" parent="Margin/MainLayout/Header/HeaderButtons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "🌐 Site Oficial"
+
+[node name="ContentRow" type="HBoxContainer" parent="Margin/MainLayout"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="NewsPanel" type="PanelContainer" parent="Margin/MainLayout/ContentRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 2.2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="NewsMargin" type="MarginContainer" parent="Margin/MainLayout/ContentRow/NewsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="NewsVBox" type="VBoxContainer" parent="Margin/MainLayout/ContentRow/NewsPanel/NewsMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NewsHeader" type="Label" parent="Margin/MainLayout/ContentRow/NewsPanel/NewsMargin/NewsVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.91, 0.65, 1)
+theme_override_font_sizes/font_size = 13
+text = "NOTÍCIAS & NOTAS DA VERSÃO"
+
+[node name="HSeparator" type="HSeparator" parent="Margin/MainLayout/ContentRow/NewsPanel/NewsMargin/NewsVBox"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Margin/MainLayout/ContentRow/NewsPanel/NewsMargin/NewsVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="NewsRichText" type="RichTextLabel" parent="Margin/MainLayout/ContentRow/NewsPanel/NewsMargin/NewsVBox/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "Carregando notas da versão..."
+
+[node name="SidePanel" type="PanelContainer" parent="Margin/MainLayout/ContentRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="SideMargin" type="MarginContainer" parent="Margin/MainLayout/ContentRow/SidePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="SideVBox" type="VBoxContainer" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SideHeader" type="Label" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.91, 0.65, 1)
+theme_override_font_sizes/font_size = 13
+text = "STATUS DO CLIENTE"
+
+[node name="HSeparator2" type="HSeparator" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+layout_mode = 2
+
+[node name="InstalledVersionLabel" type="Label" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Instalado: Verificando..."
+
+[node name="LatestVersionLabel" type="Label" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Disponível: Verificando..."
+
+[node name="ServerInfoLabel" type="Label" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.7, 0.65, 1)
+theme_override_font_sizes/font_size = 12
+text = "Servidor Oficial: jogar.tarciso.dev:8787"
+
+[node name="SideSpacer" type="Control" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TipLabel" type="Label" parent="Margin/MainLayout/ContentRow/SidePanel/SideMargin/SideVBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.6, 0.55, 1)
+theme_override_font_sizes/font_size = 11
+text = "💡 O Launcher baixa apenas os patches necessários e mantém seus saves e configurações locais protegidos."
+autowrap_mode = 3
+
+[node name="FooterPanel" type="PanelContainer" parent="Margin/MainLayout"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="FooterMargin" type="MarginContainer" parent="Margin/MainLayout/FooterPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="FooterRow" type="HBoxContainer" parent="Margin/MainLayout/FooterPanel/FooterMargin"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="ProgressVBox" type="VBoxContainer" parent="Margin/MainLayout/FooterPanel/FooterMargin/FooterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="StatusLabel" type="Label" parent="Margin/MainLayout/FooterPanel/FooterMargin/FooterRow/ProgressVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Iniciando Launcher..."
+
+[node name="SubstatusLabel" type="Label" parent="Margin/MainLayout/FooterPanel/FooterMargin/FooterRow/ProgressVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.72, 0.68, 1)
+theme_override_font_sizes/font_size = 11
+text = "Aguarde a verificação de integridade..."
+
+[node name="ProgressBar" type="ProgressBar" parent="Margin/MainLayout/FooterPanel/FooterMargin/FooterRow/ProgressVBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_progress_bg")
+theme_override_styles/fill = SubResource("StyleBoxFlat_progress_fill")
+show_percentage = false
+
+[node name="ActionButton" type="Button" parent="Margin/MainLayout/FooterPanel/FooterMargin/FooterRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(170, 48)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("StyleBoxFlat_btn_normal")
+theme_override_styles/hover = SubResource("StyleBoxFlat_btn_hover")
+text = "Verificando..."

@@ -1,6 +1,8 @@
 class_name CharacterStylist
 extends Node3D
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 ## Barbeiro do acampamento (B09): [E] abre o editor de aparência do jogador.
 ## "Aplicar" remonta o Player com o DNA editado e salva o jogo.
 
@@ -8,7 +10,7 @@ extends Node3D
 @export var save_on_apply: bool = true
 
 @onready var visual: CharacterVisual = $CharacterVisual
-@onready var prompt_label: Label3D = $PromptLabel
+var prompt_label: _WorldLabel
 
 var is_open: bool = false
 var editor: AppearanceEditor
@@ -19,7 +21,8 @@ func _ready() -> void:
 	add_to_group("talkable")
 	if visual:
 		visual.play(&"Idle_FoldArms")
-	prompt_label.visible = false
+	_WorldLabel.replace($NameLabel, _WorldLabel.Kind.NAME, "✂️")
+	prompt_label = _WorldLabel.replace($PromptLabel, _WorldLabel.Kind.PROMPT)
 	_snap_to_ground.call_deferred()
 	_build_layer()
 
@@ -30,7 +33,7 @@ func _snap_to_ground() -> void:
 
 func _process(_delta: float) -> void:
 	var player := get_tree().get_first_node_in_group("player") as Node3D
-	prompt_label.visible = not is_open and player != null and player.global_position.distance_to(global_position) < Player.TALK_RANGE
+	prompt_label.active = not is_open
 	if player and player.global_position.distance_to(global_position) < 6.0:
 		var to_player: Vector3 = player.global_position - global_position
 		visual.rotation.y = lerp_angle(visual.rotation.y, atan2(-to_player.x, -to_player.z), 0.1)

@@ -1,6 +1,6 @@
 # Processo de Release e Publicação: Cepas Selvagens
 
-Este documento estabelece o guia oficial para lançar novas versões do **Playtest Fechado** de *Cepas Selvagens*, cobrindo o versionamento do cliente e do servidor, a compilação automatizada via GitHub Actions e a publicação da landing page no GitHub Pages.
+Este documento estabelece o guia oficial para lançar novas versões de *Cepas Selvagens*, cobrindo o versionamento do cliente e do servidor, a compilação automatizada via GitHub Actions, a geração de manifesto com integridade SHA-256 e a publicação da landing page no GitHub Pages.
 
 ---
 
@@ -18,10 +18,12 @@ flowchart TD
     PagesWf -->|"Deploy da pasta /site"| Site["cepas.tarciso.dev (GitHub Pages)"]
     
     Tag -->|"Aciona"| ReleaseWf[".github/workflows/release.yml"]
-    ReleaseWf -->|"Instala Godot 4.7.2 + Templates"| Godot["Godot Engine CLI"]
-    Godot -->|"Exporta preset Windows Desktop"| Build["build/windows/CepaSelvagem.exe"]
-    Build -->|"Zipa com LEIA-ME"| Zip["CepaSelvagem-X.Y.Z-windows.zip"]
-    Zip -->|"Upload do Asset"| GHRelease["GitHub Release (tag vX.Y.Z)"]
+    ReleaseWf -->|"Valida Tag contra GAME_VERSION"| ValidTag["vX.Y.Z == GAME_VERSION"]
+    ValidTag -->|"Instala Godot 4.7.2 Oficial"| Godot["Godot Engine CLI Headless"]
+    Godot -->|"Exporta Cliente + Launcher"| Build["CepaSelvagem.exe & CepasSelvagensLauncher.exe"]
+    Build -->|"Zipa Cliente com LEIA-ME"| Zip["CepaSelvagem-X.Y.Z-windows.zip"]
+    Zip -->|"Calcula SHA-256 e Tamanho"| Manifest["manifest.json"]
+    Manifest -->|"Upload de Todos os Assets"| GHRelease["GitHub Release (tag vX.Y.Z)"]
 ```
 
 ---
@@ -34,72 +36,80 @@ O controle de versão do jogo é semântico (`MAJOR.MINOR.PATCH`) e reside em `s
 
 ```gdscript
 # scripts/core/network_manager.gd
-const GAME_VERSION: String = "0.1.0" # Altere para a nova versão desejada (ex.: 0.1.1)
+const GAME_VERSION: String = "0.1.1" # Atualize para a versão que será lançada
+```
+
+Atualize também a versão no arquivo de configuração do projeto:
+```ini
+# project.godot
+[application]
+config/version="0.1.1"
 ```
 
 > [!IMPORTANT]
-> O servidor e o cliente validam essa constante no aperto de mão (handshake) da autenticação. Se a versão for diferente, a conexão é recusada informando amigavelmente ao jogador que ele deve atualizar o client.
+> O workflow de CI (`release.yml`) valida estritamente se a tag acionada coincide com `v${GAME_VERSION}`. Se a tag enviada for diferente da constante em `network_manager.gd`, a pipeline falhará imediatamente.
 
 ---
 
 ### Passo 2: Atualizar Menções na Landing Page (`/site/index.html`)
 
-Se a versão visível do playtest for atualizada, atualize o botão de download e os badges no arquivo `site/index.html`:
-- Link do botão primário de download:
-  `https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/vX.Y.Z/CepaSelvagem-X.Y.Z-windows.zip`
-- Rótulo do botão e badges de versão: `vX.Y.Z`.
+Atualize as menções de versão e os links no arquivo `site/index.html`:
+- Link do pacote direto para Windows:
+  `https://github.com/tarcisodev/godot-cepas-selvagens/releases/download/v0.1.1/CepaSelvagem-0.1.1-windows.zip`
+- Rótulos dos botões e badges de versão: `v0.1.1`.
 
 ---
 
-### Passo 3: Executar a Bateria de Testes Automatizados
+### Passo 3: Executar a Bateria Completa de Testes
 
-Antes de criar qualquer release ou tag, garanta que todos os testes estejam passando:
+Antes de submeter PR ou criar qualquer tag, valide toda a suíte de testes do motor e do launcher:
 
 ```bash
+# Executa todos os testes unitários e de integração (38+ arquivos):
 godot --path . --headless -s res://tests/run_all.gd
 ```
-*(Todos os arquivos de teste devem reportar ✅ e o processo deve retornar código 0).*
+*(Todos os testes devem reportar ✅ e o processo deve retornar código 0).*
 
 ---
 
-### Passo 4: Fazer Commit e Push
+### Passo 4: Commit e Pull Request para `master`
 
-Trabalhe de acordo com o protocolo `AGENTS.md` (em branch de feature ou fix derivando de `master`):
+De acordo com o protocolo `AGENTS.md`, trabalhe em branch derivada de `master`:
 
 ```bash
-# Adiciona as alterações
-git add scripts/core/network_manager.gd site/ docs/RELEASE.md
+# 1. Adicione as alterações
+git add scripts/core/network_manager.gd project.godot site/index.html docs/LAUNCHER.md docs/RELEASE.md
 
-# Cria o commit semântico
-git commit -m "chore(release): preparar versao v0.1.0 para playtest"
+# 2. Crie o commit semântico
+git commit -m "chore(release): preparar versao v0.1.1"
 
-# Envia a branch para o GitHub
-git push origin feature/minha-feature
+# 3. Envie a branch de feature
+git push origin feature/launcher-release
 ```
 
-Abra o Pull Request para `master` e faça o merge após a revisão.
+Abra o Pull Request para `master`, revise as alterações e faça o merge.
 
 ---
 
 ### Passo 5: Criar e Enviar a Tag Git
 
-Com a `master` atualizada no commit de release, crie uma tag anotada com o prefixo `v` correspondente à versão informada na `GAME_VERSION`:
+Com a `master` atualizada no commit correspondente, crie a tag anotada e envie ao GitHub:
 
 ```bash
-# 1. Garanta que está na master atualizada
+# 1. Atualize a master local
 git checkout master
 git pull origin master
 
 # 2. Crie a tag anotada
-git tag -a v0.1.0 -m "Release v0.1.0 (Playtest Fechado)"
+git tag -a v0.1.1 -m "Release v0.1.1"
 
-# 3. Envie a tag para o repositório remoto no GitHub
-git push origin v0.1.0
+# 3. Envie a tag para o GitHub (dispara o workflow de Release)
+git push origin v0.1.1
 ```
 
 ---
 
-## 3. Workflows Executados Automaticamente
+## 3. Workflows Executados no GitHub Actions
 
 ### A. Publicação do Site (`.github/workflows/pages.yml`)
 - **Gatilho:** A cada push na branch `master`.
@@ -107,42 +117,45 @@ git push origin v0.1.0
 - **URL Pública:** [https://cepas.tarciso.dev](https://cepas.tarciso.dev)
 
 ### B. Compilação e Anexo de Release (`.github/workflows/release.yml`)
-- **Gatilho:** Envio de tag correspondente a `v*` (ex.: `v0.1.0`).
+- **Gatilho:** Envio de tag correspondente a `v*` (ex.: `v0.1.1`).
 - **Ação:**
-  1. Extrai a versão da constante `GAME_VERSION`.
-  2. Baixa o Godot 4.7.2 oficial e os export templates oficiais.
-  3. Exporta o preset `"Windows Desktop"` gerando `CepaSelvagem.exe` com PCK embutido.
-  4. Gera o pacote compactado `CepaSelvagem-<versão>-windows.zip` acompanhado do arquivo `LEIA-ME.txt`.
-  5. Cria um GitHub Release anotado e anexa o arquivo `.zip` para download público.
+  1. Extrai `GAME_VERSION` e valida se a tag é exatamente `v${GAME_VERSION}` (falha caso não seja).
+  2. Baixa o Godot 4.7.2 oficial e os export templates oficiais do repositório `godot-builds`.
+  3. Exporta o cliente do jogo (`build/windows/CepaSelvagem.exe`).
+  4. Exporta o Launcher Oficial (`build/windows/CepasSelvagensLauncher.exe`). Qualquer falha na exportação do launcher interrompe e falha o job.
+  5. Empacota o cliente em `CepaSelvagem-${GAME_VERSION}-windows.zip`.
+  6. Gera o `manifest.json` com `version`, `file`, `size` e hash criptográfico `sha256`.
+  7. Assina opcionalmente o manifesto caso o segredo `RELEASE_SIGNING_KEY` esteja configurado no repositório.
+  8. Cria a GitHub Release pública anexando:
+     - `CepaSelvagem-${GAME_VERSION}-windows.zip`
+     - `manifest.json`
+     - `manifest.json.sig` (se assinado)
+     - `CepasSelvagensLauncher.exe`
 
 ---
 
-## 4. Atualização do Servidor Dedicado (VPS)
+## 4. Atualização Automática nos Jogadores
 
-Caso a nova versão altere scripts do servidor ou a `GAME_VERSION`:
-1. Conecte-se ao VPS ou execute o script de deploy automatizado (`tools/deploy_vps.sh`).
-2. Exporte a nova build do servidor (`Linux Server` -> `build/linux/cepas-server.x86_64`) e envie para o diretório `/home/cepas/cepas-server/`.
-3. Reinicie o serviço systemd:
-   ```bash
-   sudo systemctl restart cepas-server.service
-   ```
-4. Verifique os logs do servidor em tempo real:
-   ```bash
-   journalctl -u cepas-server -f
-   ```
+Assim que a release for publicada:
+1. O jogador que já possui o jogo abre o Launcher (`CepasSelvagensLauncher.exe`).
+2. O Launcher consulta `/releases?per_page=10` e detecta a nova versão disponível via `semver`.
+3. O Launcher baixa o pacote oficial `CepaSelvagem-0.1.1-windows.zip`.
+4. O Launcher valida o hash SHA-256 contra o `manifest.json` da release.
+5. Os arquivos são extraídos de forma atômica na pasta `game/`.
+6. O botão **"▶ JOGAR"** é liberado, iniciando o jogo diretamente na nova versão.
 
 ---
 
 ## 5. Dúvidas Frequentes
 
 ### Como deletar uma tag criada incorretamente?
-Se precisar corrigir uma tag antes de divulgar:
+Se precisar corrigir uma tag antes do lançamento oficial:
 ```bash
 # Deleta localmente
-git tag -d v0.1.0
+git tag -d v0.1.1
 
 # Deleta no GitHub
-git push origin --delete v0.1.0
+git push origin --delete v0.1.1
 ```
 
 ### O que fazer se o Windows SmartScreen avisar sobre executável desconhecido?

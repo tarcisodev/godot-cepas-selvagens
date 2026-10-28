@@ -34,7 +34,7 @@ var _menu_slot: int = -1
 var _menu_items: Array[ForgedItem] = []
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(470, 0)
+	custom_minimum_size = Vector2(380, 0)
 	add_theme_constant_override("separation", 8)
 	_build()
 
@@ -245,7 +245,7 @@ func _slot_column(slots: Array[int]) -> Control:
 		var b := EquipSlotButton.new()
 		b.panel = self
 		b.slot_id = slot
-		b.custom_minimum_size = Vector2(150, 62)
+		b.custom_minimum_size = Vector2(122, 52)
 		b.focus_mode = Control.FOCUS_NONE
 		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		b.clip_text = true
@@ -284,7 +284,7 @@ func _build_preview() -> Control:
 	var container := PreviewDropContainer.new()
 	container.panel = self
 	container.stretch = true
-	container.custom_minimum_size = Vector2(170, 330)
+	container.custom_minimum_size = Vector2(130, 260)
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.gui_input.connect(_on_preview_input)
 
