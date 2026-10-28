@@ -9,6 +9,7 @@ extends Node3D
 ## Também cria Marcos de Viagem Rápida ([E] abre o Mapa [M]) e placas nas encruzilhadas.
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const ROCK_SCENE = preload("res://assets/models/nature/Rock_Medium_2.gltf")
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
 const BANNER1_SCENE = preload("res://assets/models/props/fantasy/Banner_1.gltf")
@@ -510,44 +511,96 @@ class WaystoneInteractable extends Node3D:
 	var settlement_id: StringName = &"vila_esperanca"
 	var title: String = "⚡ Marco de Viagem"
 	var _prompt: _WorldLabel
-	var _orb: MeshInstance3D
+	var _rune_mat: StandardMaterial3D
+	var _rune_light: OmniLight3D
 	var _time: float = 0.0
+
+	## Traços da runa (x, y, comprimento, ângulo em graus) na face da pedra: um ᛉ com base
+	const RUNE_STROKES := [
+		[0.0, 1.0, 0.62, 0.0],
+		[-0.09, 1.2, 0.26, 35.0],
+		[0.09, 1.2, 0.26, -35.0],
+		[0.0, 0.66, 0.2, 90.0],
+	]
 
 	func _ready() -> void:
 		add_to_group("talkable")
 		add_to_group("waystones")
 		_build_mesh()
 
+	## Pedra de pé (menir facetado) com runa entalhada que brilha e pulsa (B25: sai a esfera).
 	func _build_mesh() -> void:
 		var stone_mat := StandardMaterial3D.new()
-		stone_mat.albedo_color = Color(0.28, 0.32, 0.36)
-		stone_mat.roughness = 0.8
+		stone_mat.albedo_color = Color(0.36, 0.38, 0.4)
+		stone_mat.roughness = 0.95
 
-		var base := MeshInstance3D.new()
+		var stone := MeshInstance3D.new()
 		var cyl := CylinderMesh.new()
-		cyl.top_radius = 0.38
-		cyl.bottom_radius = 0.52
-		cyl.height = 1.4
-		cyl.radial_segments = 8
-		base.mesh = cyl
-		base.material_override = stone_mat
-		base.position.y = 0.7
-		add_child(base)
+		cyl.top_radius = 0.24
+		cyl.bottom_radius = 0.36
+		cyl.height = 1.7
+		cyl.radial_segments = 6
+		cyl.rings = 1
+		stone.mesh = cyl
+		stone.material_override = stone_mat
+		stone.position.y = 0.8
+		stone.rotation.y = deg_to_rad(30.0)  # hexágono com uma face lisa virada para +z
+		var holder := Node3D.new()  # leve inclinação de pedra fincada; a runa vai junto
+		holder.rotation.z = deg_to_rad(-3.0)
+		add_child(holder)
+		var flat := Node3D.new()  # achata só a pedra, no eixo da face (z)
+		flat.scale = Vector3(1.0, 1.0, 0.55)
+		holder.add_child(flat)
+		flat.add_child(stone)
+		# Pedras soltas na base, para não parecer um poste
+		for i in 3:
+			var pebble := ROCK_SCENE.instantiate() as Node3D
+			if pebble == null:
+				continue
+			var a := TAU * i / 3.0 + 0.6
+			pebble.scale = Vector3.ONE * (0.22 - i * 0.03)
+			pebble.position = Vector3(cos(a) * 0.42, 0.0, sin(a) * 0.32)
+			pebble.rotation.y = a * 2.0
+			add_child(pebble)
 
-		var orb_mat := StandardMaterial3D.new()
-		orb_mat.albedo_color = Color(0.35, 0.85, 0.98)
-		orb_mat.emission_enabled = true
-		orb_mat.emission = Color(0.25, 0.78, 1.0)
-		orb_mat.emission_energy_multiplier = 2.6
-
-		_orb = MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.24
-		sm.height = 0.56
-		_orb.mesh = sm
-		_orb.material_override = orb_mat
-		_orb.position.y = 1.75
-		add_child(_orb)
+		_rune_mat = StandardMaterial3D.new()
+		_rune_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_rune_mat.albedo_color = Color(0.45, 0.92, 1.0)
+		var face_z := 0.36 * cos(PI / 6.0) * 0.55  # apótema da base × achatamento
+		for s in RUNE_STROKES:
+			var stroke := MeshInstance3D.new()
+			var bar := BoxMesh.new()
+			bar.size = Vector3(0.035, s[2], 0.01)
+			stroke.mesh = bar
+			stroke.material_override = _rune_mat
+			stroke.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			# a face afina para cima: acompanha o recuo da pedra na altura do traço
+			var y: float = s[1]
+			var inset := (0.36 - 0.12 * y / 1.7) * cos(PI / 6.0) * 0.55
+			stroke.position = Vector3(s[0], y, inset + 0.004)
+			stroke.rotation = Vector3(-atan2((face_z - inset), y), 0.0, deg_to_rad(s[3]))
+			holder.add_child(stroke)
+		var glow := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2(0.75, 0.95)
+		var glow_mat := StandardMaterial3D.new()
+		glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		glow_mat.albedo_texture = TutorialTrail.soft_dot()
+		glow_mat.albedo_color = Color(0.3, 0.8, 1.0, 0.35)
+		quad.material = glow_mat
+		glow.mesh = quad
+		glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		glow.position = Vector3(0, 1.0, face_z + 0.03)
+		holder.add_child(glow)
+		_rune_light = OmniLight3D.new()
+		_rune_light.light_color = Color(0.4, 0.85, 1.0)
+		_rune_light.omni_range = 2.6
+		_rune_light.light_energy = 0.8
+		_rune_light.shadow_enabled = false
+		_rune_light.position = Vector3(0, 1.0, 0.45)
+		add_child(_rune_light)
 
 		var name_lbl := _WorldLabel.make(_WorldLabel.Kind.NAME, title.trim_prefix("⚡ "), "⚡", Color(0.55, 0.92, 1.0))
 		name_lbl.position.y = 2.45
@@ -558,9 +611,12 @@ class WaystoneInteractable extends Node3D:
 
 	func _process(delta: float) -> void:
 		_time += delta
-		if _orb:
-			_orb.position.y = 1.75 + sin(_time * 2.5) * 0.08
-			_orb.rotate_y(delta * 1.2)
+		# Runa respira devagar
+		var k := 0.75 + sin(_time * 1.6) * 0.25
+		if _rune_mat:
+			_rune_mat.albedo_color = Color(0.45, 0.92, 1.0) * (0.8 + k * 0.6)
+		if _rune_light:
+			_rune_light.light_energy = 0.5 + k * 0.5
 
 	func talk_to(player: Node) -> void:
 		if not is_inside_tree() or get_tree().current_scene == null:
