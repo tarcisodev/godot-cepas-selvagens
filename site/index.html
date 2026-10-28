@@ -50,8 +50,9 @@
         <ul class="nav-links">
           <li><a href="#sobre" class="nav-link">O Jogo</a></li>
           <li><a href="#galeria" class="nav-link">Imagens</a></li>
+          <li><a href="#sistemas" class="nav-link">Sistemas</a></li>
+          <li><a href="#roadmap" class="nav-link">Roadmap</a></li>
           <li><a href="#como-jogar" class="nav-link">Como Jogar</a></li>
-          <li><a href="#requisitos" class="nav-link">Requisitos</a></li>
           <li><a href="#faq" class="nav-link">FAQ</a></li>
           <li><a href="#feedback" class="nav-link">Feedback</a></li>
         </ul>
@@ -269,6 +270,168 @@
             </div>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- Implemented Systems -->
+    <section id="sistemas" class="section" aria-labelledby="sistemas-heading">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-tag">O Que Já Está no Jogo</span>
+          <h2 id="sistemas-heading" class="section-title">Sistemas Implementados</h2>
+          <p class="section-desc">
+            Cada sistema nasce num documento de design (GDD), vira decisão registrada (ADR) e só então entra em código, com teste automatizado rodando em modo headless.
+          </p>
+        </div>
+
+        <ul class="stats-strip" aria-label="Números do projeto">
+          <li><strong>26</strong><span>sistemas concluídos</span></li>
+          <li><strong>7</strong><span>em polimento no playtest</span></li>
+          <li><strong>50</strong><span>suítes de teste automatizado</span></li>
+          <li><strong>8</strong><span>decisões de arquitetura (ADRs)</span></li>
+        </ul>
+
+        <div class="legend" aria-label="Legenda de status">
+          <span class="chip chip-done">Pronto</span>
+          <span class="chip chip-active">Em polimento</span>
+        </div>
+
+        <div class="systems-grid">
+          <article class="system-group">
+            <h3><span aria-hidden="true">⚔️</span> Combate & Caça</h3>
+            <ul class="system-list">
+              <li><span class="chip chip-done">Pronto</span><div><strong>Combate de ação</strong><p>Vida, Éter e Vigor, esquiva por carga, golpes com peso (hitstop e empurrão) e mira pelo ombro para magia.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Caça anatômica</strong><p>Criaturas com partes quebráveis; o que você quebra muda o material que cai. Esfola manual do corpo.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Captura e montaria própria</strong><p>Cansar, laçar e sedar. Depois, abate Íntegro ou leve ao estábulo como montaria com o DNA do bicho.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Equipamento estilo Albion</strong><p>7 encaixes, famílias pano/couro/ferro, 9 habilidades de armadura e um boss para testar tudo.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Armadilhas e iscas</strong><p>Armadilha de mandíbula quebra a perna da presa e a imobiliza; isca odorífera atrai a caça.</p></div></li>
+            </ul>
+          </article>
+
+          <article class="system-group">
+            <h3><span aria-hidden="true">🔨</span> Forja & Economia</h3>
+            <ul class="system-list">
+              <li><span class="chip chip-done">Pronto</span><div><strong>Materiais com qualidade</strong><p>Estoque em pilhas por qualidade (1–5★) e traits herdados da criatura ou do veio de minério.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Forja modular</strong><p>Núcleo, revestimento e tempero na bigorna; durabilidade, reparo, desmanche e peças visíveis no corpo.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Progressão por uso</strong><p>Sem atributos primários: maestria sobe usando a arma, a magia ou a profissão, com travas anti-macro.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Taverna, Mercado e Cartas 3D</strong><p>Duelo de Cepas com aposta, álbum de cartas holográficas e mercado com encomendas e taxas.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Mercado Negro</strong><p>Regulador da economia com preço dinâmico por escassez e baús escondidos no ermo.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Caravanas e rotas comerciais</strong><p>Fardos regionais entre 4 assentamentos, oferta e demanda flutuantes, escolta e emboscada.</p></div></li>
+            </ul>
+          </article>
+
+          <article class="system-group">
+            <h3><span aria-hidden="true">🧬</span> Ecologia Viva</h3>
+            <ul class="system-list">
+              <li><span class="chip chip-done">Pronto</span><div><strong>Fauna e flora por DNA</strong><p>Criaturas, peixes e plantas gerados por genoma, com herança, mutação e três montarias: terra, ar e água.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Ciclo natural</strong><p>Rio com profundidade, nuvens, chuva e cheia, solo com umidade e plantas que nascem, frutificam e morrem.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Pinheira-Lume</strong><p>Araucária que brilha à noite; o pinhão carrega o genoma e os bichos espalham a semente.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Nado, mergulho e pesca</strong><p>Correnteza, fôlego, peixes procedurais e briga com tensão da linha.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Relógio único e descanso</strong><p>Ninguém pula o tempo: descanse na fogueira, banco ou cama para recuperar Vida.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Rancho e criadouro</strong><p>Cercado de reprodução para cruzar linhagens e fixar traits nas crias.</p></div></li>
+            </ul>
+          </article>
+
+          <article class="system-group">
+            <h3><span aria-hidden="true">🏘️</span> Mundo & Comunidade</h3>
+            <ul class="system-list">
+              <li><span class="chip chip-done">Pronto</span><div><strong>Personagens procedurais</strong><p>Humanoides gerados por código a partir de um DNA, com editor de aparência.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Construção, coleta e Vila da Esperança</strong><p>Peças modulares, totem de território e obras comunitárias que destravam prédios da vila.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Manutenção territorial</strong><p>Cofre do totem com débito diário; território abandonado vira ruína e pode ser desmanchado.</p></div></li>
+              <li><span class="chip chip-done">Pronto</span><div><strong>Servidor autoritativo e contas</strong><p>Servidor dedicado, contas online, checagem de versão e launcher com atualização automática.</p></div></li>
+            </ul>
+          </article>
+
+          <article class="system-group system-group-active">
+            <h3><span aria-hidden="true">🛠️</span> Em polimento no playtest</h3>
+            <ul class="system-list">
+              <li><span class="chip chip-active">Polimento</span><div><strong>Mapa [M]</strong><p>Pergaminho gerado do relevo real, com as construções dos jogadores e marcadores pessoais.</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Mundo aberto em chunks</strong><p>Terreno em escala de quilômetros com vegetação em MultiMesh e servidor beta persistente.</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Culinária e urubus</strong><p>Minigame do espeto, caldeirão com buffs e urubus que circulam sobre carcaças no horizonte.</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Guildas e heráldica</strong><p>Sede construída pelos membros, território de 40 a 80 m, brasão e uniformes de clã.</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Ciclo de vida e família</strong><p>Gênero, 4 fases da vida, gestação da fauna, capela, casamento e berçário.</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Quadro de missões e Modo Foto</strong><p>Contratos dinâmicos de caça, forja, culinária e pesquisa; fotografia de campo com [P].</p></div></li>
+              <li><span class="chip chip-active">Polimento</span><div><strong>Composteira e aquicultura</strong><p>Restos de monstro viram adubo, tanques produzem solventes e o conhecimento ecológico sobe em 3 níveis.</p></div></li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Roadmap -->
+    <section id="roadmap" class="section" aria-labelledby="roadmap-heading">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-tag">Para Onde Vamos</span>
+          <h2 id="roadmap-heading" class="section-title">Roadmap</h2>
+          <p class="section-desc">
+            Fases do desenvolvimento. Itens futuros não têm data: entram no jogo quando o design fecha e os testes passam.
+          </p>
+        </div>
+
+        <ol class="roadmap">
+          <li class="roadmap-phase is-done">
+            <div class="roadmap-marker" aria-hidden="true">✓</div>
+            <div class="roadmap-body">
+              <span class="roadmap-status">Fase 1 · Concluída</span>
+              <h3>Fundação</h3>
+              <p>GDD dos 5 pilares, arquitetura com servidor autoritativo e dano como evento, e o primeiro loop jogável: caçar, quebrar a parte da criatura e forjar com o material dela.</p>
+              <ul class="roadmap-tags"><li>GDD + ADRs</li><li>Vertical slice</li><li>Cartas 3D</li><li>Personagens procedurais</li></ul>
+            </div>
+          </li>
+
+          <li class="roadmap-phase is-done">
+            <div class="roadmap-marker" aria-hidden="true">✓</div>
+            <div class="roadmap-body">
+              <span class="roadmap-status">Fase 2 · Concluída</span>
+              <h3>Mundo vivo</h3>
+              <p>O vale ganhou ecologia, clima e genética; a economia ganhou forja modular, mercado, Mercado Negro e caravanas; os jogadores ganharam território, rancho e montarias capturadas.</p>
+              <ul class="roadmap-tags"><li>Ecologia e genética</li><li>Forja modular</li><li>Equipamento Albion</li><li>Economia</li><li>Território</li></ul>
+            </div>
+          </li>
+
+          <li class="roadmap-phase is-current">
+            <div class="roadmap-marker" aria-hidden="true">●</div>
+            <div class="roadmap-body">
+              <span class="roadmap-status">Fase 3 · Agora</span>
+              <h3>Playtest fechado online (v0.1.x)</h3>
+              <p>O jogo passou a ser só online, com launcher e atualização automática. Os sistemas sociais e o mundo em escala de quilômetros estão sendo polidos com quem está jogando.</p>
+              <ul class="roadmap-tags"><li>Mapa [M]</li><li>Chunks</li><li>Culinária</li><li>Guildas</li><li>Família</li><li>Missões</li><li>Composteira</li></ul>
+            </div>
+          </li>
+
+          <li class="roadmap-phase is-next">
+            <div class="roadmap-marker" aria-hidden="true">→</div>
+            <div class="roadmap-body">
+              <span class="roadmap-status">Fase 4 · Próximos passos</span>
+              <h3>Combate, PvP e um vale mais vivo</h3>
+              <ul class="roadmap-items">
+                <li><strong>Estilos de batalha e arena de teste</strong> — trocar de estilo com o Mestre de Armas e enfrentar monstros que revidam.</li>
+                <li><strong>PvP com consequência</strong> — duelo consensual com aposta e Zona Selvagem com full loot, já desenhados no GDD de economia.</li>
+                <li><strong>Jogar no navegador</strong> — o servidor já fala WebSocket; falta o cliente exportado para Web.</li>
+                <li><strong>Estações do ano</strong> — temperatura por altitude e neve no pico.</li>
+                <li><strong>Cadeia alimentar completa</strong> — predadores caçando herbívoros e doenças na fauna.</li>
+              </ul>
+            </div>
+          </li>
+
+          <li class="roadmap-phase is-later">
+            <div class="roadmap-marker" aria-hidden="true">?</div>
+            <div class="roadmap-body">
+              <span class="roadmap-status">Em estudo</span>
+              <h3>Perguntas em aberto</h3>
+              <ul class="roadmap-items">
+                <li>Montarias que lutam (investida do Trotador, mergulho do Planador).</li>
+                <li>Duração do dia no servidor online e fogueiras de viagem fora do território.</li>
+                <li>Mar e marés numa expansão do mapa.</li>
+              </ul>
+            </div>
+          </li>
+        </ol>
+
+        <p class="roadmap-cta">
+          Quer influenciar a ordem? <a href="#feedback">Mande sua sugestão</a> — o playtest existe para isso.
+        </p>
       </div>
     </section>
 
@@ -527,6 +690,8 @@
           <h5>Navegação</h5>
           <ul class="footer-links">
             <li><a href="#sobre">O Jogo</a></li>
+            <li><a href="#sistemas">Sistemas</a></li>
+            <li><a href="#roadmap">Roadmap</a></li>
             <li><a href="#como-jogar">Instalação</a></li>
             <li><a href="#requisitos">Requisitos</a></li>
             <li><a href="#faq">Windows SmartScreen</a></li>
