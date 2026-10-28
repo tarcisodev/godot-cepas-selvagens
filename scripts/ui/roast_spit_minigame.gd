@@ -179,6 +179,9 @@ func open(p_player: _Player) -> void:
 	if player == null or player.inventory == null:
 		return
 	
+	add_to_group("open_menus")
+	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+
 	# Busca carne crua ou peixe
 	var meat_stacks: Array[Dictionary] = player.inventory.get_stacks(&"carne_crua")
 	if meat_stacks.is_empty():
@@ -244,7 +247,7 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE):
 		close()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_accept") or (event is InputEventKey and event.pressed and event.keycode == KEY_E):
@@ -324,3 +327,6 @@ func pull_spit() -> Dictionary:
 func close() -> void:
 	is_roasting = false
 	visible = false
+	remove_from_group("open_menus")
+	if is_inside_tree() and get_tree().get_nodes_in_group("open_menus").is_empty():
+		Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
