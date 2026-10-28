@@ -8,6 +8,7 @@ extends Control
 const _PatchManager = preload("res://scripts/patcher/patch_manager.gd")
 const _PatchVersionChecker = preload("res://scripts/patcher/patch_version_checker.gd")
 const _PatchDownloader = preload("res://scripts/patcher/patch_downloader.gd")
+const _AgeGate = preload("res://scripts/ui/age_gate.gd")
 
 const BACKGROUND: String = "res://assets/ui/menu_background.png"
 const MAIN_MENU_SCENE: String = "res://scenes/main_menu.tscn"
@@ -278,7 +279,9 @@ func _transition_to_menu() -> void:
 		return
 	_is_transitioning = true
 	
-	if ResourceLoader.exists(MAIN_MENU_SCENE):
-		get_tree().change_scene_to_file(MAIN_MENU_SCENE)
+	# Tela 18+ (B34) antes do primeiro menu, uma vez por dispositivo
+	var next_scene: String = _AgeGate.scene_after_splash(get_node_or_null("/root/GameSettings"))
+	if ResourceLoader.exists(next_scene):
+		get_tree().change_scene_to_file(next_scene)
 	else:
-		push_error("[BootSplash] Cena do Menu Principal não encontrada: %s" % MAIN_MENU_SCENE)
+		push_error("[BootSplash] Cena seguinte não encontrada: %s" % next_scene)
