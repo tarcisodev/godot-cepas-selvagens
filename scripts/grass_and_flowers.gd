@@ -6,6 +6,7 @@ class_name GrassAndFlowers
 # (uma MultiMesh por variante) para altíssima performance e beleza cênica.
 
 const RiverClass = preload("res://scripts/river_system.gd")
+const CityHubClass = preload("res://scripts/city_hub.gd")
 
 const GRASS_SCENES: Array[PackedScene] = [
 	preload("res://assets/models/nature/Grass_Common_Short.gltf"),
@@ -61,7 +62,7 @@ func _scatter(group_name: String, scenes: Array[PackedScene], count: int, scale_
 		# Não nasce no leito submerso, lago ou mar
 		var dist_river: float = RiverClass.get_distance_to_river(x, z)
 		var water_hw: float = RiverClass.get_water_half_width(z)
-		if dist_river < (water_hw * river_margin) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
+		if dist_river < (water_hw * river_margin) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z) or CityHubClass.in_village(x, z):
 			continue
 
 		var y: float = _get_ground_y(x, z)
