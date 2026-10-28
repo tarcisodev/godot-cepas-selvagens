@@ -318,6 +318,10 @@ func _on_auth_result(success: bool, message: String, characters: Array) -> void:
 		_set_status("❌ %s" % message, Color(1, 0.4, 0.4))
 		return
 
+	var net = _net()
+	if net != null and _user_input:
+		net.set("current_account", _user_input.text.strip_edges())
+
 	_set_status("✅ %s" % message, Color(0.6, 1, 0.6))
 	_auth_box.visible = false
 	_char_box.visible = true

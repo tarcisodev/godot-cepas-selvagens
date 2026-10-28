@@ -158,6 +158,12 @@ func _test_host_creates_character_on_own_server() -> void:
 	var chars: Array = sp.login_account(user, "SenhaSegura123!").get("characters", [])
 	assert(chars.has(char_name), "Personagem do host deve ficar gravado na conta")
 
+	# Teste de cliente recebendo rpc_response_auth
+	net.current_account = ""
+	net.rpc_response_auth(true, "Login remoto bem-sucedido", [], "ClientTester")
+	assert(net.current_account == "ClientTester", "Cliente remoto deve gravar current_account ao receber rpc_response_auth")
+	net.current_account = ""
+
 	_cleanup_account(user, [char_name])
 	net.current_account = ""
 	net.cleanup_peer()
