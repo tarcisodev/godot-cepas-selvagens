@@ -2,10 +2,12 @@ extends Node3D
 class_name NatureProps
 
 ## Ecologia da Vegetação, Mata Ciliar e Acampamento
-## Substituído por modelos estilizados 3D reais (Stylized Nature & KayKit Tools).
+## Árvores 100% procedurais (PlantBody / PlantDNA) e props de acampamento.
 
 const RiverClass = preload("res://scripts/river_system.gd")
 const _CityHub = preload("res://scripts/city_hub.gd")
+const _PlantBody = preload("res://scripts/systems/plant_body.gd")
+const _PlantDNA = preload("res://scripts/data/plant_dna.gd")
 
 @export var landscape: MeshInstance3D
 @export var riparian_tree_count: int = 70
@@ -14,21 +16,7 @@ const _CityHub = preload("res://scripts/city_hub.gd")
 @export var rock_count: int = 60
 @export var mushroom_cluster_count: int = 35
 
-# Cenas dos modelos 3D Stylized Nature
-const TREE_SCENES: Array = [
-	preload("res://assets/models/nature/CommonTree_1.gltf"),
-	preload("res://assets/models/nature/CommonTree_2.gltf"),
-	preload("res://assets/models/nature/CommonTree_3.gltf"),
-	preload("res://assets/models/nature/CommonTree_4.gltf"),
-	preload("res://assets/models/nature/CommonTree_5.gltf"),
-]
-
-const DEAD_TREE_SCENES: Array = [
-	preload("res://assets/models/nature/DeadTree_1.gltf"),
-	preload("res://assets/models/nature/DeadTree_2.gltf"),
-	preload("res://assets/models/nature/DeadTree_3.gltf"),
-	preload("res://assets/models/nature/DeadTree_4.gltf"),
-]
+# Árvores 100% procedurais geradas via PlantBody e PlantDNA (sem assets estáticos)
 
 const BUSH_SCENES: Array = [
 	preload("res://assets/models/nature/Bush_Common.gltf"),
@@ -160,7 +148,7 @@ func _spawn_trees() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = 101
 
-	# 1. Mata Ciliar (árvores frondosas acompanhando o rio)
+	# 1. Mata Ciliar (árvores procedurais frondosas acompanhando o rio)
 	for i in range(riparian_tree_count):
 		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 		if z >= (RiverClass.WATERFALL_Z - 2.0) and z <= (RiverClass.WATERFALL_Z + 4.0):
@@ -180,9 +168,9 @@ func _spawn_trees() -> void:
 		if RiverClass.is_in_water(tree_pos) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
 			continue
 		spawned_tree_positions.append(tree_pos)
-		_build_tree(tree_pos, 1.1, TREE_SCENES, rng)
+		_build_procedural_tree(tree_pos, _PlantDNA.Kind.ARVORE, true, rng)
 
-	# 2. Árvores de Colina e Encostas (árvores retorcidas e secas no planalto)
+	# 2. Árvores de Colina e Encostas (árvores procedurais e Pinheiras-Lume no planalto)
 	for i in range(hill_tree_count):
 		var x: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
 		var z: float = rng.randf_range(-WorldBounds.HALF * 0.9, WorldBounds.HALF * 0.9)
@@ -199,31 +187,41 @@ func _spawn_trees() -> void:
 		if RiverClass.is_in_water(tree_pos) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
 			continue
 		spawned_tree_positions.append(tree_pos)
-		var chosen_scenes: Array = DEAD_TREE_SCENES if rng.randf() > 0.4 else TREE_SCENES
-		_build_tree(tree_pos, 0.95, chosen_scenes, rng)
+		var kind: int = _PlantDNA.Kind.PINHEIRA if rng.randf() < 0.4 else _PlantDNA.Kind.ARVORE
+		_build_procedural_tree(tree_pos, kind, false, rng)
 
-func _build_tree(pos: Vector3, scale_mult: float, scenes: Array, rng: RandomNumberGenerator) -> void:
-	if scenes.is_empty():
-		return
-	var scene: PackedScene = scenes[rng.randi() % scenes.size()]
-	var tree_node: Node3D = scene.instantiate()
-	tree_node.position = pos
-	var s: float = rng.randf_range(0.85, 1.35) * scale_mult
-	tree_node.scale = Vector3(s, s, s)
-	tree_node.rotation.y = rng.randf_range(0.0, TAU)
+func _build_procedural_tree(pos: Vector3, kind: int, is_riparian: bool, rng: RandomNumberGenerator) -> void:
+	var plant := _PlantBody.new()
+	plant.dna = _PlantDNA.randomized(kind, rng.randi())
+	if is_riparian:
+		# Mata ciliar: árvores altas e frondosas perto do rio
+		plant.dna.porte = ["T", "T"]
+		plant.dna.branches = rng.randi_range(4, 7)
+		plant.dna.leaf_color = Color(0.18, 0.52, 0.22).lerp(Color(0.28, 0.65, 0.32), rng.randf())
+		var roll := rng.randf()
+		plant.stage = _PlantBody.Stage.ADULTA if roll < 0.6 else (_PlantBody.Stage.FRUTO if roll < 0.85 else _PlantBody.Stage.FLORIDA)
+	else:
+		# Colinas e planalto: Pinheiras e árvores rústicas de altitude
+		if kind == _PlantDNA.Kind.PINHEIRA:
+			var stages := [_PlantBody.Stage.ADULTA, _PlantBody.Stage.FRUTO, _PlantBody.Stage.FLORIDA]
+			plant.stage = stages[rng.randi() % stages.size()]
+		else:
+			plant.dna.porte = ["T" if rng.randf() < 0.35 else "t", "t"]
+			plant.dna.branches = rng.randi_range(3, 5)
+			plant.dna.leaf_color = Color(0.36, 0.48, 0.22).lerp(Color(0.55, 0.44, 0.20), rng.randf() * 0.7)
+			var roll := rng.randf()
+			plant.stage = _PlantBody.Stage.ADULTA if roll < 0.75 else _PlantBody.Stage.JOVEM
+	plant.age = rng.randf_range(8.0, 30.0)
+	plant.progress = rng.randf_range(0.3, 0.9)
+	plant.position = pos
+	plant.rotation.y = rng.randf_range(0.0, TAU)
+	add_child(plant)
 
-	# Colisão no tronco
-	var static_body := StaticBody3D.new()
-	var col := CollisionShape3D.new()
-	var cap := CapsuleShape3D.new()
-	cap.radius = 0.4 * s
-	cap.height = 3.2 * s
-	col.shape = cap
-	col.position.y = cap.height * 0.5
-	static_body.add_child(col)
-	tree_node.add_child(static_body)
-
-	add_child(tree_node)
+func _build_tree(pos: Vector3, _scale_mult: float = 1.0, _scenes: Array = [], rng: RandomNumberGenerator = null) -> void:
+	if rng == null:
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+	_build_procedural_tree(pos, _PlantDNA.Kind.ARVORE, true, rng)
 
 func _spawn_bushes() -> void:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()

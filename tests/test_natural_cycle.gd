@@ -2,6 +2,10 @@ extends SceneTree
 
 ## B15 / GDD-10: ciclo da água, cheia, lua de 28 dias, solo, vida das plantas e necessidades dos bichos.
 
+const _NatureProps = preload("res://scripts/nature_props.gd")
+const _PlantBody = preload("res://scripts/systems/plant_body.gd")
+const _PlantDNA = preload("res://scripts/data/plant_dna.gd")
+
 var _started: bool = false
 
 func _process(_delta: float) -> bool:
@@ -19,6 +23,7 @@ func _run() -> void:
 	test_plant_life()
 	test_soil_and_seeds()
 	test_creature_needs()
+	test_nature_props_procedural_trees()
 	print("\n🎉 TODOS OS TESTES DO CICLO NATURAL PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
@@ -177,3 +182,41 @@ func test_creature_needs() -> void:
 	assert(c.state == WildCreature.State.DEAD, "Velhice: morre e vira corpo")
 	c.free()
 	print("  ✓ Bebe na margem, come/pasta e morre de velhice")
+
+func test_nature_props_procedural_trees() -> void:
+	print("\n[6/6] NatureProps: árvores 100% procedurais (PlantBody)...")
+	var np := _NatureProps.new()
+	np.riparian_tree_count = 30
+	np.hill_tree_count = 30
+	np.bush_count = 0
+	np.rock_count = 0
+	np.mushroom_cluster_count = 0
+	root.add_child(np)
+
+	var plant_bodies: Array[_PlantBody] = []
+	for child in np.get_children():
+		if child is _PlantBody:
+			plant_bodies.append(child)
+
+	assert(plant_bodies.size() >= 10, "Árvores procedurais foram instanciadas no mundo (%d encontradas)" % plant_bodies.size())
+	for plant in plant_bodies:
+		assert(plant.dna != null, "Árvore possui PlantDNA válido")
+		assert(plant.dna.kind == _PlantDNA.Kind.ARVORE or plant.dna.kind == _PlantDNA.Kind.PINHEIRA, "Tipo de planta é ARVORE ou PINHEIRA")
+		assert(plant.is_in_group("plants"), "Registrada no grupo 'plants'")
+		var has_static_body := false
+		for subchild in plant.get_children():
+			if subchild is StaticBody3D:
+				has_static_body = true
+				break
+		assert(has_static_body, "Árvore procedural possui StaticBody3D para colisão no tronco")
+
+	# Testar chamada legada de fallback _build_tree
+	var test_tree_pos := Vector3(10.0, 0.0, 10.0)
+	np._build_tree(test_tree_pos)
+	var last_child = np.get_child(np.get_child_count() - 1)
+	assert(last_child is _PlantBody, "_build_tree instancia PlantBody proceduralmente")
+	assert(last_child.dna != null and last_child.dna.kind == _PlantDNA.Kind.ARVORE, "Fallback cria árvore procedural")
+
+	np.free()
+	print("  ✓ NatureProps gera 100% de árvores procedurais com PlantBody, PlantDNA e colisão")
+
