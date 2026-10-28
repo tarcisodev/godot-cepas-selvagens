@@ -102,3 +102,4 @@ func _place(view: Array) -> void:
 	var tz := Shots.CENTER.y + t.z
 	_cam.global_position = Vector3(px, hub._get_ground_y(px, pz) + p.y, pz)
 	_cam.look_at(Vector3(tx, hub._get_ground_y(tx, tz) + t.y, tz), Vector3.UP)
+	Shots.stand_player_at(current_scene, Vector3(px, hub._get_ground_y(px, pz), pz))

@@ -22,8 +22,10 @@ const SIZE := Vector3(1.0, 0.55, 0.65)
 const WOOD := Color(0.45, 0.28, 0.14)
 const METAL := Color(0.75, 0.62, 0.3)
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 var _lid: Node3D
-var _prompt: Label3D
+var _prompt: _WorldLabel
 var _lid_tween: Tween
 
 func _ready() -> void:
@@ -35,10 +37,6 @@ func _snap_to_ground() -> void:
 	var landscape := get_tree().current_scene.get_node_or_null("Landscape") if get_tree().current_scene else null
 	if landscape and landscape.has_method("get_height_at"):
 		global_position.y = landscape.get_height_at(global_position.x, global_position.z)
-
-func _process(_delta: float) -> void:
-	var player := get_tree().get_first_node_in_group("player") as Node3D
-	_prompt.visible = player != null and player.global_position.distance_to(global_position) < Player.TALK_RANGE
 
 ## Chamado pelo player ao apertar [E] perto do baú.
 func talk_to(player: Node) -> void:
@@ -93,15 +91,8 @@ func _build() -> void:
 	_lid.add_child(_box(Vector3(SIZE.x + 0.04, 0.12, SIZE.z + 0.04), Vector3(0, 0.06, SIZE.z * 0.5), WOOD.lightened(0.1)))
 	_lid.add_child(_box(Vector3(0.14, 0.14, 0.05), Vector3(0, 0.0, SIZE.z + 0.03), METAL))
 
-	_prompt = Label3D.new()
-	_prompt.text = "[E] Baú de Suprimentos"
-	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_prompt.font_size = 22
-	_prompt.outline_size = 6
-	_prompt.outline_modulate = Color(0, 0, 0, 0.8)
-	_prompt.modulate = Color(1, 0.9, 0.6)
+	_prompt = _WorldLabel.make(_WorldLabel.Kind.PROMPT, "[E] Baú de Suprimentos")
 	_prompt.position.y = SIZE.y + 0.8
-	_prompt.visible = false
 	add_child(_prompt)
 
 func _box(size: Vector3, pos: Vector3, color: Color) -> MeshInstance3D:

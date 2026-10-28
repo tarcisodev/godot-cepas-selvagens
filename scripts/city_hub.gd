@@ -5,6 +5,7 @@ extends Node3D
 ## Monta a praça (placa, estrada, carroça), as obras (TownProject), o Quadro de Obras e os
 ## NPCs com corpo procedural (TownNPC). Guarda a Reputação da Vila e o estado das obras no save.
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
 const BANNER1_SCENE = preload("res://assets/models/props/fantasy/Banner_1.gltf")
@@ -309,15 +310,11 @@ func _worker_spot(p: TownProject) -> Vector2:
 # ---------------------------------------------------------------- praça e NPCs
 
 func _build_town_sign() -> void:
-	var sign_label := Label3D.new()
+	var sign_label := _WorldLabel.make(_WorldLabel.Kind.SIGN, "")
 	sign_label.name = "TownSign"
-	sign_label.text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
-	sign_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign_label.font_size = 28
-	sign_label.outline_size = 6
-	sign_label.outline_modulate = Color(0, 0, 0, 0.9)
+	sign_label.full_text = "🏛️ VILA DA ESPERANÇA\nEm obras • ajude a construir"
 	sign_label.modulate = Color(1.0, 0.9, 0.6)
-	sign_label.visibility_range_end = 30.0
+	sign_label.sign_range = 30.0
 	sign_label.position = Vector3(1.5, _get_ground_y(1.5, -7.5) + 3.6, -7.5)
 	add_child(sign_label)
 
@@ -380,6 +377,7 @@ func _spawn_city_npcs() -> void:
 	builder.name = "MestreConstrutor"
 	builder.dna = BUILDER_DNA
 	builder.display_name = "Mestre Construtor"
+	builder.icon = "🔨"
 	builder.prompt = "[E] Quadro de Obras"
 	builder.idle_anim = &"Idle_FoldArms"
 	builder.position = Vector3(4.4, _get_ground_y(4.4, 0.4), 0.4)
@@ -390,6 +388,7 @@ func _spawn_city_npcs() -> void:
 	alchemist.name = "Alquimista"
 	alchemist.dna = ALCHEMIST_DNA
 	alchemist.display_name = "Alquimista Botânica"
+	alchemist.icon = "⚗️"
 	alchemist.idle_anim = &"Idle_Talking"
 	alchemist.prompt = "[E] Loja de poções"
 	alchemist.talked.connect(open_shop)
@@ -399,6 +398,7 @@ func _spawn_city_npcs() -> void:
 	var merchant := TownNPC.new()
 	merchant.name = "Mercadora"
 	merchant.display_name = "Mercadora"
+	merchant.icon = "💰"
 	merchant.idle_anim = &"Idle_Talking"
 	merchant.prompt = "[E] Mercado: encomendas e vendas"
 	merchant.talked.connect(open_market)
@@ -425,7 +425,8 @@ func _spawn_city_npcs() -> void:
 	var couturier := TownNPC.new()
 	couturier.name = "EstilistaAstral"
 	couturier.dna = couturier_dna
-	couturier.display_name = "✨ Estilista Astral (Cosméticos)"
+	couturier.display_name = "Estilista Astral (Cosméticos)"
+	couturier.icon = "✨"
 	couturier.idle_anim = &"Idle_Talking"
 	couturier.prompt = "[E] Loja de Cosméticos [F9]"
 	couturier.position = Vector3(3.6, _get_ground_y(3.6, -2.2), -2.2)
@@ -439,7 +440,8 @@ func _spawn_city_npcs() -> void:
 	var chronicler := TownNPC.new()
 	chronicler.name = "CronistaDoMural"
 	chronicler.dna = chronicler_dna
-	chronicler.display_name = "💬 Mural de Feedback & Guia"
+	chronicler.display_name = "Mural de Feedback & Guia"
+	chronicler.icon = "📜"
 	chronicler.idle_anim = &"Idle_FoldArms"
 	chronicler.prompt = "[E] Deixar Feedback [F8] / Guia [J]"
 	chronicler.position = Vector3(-2.4, _get_ground_y(-2.4, 1.8), 1.8)

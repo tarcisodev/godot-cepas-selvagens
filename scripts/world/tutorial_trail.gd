@@ -1,6 +1,8 @@
 class_name TutorialTrail
 extends Node3D
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 ## Caminho do Tutorial (Trilha do Iniciado):
 ## Guia físico e interativo adaptado para o estado atual completo de Cepa Selvagem.
 ## Cria 8 Estações no mundo ligadas por uma trilha de Pedras-Guia Luminosas no chão,
@@ -393,7 +395,8 @@ class TutorialStationNode extends Node3D:
 	var step_index: int = 0
 	var trail: TutorialTrail
 	var _gem: MeshInstance3D
-	var _label: Label3D
+	var _label: _WorldLabel
+	var _prompt: _WorldLabel
 
 	func _ready() -> void:
 		add_to_group("talkable")
@@ -423,25 +426,21 @@ class TutorialStationNode extends Node3D:
 		add_child(_gem)
 
 		var step: Dictionary = TutorialTrail.TRAIL_STEPS[step_index]
-		_label = Label3D.new()
-		_label.text = "%s %s\n[E] Concluir Passo" % [step.icon, step.title]
-		_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_label.font_size = 15
-		_label.outline_size = 4
-		_label.outline_modulate = Color(0, 0, 0, 0.9)
-		_label.position.y = 2.05
-		_label.visibility_range_end = 10.0
+		_label = _WorldLabel.make(_WorldLabel.Kind.NAME, "➤ %s %s" % [step.icon, step.title], step.icon)
+		_label.position.y = 2.2
 		add_child(_label)
+		_prompt = _WorldLabel.make(_WorldLabel.Kind.PROMPT, "[E] Concluir Passo")
+		_prompt.position.y = 2.0
+		add_child(_prompt)
 
 	func set_visual_state(state: int, mat: Material) -> void:
 		if _gem:
 			_gem.material_override = mat
+		# Só o passo atual mostra nome e [E]; os outros ficam calados
 		if _label:
-			var step: Dictionary = TutorialTrail.TRAIL_STEPS[step_index]
-			_label.visible = (state == 0)
-			if state == 0:
-				_label.text = "➤ %s %s\n[E] Concluir Passo" % [step.icon, step.title]
-				_label.modulate = Color(1.0, 0.92, 0.52)
+			_label.active = (state == 0)
+		if _prompt:
+			_prompt.active = (state == 0)
 
 	func talk_to(p: Node) -> void:
 		if trail == null:

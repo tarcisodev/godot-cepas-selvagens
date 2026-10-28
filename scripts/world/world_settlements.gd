@@ -8,6 +8,7 @@ extends Node3D
 ## - 🪐 Santuário Astral do Mirante (82, -38): círculo de menires, fogueira e Sábio Astral Celiano
 ## Também cria Marcos de Viagem Rápida ([E] abre o Mapa [M]) e placas nas encruzilhadas.
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
 const BANNER1_SCENE = preload("res://assets/models/props/fantasy/Banner_1.gltf")
@@ -246,14 +247,8 @@ func _create_signpost(pos2d: Vector2, text: String) -> void:
 	board.position.y = 1.95
 	root_post.add_child(board)
 
-	var lbl := Label3D.new()
-	lbl.text = text
-	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	lbl.font_size = 18
-	lbl.outline_size = 5
-	lbl.outline_modulate = Color(0, 0, 0, 0.9)
-	lbl.modulate = Color(0.98, 0.90, 0.65)
-	lbl.visibility_range_end = 32.0
+	# Placa de estrada: lida de perto, ícone de longe (WorldLabel)
+	var lbl := _WorldLabel.make(_WorldLabel.Kind.NAME, text, "🪧")
 	lbl.position.y = 2.55
 	root_post.add_child(lbl)
 
@@ -279,14 +274,10 @@ func _build_porto_bruma() -> void:
 	add_child(hub)
 
 	# Placa de entrada da vila
-	var sign_lbl := Label3D.new()
-	sign_lbl.text = "⚓ VILA RIBEIRINHA DE PORTO BRUMA\nDoca dos Pescadores • Comércio & Descanso"
-	sign_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign_lbl.font_size = 26
-	sign_lbl.outline_size = 6
-	sign_lbl.outline_modulate = Color(0, 0, 0, 0.9)
+	var sign_lbl := _WorldLabel.make(_WorldLabel.Kind.SIGN, "")
+	sign_lbl.full_text = "⚓ VILA RIBEIRINHA DE PORTO BRUMA\nDoca dos Pescadores • Comércio & Descanso"
 	sign_lbl.modulate = Color(0.55, 0.88, 1.0)
-	sign_lbl.visibility_range_end = 45.0
+	sign_lbl.sign_range = 45.0
 	sign_lbl.position = Vector3(c.x, _ground_y(c.x, c.y) + 3.8, c.y)
 	hub.add_child(sign_lbl)
 
@@ -327,7 +318,8 @@ func _build_porto_bruma() -> void:
 	var fisher := TownNPC.new()
 	fisher.name = "MestrePescadorCaua"
 	fisher.dna = fisher_dna
-	fisher.display_name = "🎣 Mestre Pescador Cauã"
+	fisher.display_name = "Mestre Pescador Cauã"
+	fisher.icon = "🎣"
 	fisher.idle_anim = &"Idle_Talking"
 	fisher.prompt = "[E] Conversar sobre o Rio & Pesca"
 	fisher.position = Vector3(c.x - 1.2, _ground_y(c.x - 1.2, c.y - 0.8), c.y - 0.8)
@@ -375,14 +367,10 @@ func _build_vigia_do_norte() -> void:
 	hub.name = "PostoVigiaDoNorte"
 	add_child(hub)
 
-	var sign_lbl := Label3D.new()
-	sign_lbl.text = "🏔️ POSTO DA VIGIA DO NORTE\nGuardiões da Serra • Domadores & Caçadores"
-	sign_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign_lbl.font_size = 26
-	sign_lbl.outline_size = 6
-	sign_lbl.outline_modulate = Color(0, 0, 0, 0.9)
+	var sign_lbl := _WorldLabel.make(_WorldLabel.Kind.SIGN, "")
+	sign_lbl.full_text = "🏔️ POSTO DA VIGIA DO NORTE\nGuardiões da Serra • Domadores & Caçadores"
 	sign_lbl.modulate = Color(0.68, 0.96, 0.68)
-	sign_lbl.visibility_range_end = 45.0
+	sign_lbl.sign_range = 45.0
 	sign_lbl.position = Vector3(c.x, _ground_y(c.x, c.y) + 4.2, c.y)
 	hub.add_child(sign_lbl)
 
@@ -467,14 +455,10 @@ func _build_santuario_astral() -> void:
 	hub.name = "SantuarioAstral"
 	add_child(hub)
 
-	var sign_lbl := Label3D.new()
-	sign_lbl.text = "🪐 SANTUÁRIO ASTRAL DO MIRANTE\nObservatório do Planeta com Anéis & Sabedoria das Cepas"
-	sign_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign_lbl.font_size = 26
-	sign_lbl.outline_size = 6
-	sign_lbl.outline_modulate = Color(0, 0, 0, 0.9)
+	var sign_lbl := _WorldLabel.make(_WorldLabel.Kind.SIGN, "")
+	sign_lbl.full_text = "🪐 SANTUÁRIO ASTRAL DO MIRANTE\nObservatório do Planeta com Anéis & Sabedoria das Cepas"
 	sign_lbl.modulate = Color(0.85, 0.68, 1.0)
-	sign_lbl.visibility_range_end = 45.0
+	sign_lbl.sign_range = 45.0
 	sign_lbl.position = Vector3(c.x, _ground_y(c.x, c.y) + 4.2, c.y)
 	hub.add_child(sign_lbl)
 
@@ -525,7 +509,7 @@ func _build_santuario_astral() -> void:
 class WaystoneInteractable extends Node3D:
 	var settlement_id: StringName = &"vila_esperanca"
 	var title: String = "⚡ Marco de Viagem"
-	var _prompt: Label3D
+	var _prompt: _WorldLabel
 	var _orb: MeshInstance3D
 	var _time: float = 0.0
 
@@ -565,15 +549,11 @@ class WaystoneInteractable extends Node3D:
 		_orb.position.y = 1.75
 		add_child(_orb)
 
-		_prompt = Label3D.new()
-		_prompt.text = "%s\n[E] Abrir Mapa & Viajar [M]" % title
-		_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		_prompt.font_size = 18
-		_prompt.outline_size = 5
-		_prompt.outline_modulate = Color(0, 0, 0, 0.9)
-		_prompt.modulate = Color(0.55, 0.92, 1.0)
-		_prompt.position.y = 2.45
-		_prompt.visibility_range_end = 22.0
+		var name_lbl := _WorldLabel.make(_WorldLabel.Kind.NAME, title.trim_prefix("⚡ "), "⚡", Color(0.55, 0.92, 1.0))
+		name_lbl.position.y = 2.45
+		add_child(name_lbl)
+		_prompt = _WorldLabel.make(_WorldLabel.Kind.PROMPT, "[E] Abrir Mapa & Viajar [M]")
+		_prompt.position.y = 2.2
 		add_child(_prompt)
 
 	func _process(delta: float) -> void:

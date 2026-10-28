@@ -2,9 +2,11 @@ extends StaticBody3D
 
 ## Placa física do Quadro de Obras na praça: [E] abre a tela de doação do CityHub.
 
+const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+
 var city: Node
 
-var _prompt: Label3D
+var _prompt: _WorldLabel
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -47,28 +49,12 @@ func _ready() -> void:
 	col.position.y = 1.0
 	add_child(col)
 
-	var title := Label3D.new()
-	title.text = "📜 Obras da Vila"
-	title.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	title.font_size = 18
-	title.outline_size = 5
-	title.modulate = Color(1.0, 0.88, 0.6)
+	var title := _WorldLabel.make(_WorldLabel.Kind.NAME, "Obras da Vila", "📜")
 	title.position.y = 2.3
-	title.visibility_range_end = 14.0
 	add_child(title)
-	_prompt = Label3D.new()
-	_prompt.text = "[E] Doar materiais"
-	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_prompt.font_size = 13
-	_prompt.outline_size = 4
-	_prompt.modulate = Color(1, 0.9, 0.55)
+	_prompt = _WorldLabel.make(_WorldLabel.Kind.PROMPT, "[E] Doar materiais")
 	_prompt.position.y = 2.1
-	_prompt.visible = false
 	add_child(_prompt)
-
-func _process(_delta: float) -> void:
-	var player := get_tree().get_first_node_in_group("player") as Node3D if is_inside_tree() else null
-	_prompt.visible = player != null and player.global_position.distance_to(global_position) < Player.TALK_RANGE
 
 func talk_to(player: Node) -> void:
 	if city:

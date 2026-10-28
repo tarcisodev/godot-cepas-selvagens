@@ -92,6 +92,15 @@ func _place(view: Array) -> void:
 	var tz := CENTER.y + t.z
 	_cam.global_position = Vector3(px, _ground(px, pz) + p.y, pz)
 	_cam.look_at(Vector3(tx, _ground(tx, tz) + t.y, tz), Vector3.UP)
+	stand_player_at(current_scene, Vector3(px, _ground(px, pz), pz))
+
+## Jogador invisível e parado onde a câmera está: rótulos e prompts medem a partir dele.
+static func stand_player_at(scene: Node, pos: Vector3) -> void:
+	var player := scene.get_tree().get_first_node_in_group("player") as Node3D
+	if player:
+		player.process_mode = Node.PROCESS_MODE_DISABLED
+		player.visible = false
+		player.global_position = pos
 
 func _shot(name: String) -> void:
 	var img := root.get_texture().get_image()
