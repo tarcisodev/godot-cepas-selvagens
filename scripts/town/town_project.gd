@@ -34,6 +34,10 @@ const WALL_TOP: float = 3.1
 ## Paliçada: centro e raio do anel, e direções (graus, 0 = norte) onde ficam os portões
 @export var ring_center: Vector2 = Vector2.ZERO
 @export var ring_radius: float = 13.5
+## Raios (x, z) quando o anel é uma elipse (B36); zero = círculo de `ring_radius`
+@export var ring_radii: Vector2 = Vector2.ZERO
+## Casa de cenário (moradia, moinho): já nasce pronta, sem placa nem lugar no Quadro de Obras
+@export var decorative: bool = false
 @export var gate_angles: Array[float] = []
 
 ## Etapas concluídas (0 a 3)
@@ -46,9 +50,12 @@ var _sign: _WorldLabel
 var _scene_cache: Dictionary = {}
 
 func _ready() -> void:
-	add_to_group("town_projects")
-	_sign = _WorldLabel.make(_WorldLabel.Kind.NAME, "", "🏗️")
-	add_child(_sign)
+	if decorative:
+		stage = 3
+	else:
+		add_to_group("town_projects")
+		_sign = _WorldLabel.make(_WorldLabel.Kind.NAME, "", "🏗️")
+		add_child(_sign)
 	_snap_to_ground()
 	rebuild()
 
@@ -138,7 +145,7 @@ func _update_sign() -> void:
 	if _sign == null:
 		return
 	if kind == Kind.PALISADE:
-		_sign.position = Vector3(ring_center.x - global_position.x, 3.4, ring_center.y - ring_radius - global_position.z + 1.0)
+		_sign.position = Vector3(ring_center.x - global_position.x, 3.4, ring_center.y - _ring_radii().y - global_position.z + 1.0)
 	else:
 		_sign.position = Vector3(0, (WALL_TOP + 3.2) if stage >= 2 and kind == Kind.HOUSE else 3.0, 0)
 	if is_complete():
@@ -242,45 +249,60 @@ func _build_well() -> void:
 	_place(FANTASY + "Bucket_Wooden_1", Vector3(0.7, ring_h, 0.5))
 
 func _build_palisade() -> void:
-	# Anel em segmentos de 2 m; pula água, encostas fortes e os portões
-	var center := Vector3(ring_center.x, 0, ring_center.y)
-	var seg_count := int(TAU * ring_radius / MODULE)
-	for i in seg_count:
-		var a := TAU * (i + 0.5) / seg_count
-		var compass := fposmod(rad_to_deg(a) + 90.0, 360.0)
-		if _near_gate(compass):
-			continue
-		var world := center + Vector3(cos(a), 0, sin(a)) * ring_radius
-		var y := _ground(world.x, world.z)
-		if RiverSystem.is_in_water(Vector3(world.x, y, world.z)):
-			continue
-		var local := world - global_position
-		local.y = y - global_position.y
-		var yaw := -a + PI * 0.5
-		if stage == 0:
-			if i % 4 == 0:
-				_post(local, 1.0, 0.06)
-		elif stage == 1:
-			_post(local, 1.6, 0.09)
-		elif stage == 2:
-			_post(local, 1.6, 0.09)
-			if i % 2 == 0:
-				_place(KIT + "Prop_WoodenFence_Single", local, yaw)
-		else:
-			_place(KIT + "Prop_WoodenFence_Single", local, yaw)
+	# Anel em segmentos de 2 m medidos ao longo do contorno (círculo ou elipse); pula água e portões
+	var radii := _ring_radii()
+	var samples := PackedVector2Array()
+	for i in 721:
+		var a := TAU * i / 720.0
+		samples.append(ring_center + Vector2(sin(a) * radii.x, -cos(a) * radii.y))
+	var walked := 0.0
+	var next_at := MODULE * 0.5
+	var index := 0
+	for i in range(1, samples.size()):
+		var a := samples[i - 1]
+		var b := samples[i]
+		var seg := a.distance_to(b)
+		while walked + seg >= next_at:
+			var f := (next_at - walked) / seg
+			_palisade_segment(index, a.lerp(b, f), b - a, 0.5 * (i - 1 + f))
+			index += 1
+			next_at += MODULE
+		walked += seg
 	if stage >= 3:
 		for g in gate_angles:
 			for side in [-1.0, 1.0]:
-				var ga: float = deg_to_rad(g - 90.0) + side * deg_to_rad(9.0)
-				var p := center + Vector3(cos(ga), 0, sin(ga)) * ring_radius
-				var local := p - global_position
-				local.y = _ground(p.x, p.z) - global_position.y
+				var ga: float = deg_to_rad(g + side * 9.0)
+				var p := ring_center + Vector2(sin(ga) * radii.x, -cos(ga) * radii.y)
+				var local := Vector3(p.x, _ground(p.x, p.y), p.y) - global_position
 				_post(local, 3.4, 0.22)
 				var light := OmniLight3D.new()
 				light.light_color = Color(1.0, 0.78, 0.45)
 				light.omni_range = 6.0
 				light.position = local + Vector3(0, 3.5, 0)
 				_visual.add_child(light)
+
+func _palisade_segment(i: int, p: Vector2, tangent: Vector2, compass: float) -> void:
+	if _near_gate(compass):
+		return
+	var y := _ground(p.x, p.y)
+	if RiverSystem.is_in_water(Vector3(p.x, y, p.y)):
+		return
+	var local := Vector3(p.x, y, p.y) - global_position
+	var yaw := atan2(-tangent.y, tangent.x)
+	if stage == 0:
+		if i % 4 == 0:
+			_post(local, 1.0, 0.06)
+	elif stage == 1:
+		_post(local, 1.6, 0.09)
+	elif stage == 2:
+		_post(local, 1.6, 0.09)
+		if i % 2 == 0:
+			_place(KIT + "Prop_WoodenFence_Single", local, yaw)
+	else:
+		_place(KIT + "Prop_WoodenFence_Single", local, yaw)
+
+func _ring_radii() -> Vector2:
+	return ring_radii if ring_radii != Vector2.ZERO else Vector2(ring_radius, ring_radius)
 
 func _near_gate(compass_deg: float) -> bool:
 	for g in gate_angles:

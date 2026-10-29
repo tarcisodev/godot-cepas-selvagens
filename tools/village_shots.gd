@@ -4,20 +4,22 @@ extends SceneTree
 # Uso: godot --path . -s res://tools/village_shots.gd -- <pasta_saida>
 
 const WORLD_SCENE := "res://scenes/world.tscn"
-const CENTER := Vector2(1.5, 4.5)
+const CENTER := Vector2(-1.0, 15.0)  # centro da elipse da vila (VillageLayout.CENTER, B36)
 
 # [nome, posição da câmera relativa ao centro (x, altura acima do chão, z), alvo relativo (x, altura, z)]
 const VIEWS := [
-	["aerea", Vector3(0, 30, 26), Vector3(0, 0, 0)],
-	["entrada_sul", Vector3(2, 1.7, 18), Vector3(0, 1.5, 0)],
-	["praca_norte", Vector3(0, 1.7, 4), Vector3(0, 1.4, -10)],
-	["praca_leste", Vector3(-4, 1.7, 0), Vector3(10, 1.4, 0)],
-	["praca_oeste", Vector3(4, 1.7, 1), Vector3(-10, 1.4, 0)],
-	["chao_rua", Vector3(1, 1.0, 6), Vector3(0, 0, -2)],
-	["portao_norte", Vector3(0, 2.5, -4), Vector3(0, 1.5, -15)],
-	["fogueira", Vector3(-0.4, 1.3, 3.4), Vector3(-2.1, 0.5, 1.1)],
-	["estacoes", Vector3(-0.3, 1.5, 4.5), Vector3(0.6, 1.0, -0.8)],
-	["marco", Vector3(4.7, 1.4, 1.6), Vector3(4.7, 1.0, -1.3)],
+	["aerea", Vector3(0, 45, 40), Vector3(0, 0, -2)],
+	["entrada_sul", Vector3(0, 1.7, 34), Vector3(0, 2.5, 20)],
+	["praca_norte", Vector3(1, 1.7, -16), Vector3(1, 3.0, -9)],
+	["praca_leste", Vector3(-5, 1.7, -9), Vector3(10, 1.4, -9)],
+	["praca_oeste", Vector3(7, 1.7, -9), Vector3(-12, 1.4, -9)],
+	["arvore", Vector3(-2, 1.6, -15), Vector3(1, 5.0, -9)],
+	["feira", Vector3(4, 1.8, -1), Vector3(12, 1.2, 5)],
+	["taverna", Vector3(1, 1.8, 1), Vector3(-7, 1.5, 5)],
+	["cais", Vector3(7, 2.0, -10), Vector3(13, 0.5, -15)],
+	["moinho", Vector3(13, 4.6, -15), Vector3(5.5, 1.2, -20)],  # de dentro do rio, olhando a roda
+	["colina", Vector3(2, 2.2, 7), Vector3(-2, 2.0, 15)],
+	["portao_norte", Vector3(1, 2.5, -18), Vector3(0, 2.0, -27)],
 ]
 const TIMES := [["dia", 11.0], ["tarde", 17.6], ["noite", 22.5]]
 
