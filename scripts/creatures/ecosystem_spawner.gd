@@ -405,6 +405,30 @@ func set_companion(m: Mount) -> bool:
 	m.bond.companion = true
 	return true
 
+## Apito de Osso ([H], GDD-16 §5): a Companheira ouve dentro do alcance da faixa e vem pelo mundo.
+## Devolve o motivo: &"ok", &"sem_apito", &"montado", &"sem_companheira", &"longe", &"a_caminho"
+func whistle(player: Player) -> StringName:
+	if player == null or player.inventory == null or player.inventory.get_material_count(&"apito_osso") <= 0:
+		_tell(player, "Você precisa de um Apito de Osso (faça no [Tab]: 3 Restos Ósseos + 1 Fibra)")
+		return &"sem_apito"
+	if player.mounted_on != null:
+		_tell(player, "🎶 Você já está montado")
+		return &"montado"
+	var m := companion_mount()
+	if m == null or m.kind == Mount.Kind.WATER:
+		_tell(player, "🎶 Nenhuma Companheira atende o apito (escolha uma no estábulo)")
+		return &"sem_companheira"
+	if m.is_coming():
+		_tell(player, "🎶 %s já está a caminho" % m.display_name)
+		return &"a_caminho"
+	var dist := Vector2(m.global_position.x, m.global_position.z).distance_to(Vector2(player.global_position.x, player.global_position.z))
+	if dist > m.bond.whistle_range():
+		_tell(player, "🎶 %s está longe demais para ouvir (%d m; alcance %d m)" % [m.display_name, roundi(dist), roundi(m.bond.whistle_range())])
+		return &"longe"
+	m.call_to(player)
+	_tell(player, "🎶 %s ouviu o apito e está vindo (%d m)" % [m.display_name, roundi(dist)])
+	return &"ok"
+
 func _on_care_requested(m: Mount, player: Player) -> void:
 	_care_mount = m
 	_care_player = player

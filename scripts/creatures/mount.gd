@@ -8,7 +8,8 @@ extends Node3D
 ## A terrestre atravessa rio nadando: na água funda boia com o dorso na linha d'água, devagar,
 ## sem corrida nem pulo, gastando fôlego; sem fôlego nada mais devagar ainda.
 ## Montaria própria tem Elo (GDD-16): [E] abre a tela de cuidado, andar montado soma Elo e a
-## Companheira com a ordem Seguir acompanha o dono a pé.
+## Companheira com a ordem Seguir acompanha o dono a pé; no Apito de Osso ([H]) ela vem até ele
+## pelo mundo, correndo ou voando (sem teleporte).
 
 ## [E] numa montaria própria: o estábulo abre a tela de cuidado
 signal care_requested(mount: Mount, player: Player)
@@ -31,6 +32,12 @@ const EDGE_MARGIN: float = 3.0
 ## Companheira seguindo o dono: para a esta distância e corre quando ele se afasta mais que isto
 const FOLLOW_DISTANCE: float = 4.0
 const FOLLOW_RUN_DISTANCE: float = 12.0
+## Apito: chega a esta distância do dono; desiste se não chegar neste tempo (s)
+const CALL_ARRIVE: float = 3.0
+const CALL_TIMEOUT: float = 60.0
+## A voadora chamada viaja a esta altura sobre o chão e desce nos últimos CALL_DESCEND m
+const CALL_FLY_HEIGHT: float = 10.0
+const CALL_DESCEND: float = 20.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -62,6 +69,9 @@ var _landscape: Node
 var _hud_timer: float = 0.0
 var _base_name: String = ""
 var _following: bool = false
+## Dono que apitou (a montaria está a caminho dele)
+var _called_by: Player
+var _call_time: float = 0.0
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -179,7 +189,10 @@ func _on_rider_poise_broken() -> void:
 
 func _physics_process(delta: float) -> void:
 	if rider == null:
-		_following = bond != null and bond.companion and bond.order == MountBond.Order.FOLLOW and kind != Kind.WATER and _follow(delta)
+		if _called_by:
+			_following = _come(delta)
+		else:
+			_following = bond != null and bond.companion and bond.order == MountBond.Order.FOLLOW and kind != Kind.WATER and _follow(delta)
 		return
 	if rider.is_downed:
 		dismount()
@@ -296,29 +309,87 @@ func _follow(delta: float) -> bool:
 	if dist <= FOLLOW_DISTANCE or dist > bond.whistle_range():
 		_speed = 0.0
 		return false
-	var run := dist > FOLLOW_RUN_DISTANCE and stamina > 1.0
+	_travel(to / dist, dist > FOLLOW_RUN_DISTANCE, delta, 0.0)
+	return true
+
+## Apito de Osso: vai até o dono que apitou (GDD-16 §5). Quem decide se ela ouviu é o estábulo.
+func call_to(p: Player) -> void:
+	_called_by = p
+	_call_time = CALL_TIMEOUT
+
+func is_coming() -> bool:
+	return _called_by != null
+
+## A caminho do dono: corre enquanto tem fôlego; a voadora voa alto e desce perto dele.
+## Para ao lado dele, ou desiste se ele montou outra coisa ou se não chegou a tempo.
+func _come(delta: float) -> bool:
+	var p := _called_by
+	if not is_instance_valid(p) or p.mounted_on != null or _channel_player != null:
+		_called_by = null
+		_speed = 0.0
+		return false
+	var to := p.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	if dist <= CALL_ARRIVE:
+		_called_by = null
+		_speed = 0.0
+		if kind == Kind.AIR:
+			_land()
+		rotation.y = atan2(-to.x, -to.z) if dist > 0.01 else rotation.y
+		p.posture_changed.emit("🐾 %s chegou" % display_name)
+		return false
+	_call_time -= delta
+	if _call_time <= 0.0:
+		_called_by = null
+		_speed = 0.0
+		if kind == Kind.AIR:
+			_land()
+		p.posture_changed.emit("%s não achou caminho até você" % display_name)
+		return false
+	_travel(to / dist, true, delta, CALL_FLY_HEIGHT if dist > CALL_DESCEND else 0.0)
+	return true
+
+## Anda (ou corre, gastando fôlego) sem cavaleiro na direção dada. A terrestre contorna paredão;
+## a voadora sobe até fly_height acima do chão (0 = rente ao chão, planando baixo sobre o rio).
+func _travel(dir: Vector3, run: bool, delta: float, fly_height: float) -> void:
+	run = run and stamina > 1.0
 	if run:
 		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
 	else:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
 	var speeds: Vector2 = SPEEDS[kind] * body.dna.mount_speed_factor()
 	_speed = move_toward(_speed, speeds.y if run else speeds.x, delta * 14.0)
-	var dir := to / dist
+	if kind != Kind.AIR:
+		dir = _detour(dir)
 	rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 6.0))
 	var step := _clamp_to_bounds(global_position + dir * _speed * delta) - global_position
 	if kind == Kind.AIR:
-		# A voadora segue rente ao chão e passa o rio planando baixo
 		var next := global_position + step
 		var ground := _ground(next.x, next.z)
 		var over_water := RiverSystem.is_in_water(Vector3(next.x, ground, next.z))
-		var target_y := maxf(ground, RiverSystem.get_water_height(next.z) + 1.5) if over_water else ground
-		airborne = over_water
-		next.y = lerpf(global_position.y, target_y, minf(1.0, delta * 5.0)) if over_water or global_position.y > ground + 0.05 else target_y
+		var floor_y := maxf(ground, RiverSystem.get_water_height(next.z) + 1.5) if over_water else ground
+		var target_y := minf(floor_y + fly_height, ground + AIR_CEILING)
+		if fly_height <= 0.0 and not over_water and global_position.y <= ground + 0.05:
+			next.y = ground
+		else:
+			next.y = maxf(floor_y, lerpf(global_position.y, target_y, minf(1.0, delta * 3.0)))
+		airborne = next.y > ground + 0.3
 		global_position = next
 	else:
 		_move_land(step, delta, false)
 	body.animate(delta, _speed, _vertical, airborne)
-	return true
+
+## Direção livre mais perto da pedida: tenta reto e depois desvia 45° e 90° para cada lado,
+## evitando degrau maior que o que a montaria sobe (a mesma regra do _move_land)
+func _detour(dir: Vector3) -> Vector3:
+	var base_y: float = RiverSystem.get_water_height(global_position.z) if swimming else global_position.y
+	for a in [0.0, 0.8, -0.8, 1.6, -1.6]:
+		var d := dir.rotated(Vector3.UP, a)
+		var probe := global_position + d * 1.5
+		if _ground(probe.x, probe.z) - base_y <= 1.2:
+			return d
+	return dir
 
 func _land() -> void:
 	airborne = false

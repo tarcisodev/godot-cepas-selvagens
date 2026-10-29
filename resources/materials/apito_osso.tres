@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"apito_osso"
+display_name = "Apito de Osso"
+description = "Chama a sua Companheira com [H]. Ela vem correndo, nadando ou voando até você, se estiver dentro do alcance do Elo (Mansa 60 m, Parceira 150 m, plena 300 m). Não se gasta."
+category = 5
+icon = "🎶"
+color = Color(0.9, 0.86, 0.74, 1)
+unit_weight = 0.1
+max_gather_quality = 5
+base_value = 8

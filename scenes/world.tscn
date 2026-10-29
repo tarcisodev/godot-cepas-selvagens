@@ -360,7 +360,7 @@ text = "â€¢ Cajado: BotÃ£o Dir. mira (ombro) + BotÃ£o Esq. atira dardo a
 â€¢ 1: Curar (erva/poÃ§Ã£o)  |  2: Comer (Vigor)  |  3: Cannabis (Ã‰ter)  |  E no BaÃº de Suprimentos: repor o kit
 â€¢ F (segurar): Roda de itens  |  G: Usar item escolhido  |  Z / X: Item anterior / prÃ³ximo
 â€¢ Tab: AÃ§Ãµes & Forja  |  I: InventÃ¡rio  |  B: Construir  |  E (segurar): Esfolar/Coletar  |  K: Ãlbum  |  Scroll / V: Zoom
-â€¢ H: Ocultar dicas  |  ESC: Menu / ConfiguraÃ§Ãµes"
+â€¢ F2: Ocultar dicas  |  H: Apito  |  ESC: Menu / ConfiguraÃ§Ãµes"
 
 [node name="ActionsMenu" type="Control" parent="HUD" node_paths=PackedStringArray("player", "day_night")]
 visible = false
