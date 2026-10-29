@@ -11,9 +11,12 @@ extends Node3D
 ## Companheira com a ordem Seguir acompanha o dono a pé; no Apito de Osso ([H]) ela vem até ele
 ## pelo mundo, correndo ou voando (sem teleporte). Voando alto, [E] salta da montaria no ar; a
 ## Companheira plena voadora pega o dono em queda no [H], se chegar antes do chão.
+## A montaria própria tem Vida e hurtbox: fora da vila pode ser ferida e morrer de vez (GDD-16 §7).
 
 ## [E] numa montaria própria: o estábulo abre a tela de cuidado
 signal care_requested(mount: Mount, player: Player)
+## Montaria própria morreu (o estábulo tira do save e deixa a Lembrança)
+signal died(mount: Mount)
 
 enum Kind { LAND, AIR, WATER }
 
@@ -48,6 +51,10 @@ const CATCH_SPEED: float = 34.0
 const CATCH_REACH: float = 2.5
 const CATCH_RANGE: float = 60.0
 const CATCH_STAMINA: float = 20.0
+## Golpe "forte" (tira Elo com o dono montado): pelo menos esta fração da Vida máxima
+const HEAVY_HIT_FRACTION: float = 0.1
+## Ferida com o dono montado e sem levar golpe por este tempo, ainda montados: fugiram juntos (Elo)
+const ESCAPE_SECONDS: float = 20.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -85,6 +92,12 @@ var _call_time: float = 0.0
 ## Dono em queda que ela está tentando pegar, e a Vida dele quando o mergulho começou
 var _catching: Player
 var _catch_health: float = 0.0
+## Vida (só montaria própria)
+var stats: StatsComponent
+var pools: PoolsComponent
+var dead: bool = false
+var _last_health: float = 0.0
+var _escape_timer: float = 0.0
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -111,6 +124,67 @@ func set_bond(b: MountBond) -> void:
 		_base_name = display_name
 	bond = b
 	display_name = b.display_name(_base_name) if b else _base_name
+	if b and stats == null:
+		_build_combat()
+
+## Vida pela espécie e porte (a mesma tabela dos bichos selvagens) e hurtbox no corpo
+func _build_combat() -> void:
+	stats = StatsComponent.new()
+	stats.name = "StatsComponent"
+	add_child(stats)
+	stats.set_base_stat(&"max_health", float(WildCreature.HEALTH.get(body.dna.species, 100.0)) * (0.6 + 0.4 * body.dna.size_factor()))
+	stats.set_base_stat(&"max_poise", 40.0)
+	pools = PoolsComponent.new()
+	pools.name = "PoolsComponent"
+	pools.stats = stats
+	add_child(pools)
+	pools.reset_all()
+	_last_health = pools.current_health
+	pools.health_changed.connect(_on_health_changed)
+	pools.health_depleted.connect(_die)
+	var hurtbox := HurtboxComponent.new()
+	hurtbox.name = "BodyHurtbox"
+	hurtbox.entity = self
+	var col := CollisionShape3D.new()
+	var shape := CapsuleShape3D.new()
+	shape.radius = maxf(0.3, body.dna.body_size() * 0.28)
+	shape.height = maxf(shape.radius * 2.0, body.back_height + 0.2)
+	col.shape = shape
+	hurtbox.add_child(col)
+	hurtbox.position.y = shape.height * 0.5
+	add_child(hurtbox)
+
+## Na vila (zona segura) não toma dano; o próprio dono também não a fere
+func filter_incoming_hit(hit: HitEvent) -> void:
+	var tree := get_tree()
+	var zm: Node = tree.get_first_node_in_group("zone_manager") if tree else null
+	var safe: bool = zm != null and zm.has_method("can_combat_at") and not zm.can_combat_at(global_position)
+	var by_owner: bool = hit.attacker != null and tree != null and hit.attacker == tree.get_first_node_in_group("player")
+	if dead or safe or by_owner:
+		hit.raw_damage = 0.0
+		hit.poise_damage = 0.0
+
+func _on_health_changed(current: float, max_val: float) -> void:
+	var lost := _last_health - current
+	_last_health = current
+	if lost <= 0.0 or dead or rider == null or bond == null:
+		return
+	_escape_timer = ESCAPE_SECONDS
+	if lost >= max_val * HEAVY_HIT_FRACTION:
+		bond.hurt()
+
+## Morte de verdade: derruba o cavaleiro (no alto, ele cai) e avisa o estábulo
+func _die() -> void:
+	if dead:
+		return
+	dead = true
+	_called_by = null
+	_catching = null
+	var p := rider
+	if p:
+		dismount()
+		p.posture_changed.emit("💔 %s morreu" % display_name)
+	died.emit(self)
 
 ## Chamado pelo player no [E]: montaria própria abre a tela de cuidado; as outras começam a montar
 func talk_to(player: Node) -> void:
@@ -179,6 +253,7 @@ func dismount() -> void:
 	var p := rider
 	rider = null
 	p.mounted_on = null
+	_escape_timer = 0.0
 	if p.pools and p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.disconnect(_on_rider_poise_broken)
 	if kind == Kind.AIR and airborne and global_position.y - _ground(global_position.x, global_position.z) > AIR_JUMP_HEIGHT:
@@ -227,6 +302,12 @@ func _physics_process(delta: float) -> void:
 		return
 	if bond:
 		bond.add_ride_time(delta, MountBond.today())
+		if _escape_timer > 0.0:
+			_escape_timer -= delta
+			if _escape_timer <= 0.0:
+				var gain := bond.fight(MountBond.today())
+				if gain > 0.0:
+					rider.posture_changed.emit("🐾 Você e %s escaparam juntos · Elo +%d" % [display_name, roundi(gain)])
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var menus_open := not get_tree().get_nodes_in_group("open_menus").is_empty()
 	if menus_open:
