@@ -89,6 +89,14 @@ func remove_livestock(index: int) -> _CreatureDNA:
 	return null
 ## Velocidade máxima de queda com a Capa de Penas (m/s)
 const SLOW_FALL_SPEED: float = 3.0
+## Dano de queda (GDD-16 §5): até FALL_SAFE_SPEED (~5 m) não machuca; em FALL_LETHAL_SPEED
+## (~25 m) tira a Vida máxima inteira (a armadura de impacto ainda segura parte). Cair na água não machuca.
+const FALL_SAFE_SPEED: float = 10.0
+const FALL_LETHAL_SPEED: float = 22.0
+## Queda livre: caindo mais rápido que isto (ou depois de saltar da montaria no ar), braços abertos
+## e corpo deitado de barriga para baixo
+const SKYDIVE_SPEED: float = 14.0
+const SKYDIVE_TILT: float = 1.3
 ## Acima disso do limite da mochila não corre nem esquiva (GDD-12 §6.4)
 const OVERLOAD_HARD: float = 1.5
 const STYLE_SWORD: WeaponStyle = preload("res://resources/weapons/sword.tres")
@@ -111,6 +119,10 @@ const KNOCKBACK_MAX: float = 12.0
 @onready var ecology: _EcologyKnowledgeComponent = get_node_or_null("EcologyKnowledgeComponent")
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+## Em queda livre (saltou da montaria no ar ou caindo rápido)
+var is_skydiving: bool = false
+## Maior velocidade de descida desde que saiu do chão (vira dano ao pousar)
+var fall_speed: float = 0.0
 var is_first_person: bool = false
 var is_crouching: bool = false
 var is_sitting: bool = false
@@ -387,6 +399,7 @@ func _physics_process(delta: float) -> void:
 	play_time += delta
 	_update_oxygen(delta)
 	if mounted_on:
+		end_fall()
 		_process_mounted()
 		return
 
@@ -395,6 +408,7 @@ func _physics_process(delta: float) -> void:
 	wants_move = input_dir != Vector2.ZERO
 
 	if not is_downed and _update_swim_state():
+		end_fall() # cair na água não machuca
 		_process_swimming(delta, input_dir)
 		return
 
@@ -556,7 +570,15 @@ func _physics_process(delta: float) -> void:
 	velocity.z = new_velocity_xz.z + _knockback.z
 	_knockback = _knockback.move_toward(Vector3.ZERO, KNOCKBACK_DECAY * delta)
 
+	if not is_on_floor():
+		fall_speed = maxf(fall_speed, -velocity.y)
+		if -velocity.y > SKYDIVE_SPEED:
+			is_skydiving = true
 	move_and_slide()
+	if is_on_floor() and fall_speed > 0.0:
+		var impact := fall_speed
+		end_fall()
+		_land_impact(impact)
 
 	# Atualiza última posição segura sobre o chão dentro do mapa
 	if is_on_floor() and global_position.y > -6.0 and WorldBounds.inside(global_position.x, global_position.z, 4.0):
@@ -573,6 +595,8 @@ func _physics_process(delta: float) -> void:
 
 	# Animação e passos
 	_update_animation(Vector3(velocity.x, 0, velocity.z).length())
+	if visual_mesh:
+		visual_mesh.rotation.x = lerpf(visual_mesh.rotation.x, -SKYDIVE_TILT if is_skydiving else 0.0, minf(1.0, delta * 6.0))
 	_handle_footsteps(delta, input_dir)
 	_handle_rotation(delta, move_direction)
 
@@ -762,7 +786,7 @@ func _update_animation(speed: float) -> void:
 	elif is_sitting:
 		character_visual.play(&"Sitting_Idle")
 	elif not is_on_floor():
-		character_visual.play(&"Jump")
+		character_visual.play(&"A_TPose" if is_skydiving else &"Jump")
 	elif is_crouching:
 		character_visual.play(&"Crouch_Fwd" if moving else &"Crouch_Idle")
 	elif not moving:
@@ -1249,8 +1273,26 @@ func is_stunned() -> bool:
 	return pools != null and pools.is_poise_broken
 
 ## Chamado pelo CombatResolver antes da mitigação: i-frames da esquiva e bloqueio frontal.
+## Pousou: a velocidade da descida vira dano de impacto pelo CombatResolver (ADR-0003)
+func _land_impact(speed: float) -> void:
+	var t := clampf((speed - FALL_SAFE_SPEED) / (FALL_LETHAL_SPEED - FALL_SAFE_SPEED), 0.0, 1.0)
+	if t <= 0.0 or stats == null:
+		return
+	var hit := HitEvent.new(null, self, stats.get_stat(&"max_health") * t, DamageType.Type.IMPACT, 0.0, &"queda")
+	hit.hit_position = global_position
+	var result := CombatResolver.resolve_hit(hit)
+	posture_changed.emit("💥 Queda: −%d Vida" % roundi(float(result.get(&"effective_damage", 0.0))))
+
+## Fim da queda sem dano (montou, caiu na água, foi resgatado ou já pousou)
+func end_fall() -> void:
+	fall_speed = 0.0
+	is_skydiving = false
+	if visual_mesh:
+		visual_mesh.rotation.x = 0.0
+
 func filter_incoming_hit(hit: HitEvent) -> void:
-	if is_downed or (is_dodging and dodge_timer > DODGE_DURATION - _dodge_iframes):
+	# A esquiva não anula a queda
+	if is_downed or (is_dodging and dodge_timer > DODGE_DURATION - _dodge_iframes and hit.part_id != &"queda"):
 		hit.raw_damage = 0.0
 		hit.poise_damage = 0.0
 		return
@@ -1329,6 +1371,7 @@ func _process_downed(delta: float) -> void:
 ## Resgata o jogador se cair no vazio (limbo) ou atravessar a malha
 func _recover_from_void() -> void:
 	velocity = Vector3.ZERO
+	end_fall()
 	var target_pos: Vector3 = last_safe_position if (last_safe_position != Vector3.ZERO and last_safe_position.y > -5.0) else spawn_point
 	if target_pos.y < -5.0:
 		target_pos = Vector3(0.0, 1.2, 0.0)

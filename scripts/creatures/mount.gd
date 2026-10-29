@@ -9,7 +9,8 @@ extends Node3D
 ## sem corrida nem pulo, gastando fôlego; sem fôlego nada mais devagar ainda.
 ## Montaria própria tem Elo (GDD-16): [E] abre a tela de cuidado, andar montado soma Elo e a
 ## Companheira com a ordem Seguir acompanha o dono a pé; no Apito de Osso ([H]) ela vem até ele
-## pelo mundo, correndo ou voando (sem teleporte).
+## pelo mundo, correndo ou voando (sem teleporte). Voando alto, [E] salta da montaria no ar; a
+## Companheira plena voadora pega o dono em queda no [H], se chegar antes do chão.
 
 ## [E] numa montaria própria: o estábulo abre a tela de cuidado
 signal care_requested(mount: Mount, player: Player)
@@ -38,6 +39,15 @@ const CALL_TIMEOUT: float = 60.0
 ## A voadora chamada viaja a esta altura sobre o chão e desce nos últimos CALL_DESCEND m
 const CALL_FLY_HEIGHT: float = 10.0
 const CALL_DESCEND: float = 20.0
+## Acima disto do chão, descer da voadora é saltar no ar (o cavaleiro cai de verdade)
+const AIR_JUMP_HEIGHT: float = 3.0
+## Sem cavaleiro no ar, a voadora plana para baixo até pousar (m/s)
+const GLIDE_DOWN_SPEED: float = 3.0
+## Pegada no ar (GDD-16 §5): mergulho (m/s), distância em que pega, alcance e fôlego mínimo
+const CATCH_SPEED: float = 34.0
+const CATCH_REACH: float = 2.5
+const CATCH_RANGE: float = 60.0
+const CATCH_STAMINA: float = 20.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -72,6 +82,9 @@ var _following: bool = false
 ## Dono que apitou (a montaria está a caminho dele)
 var _called_by: Player
 var _call_time: float = 0.0
+## Dono em queda que ela está tentando pegar, e a Vida dele quando o mergulho começou
+var _catching: Player
+var _catch_health: float = 0.0
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -131,7 +144,7 @@ func _process(delta: float) -> void:
 		_label.text = "%s\n%s" % [display_name, action]
 	if rider == null and not _following:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
-		body.animate(delta, 0.0, 0.0, false)
+		body.animate(delta, 0.0, 0.0, airborne)
 
 func _process_channel(delta: float) -> void:
 	var p := _channel_player
@@ -151,6 +164,7 @@ func mount(p: Player) -> void:
 	rider = p
 	p.mounted_on = self
 	p.is_swimming = false
+	p.end_fall() # pego no ar: a queda acaba aqui, sem dano
 	_speed = 0.0 # sem sobra do último passeio (na borda ela jogaria a Raia para fora d'água)
 	_vertical = 0.0
 	p.velocity = Vector3.ZERO
@@ -165,9 +179,18 @@ func dismount() -> void:
 	var p := rider
 	rider = null
 	p.mounted_on = null
-	_speed = 0.0
 	if p.pools and p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.disconnect(_on_rider_poise_broken)
+	if kind == Kind.AIR and airborne and global_position.y - _ground(global_position.x, global_position.z) > AIR_JUMP_HEIGHT:
+		# Salto no ar: o cavaleiro sai do dorso com o embalo do voo e cai de verdade; ela fica no ar
+		var forward := -global_transform.basis.z
+		p.global_position = body.saddle.global_position - Vector3(0, 1.2, 0)
+		p.velocity = Vector3(forward.x, 0, forward.z) * _speed * 0.6
+		p.is_skydiving = true
+		_speed = 0.0
+		p.posture_changed.emit("🪂 Queda livre · [H] chama %s" % display_name)
+		return
+	_speed = 0.0
 	var side := global_transform.basis.x.normalized()
 	var spot := _clamp_to_bounds(global_position + side * 1.6)
 	if kind == Kind.WATER:
@@ -189,8 +212,13 @@ func _on_rider_poise_broken() -> void:
 
 func _physics_process(delta: float) -> void:
 	if rider == null:
-		if _called_by:
+		if _catching:
+			_following = _dive(delta)
+		elif _called_by:
 			_following = _come(delta)
+		elif airborne:
+			_following = false
+			_glide_down(delta)
 		else:
 			_following = bond != null and bond.companion and bond.order == MountBond.Order.FOLLOW and kind != Kind.WATER and _follow(delta)
 		return
@@ -319,6 +347,56 @@ func call_to(p: Player) -> void:
 
 func is_coming() -> bool:
 	return _called_by != null
+
+## Pegada no ar: mergulha atrás do dono em queda. Quem confere Elo, alcance e fôlego é o estábulo.
+func catch_falling(p: Player) -> void:
+	_called_by = null
+	_catching = p
+	_catch_health = p.pools.current_health if p.pools else 0.0
+	stamina = maxf(0.0, stamina - CATCH_STAMINA)
+
+func is_catching() -> bool:
+	return _catching != null
+
+## Mergulho até o dono (mirando um pouco à frente da queda). Alcançou: ele monta na hora.
+## Falha se ele pousar, cair na água ou levar dano antes; aí a queda segue com o dano inteiro.
+func _dive(delta: float) -> bool:
+	var p := _catching
+	if not is_instance_valid(p) or p.mounted_on != null:
+		_catching = null
+		return false
+	var hurt := p.pools != null and p.pools.current_health < _catch_health
+	# Logo depois do salto o is_on_floor() ainda é o de antes de montar: pousou = fim da queda
+	var landed := p.is_on_floor() and not p.is_skydiving and p.fall_speed == 0.0
+	if hurt or landed or p.is_swimming:
+		_catching = null
+		p.posture_changed.emit("%s não chegou a tempo" % display_name if not hurt else "💥 Levou dano: a pegada falhou")
+		return false
+	var aim := p.global_position + p.velocity * 0.15
+	var to := aim - global_position
+	if to.length() <= CATCH_REACH:
+		_catching = null
+		mount(p)
+		p.posture_changed.emit("🪶 %s te pegou no ar!" % display_name)
+		return false
+	var step := to.normalized() * minf(CATCH_SPEED * delta, to.length())
+	var next := _clamp_to_bounds(global_position + step)
+	next.y = maxf(next.y, _ground(next.x, next.z))
+	global_position = next
+	airborne = next.y > _ground(next.x, next.z) + 0.3
+	_speed = CATCH_SPEED
+	rotation.y = lerp_angle(rotation.y, atan2(-to.x, -to.z), minf(1.0, delta * 8.0))
+	body.animate(delta, _speed, -CATCH_SPEED, airborne)
+	return true
+
+## Sem cavaleiro no ar: desce planando devagar e pousa
+func _glide_down(delta: float) -> void:
+	var ground := _ground(global_position.x, global_position.z)
+	var over_water := RiverSystem.is_in_water(Vector3(global_position.x, ground, global_position.z))
+	var floor_y := maxf(ground, RiverSystem.get_water_height(global_position.z) + 1.5) if over_water else ground
+	global_position.y = maxf(floor_y, global_position.y - GLIDE_DOWN_SPEED * delta)
+	if global_position.y <= floor_y + 0.01 and not over_water:
+		_land()
 
 ## A caminho do dono: corre enquanto tem fôlego; a voadora voa alto e desce perto dele.
 ## Para ao lado dele, ou desiste se ele montou outra coisa ou se não chegou a tempo.
