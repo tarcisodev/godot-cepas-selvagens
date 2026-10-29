@@ -22,12 +22,12 @@ Implementar o [[03-Projects/Cepa-Selvagem/notas/GDD-16-Elo-com-montarias|GDD-16]
 - [x] Fase 2: Apito de Osso ([H]); a Companheira vem pelo mundo, sem teleporte.
 - [x] Fase 3: dano de queda, salto no ar e pegada no ar.
 - [x] Fase 4: Vida da montaria, morte permanente e Lembrança (`saudade`).
-- [ ] Fase 5: Faro e Olho de caça ([Q]).
+- [x] Fase 5: Faro e Olho de caça ([Q]).
 - [ ] Fase 6: Prova do Ninho (ninhos, oferenda Íntegra, voo bravio).
 - [ ] Testes em `tests/` e runner verde a cada fase.
 
 ## Próximo passo (uma frase)
-Tarciso testar as fases 1 a 4 jogando (estábulo, Apito de Osso, salto e pegada no ar, Vida e morte da montaria) e liberar a Fase 5 (Faro e Olho de caça).
+Tarciso testar as fases 1 a 5 jogando e liberar a Fase 6 (Prova do Ninho), a última.
 
 ## Log
 - 2026-10-29 — Bloco criado (Claude) com a proposta do GDD-16.
@@ -36,3 +36,5 @@ Tarciso testar as fases 1 a 4 jogando (estábulo, Apito de Osso, salto e pegada 
 - 2026-10-29 — Fase 2 implementada (Claude). Apito de Osso (3 Restos Ósseos + 1 Fibra no [Tab]; não se gasta). [H] chama a Companheira: o estábulo confere o alcance da faixa (60/150/300 m) e ela vem pelo mundo; a terrestre corre e contorna paredão (tenta 45° e 90° para cada lado), a voadora sobe a ~10 m, desce nos últimos 20 m e pousa ao lado. Desiste se o dono montar outra ou se não chegar em 60 s. As dicas da tela saíram do [H] para o [F2]. Teste `tests/test_mount_whistle.gd`.
 - 2026-10-29 — Fase 3 implementada (Claude). Dano de queda para todo mundo, pela velocidade do impacto e via CombatResolver (parte `queda`; a esquiva não anula): até ~5 m nada, ~15 m −60, ~25 m ou mais a Vida inteira (antes da armadura de impacto). Cair na água e a Capa de Penas não machucam. Voando a mais de 3 m do chão, [E] salta da montaria com o embalo do voo; queda livre com braços abertos (`A_TPose`, corpo deitado; não há animação de queda livre nas bibliotecas UAL). Sem cavaleiro no ar, a voadora desce planando a 3 m/s. Caindo, [H] faz a Companheira plena voadora (a até 60 m, fôlego ≥ 20) mergulhar a 34 m/s; alcançou (2,5 m), você monta na hora. Falha se você pousar, cair na água ou levar dano antes. Derrubado da voadora no alto (Postura quebrada) também cai de verdade. Teste `tests/test_mount_air_catch.gd`.
 - 2026-10-29 — Fase 4 implementada (Claude). Montaria própria tem Vida (tabela dos bichos selvagens pelo porte: Trotador TT 120, Planador TT 90) e hurtbox; o dano passa pelo CombatResolver. Na vila (zona segura) e pelo próprio dono não toma dano. Golpe forte (≥ 10% da Vida) com o dono montado tira Elo (`hurt`); 20 s sem apanhar, ainda montados, contam como fuga junto (`fight`, +2). Morreu: derruba o dono (no alto, ele cai), sai do estábulo e do save, e no lugar do corpo fica uma trouxa (`DroppedLoot`) com a Lembrança 3★ e o trait `saudade`, que qualquer um pega. Lembrança é tempero opcional das 9 receitas de armadura (cabeça, peito, botas, capa, mochila): Saudade = +5% de resistência a corte, impacto e perfuração. A Vida não vai para o save (volta cheia no load) e o nome dela não fica gravado na Lembrança. Teste `tests/test_mount_death.gd`.
+- 2026-10-29 — Pedido do Tarciso: a Lembrança guarda o nome, e os itens guardam mais. Implementado (Claude): pilha pode ter `memory` (nome, espécie, Elo, dia da morte); só junta com memória igual e a memória vai para o chão, o save, o mercado da vila e a peça forjada (`ForgedItem.memory`, nome "… · Saudade de Estrela"). A tela de inventário mostra a linha "Memória".
+- 2026-10-29 — Fase 5 implementada (Claude). `MountSenses`: montado na Companheira, segurar [Q] 1 s. Faro (Parceira): rastros (5 pegadas e o nome com a distância) de cada bicho vivo a até 60 m (90 m na voadora no ar) por 20 s. Olho de caça (plena): nas presas a até 25 m, marca a Vida (%, vermelha abaixo de 20%) e as partes que quebram (chifre, carapaça) por 8 s. Recarga 45 s; não dá dano. Os bichos selvagens comuns não têm hurtbox por parte, então neles o Olho mostra só a Vida. Teste `tests/test_mount_senses.gd`.
