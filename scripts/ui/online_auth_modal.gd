@@ -6,6 +6,7 @@ extends Control
 
 const WORLD_SCENE: String = "res://scenes/world.tscn"
 const CHARACTER_CREATION_SCENE: String = "res://scenes/character_creation.tscn"
+const CREDENTIALS_PATH: String = "user://auth_credentials.json"
 const _WalletComponent = preload("res://scripts/components/wallet_component.gd")
 
 @export var is_host_mode: bool = false
@@ -21,6 +22,7 @@ var _url_input: LineEdit
 var _ws_check: CheckButton
 var _user_input: LineEdit
 var _pass_input: LineEdit
+var _remember_check: CheckBox
 var _mode_btn: CheckButton
 var _submit_btn: Button
 var _cancel_btn: Button
@@ -68,7 +70,7 @@ func _build_ui() -> void:
 	add_child(center)
 
 	_panel = PanelContainer.new()
-	_panel.custom_minimum_size = Vector2(480, 360)
+	_panel.custom_minimum_size = Vector2(480, 390)
 	center.add_child(_panel)
 
 	var margin := MarginContainer.new()
@@ -136,6 +138,27 @@ func _build_ui() -> void:
 	_pass_input.secret = true
 	_pass_input.placeholder_text = "••••••••"
 	_auth_box.add_child(_pass_input)
+
+	_user_input.text_submitted.connect(func(_t: String):
+		if _pass_input.text.is_empty():
+			_pass_input.grab_focus()
+		else:
+			_on_submit_pressed()
+	)
+	_pass_input.text_submitted.connect(func(_t: String):
+		_on_submit_pressed()
+	)
+
+	_remember_check = CheckBox.new()
+	_remember_check.text = "Lembrar usuário e senha"
+	_remember_check.tooltip_text = "Salva seus dados de acesso neste dispositivo para entrar automaticamente."
+	_remember_check.add_theme_font_size_override("font_size", 12)
+	_remember_check.add_theme_color_override("font_color", Color(0.85, 0.9, 0.85))
+	_remember_check.toggled.connect(func(pressed: bool):
+		if not pressed:
+			clear_saved_credentials()
+	)
+	_auth_box.add_child(_remember_check)
 
 	_mode_btn = CheckButton.new()
 	_mode_btn.text = "Criar nova conta (Registro)"
@@ -251,7 +274,7 @@ func _build_ui() -> void:
 	disc_btn.pressed.connect(_disconnect_and_reset)
 	_char_box.add_child(disc_btn)
 
-	_user_input.grab_focus()
+	_apply_saved_credentials()
 
 func _on_submit_pressed() -> void:
 	var user := _user_input.text.strip_edges()
@@ -321,6 +344,11 @@ func _on_auth_result(success: bool, message: String, characters: Array) -> void:
 	if not success:
 		_set_status("❌ %s" % message, Color(1, 0.4, 0.4))
 		return
+
+	if _remember_check and _remember_check.button_pressed:
+		save_credentials(_user_input.text.strip_edges(), _pass_input.text, true)
+	else:
+		clear_saved_credentials()
 
 	var net = _net()
 	if net != null and _user_input:
@@ -559,7 +587,78 @@ func _disconnect_and_reset() -> void:
 	_auth_box.visible = true
 	_char_box.visible = false
 	_set_status("Desconectado.", Color(0.8, 0.8, 0.8))
+	_apply_saved_credentials()
 
 func _set_status(msg: String, color: Color) -> void:
 	_status_lbl.text = msg
 	_status_lbl.add_theme_color_override("font_color", color)
+
+## Carrega as credenciais salvas em user://auth_credentials.json (se lembrar estiver ativo)
+static func load_saved_credentials() -> Dictionary:
+	if not FileAccess.file_exists(CREDENTIALS_PATH):
+		return {"remember": false, "username": "", "password": ""}
+	var f := FileAccess.open(CREDENTIALS_PATH, FileAccess.READ)
+	if f == null:
+		return {"remember": false, "username": "", "password": ""}
+	var text := f.get_as_text()
+	f.close()
+	var json := JSON.new()
+	if json.parse(text) != OK or not (json.data is Dictionary):
+		return {"remember": false, "username": "", "password": ""}
+	var data: Dictionary = json.data as Dictionary
+	var remember: bool = bool(data.get("remember", false))
+	var username: String = str(data.get("username", ""))
+	var encoded_pass: String = str(data.get("password_encoded", ""))
+	var password: String = ""
+	if not encoded_pass.is_empty():
+		password = Marshalls.base64_to_utf8(encoded_pass)
+	elif data.has("password"):
+		password = str(data.get("password", ""))
+	return {
+		"remember": remember,
+		"username": username,
+		"password": password
+	}
+
+## Salva ou limpa as credenciais locais do usuário
+static func save_credentials(username: String, password_raw: String, remember: bool) -> void:
+	if not remember:
+		clear_saved_credentials()
+		return
+	var data := {
+		"remember": true,
+		"username": username,
+		"password_encoded": Marshalls.utf8_to_base64(password_raw)
+	}
+	var f := FileAccess.open(CREDENTIALS_PATH, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(data, "\t"))
+		f.close()
+
+## Remove o arquivo de credenciais salvas
+static func clear_saved_credentials() -> void:
+	if FileAccess.file_exists(CREDENTIALS_PATH):
+		var err := DirAccess.remove_absolute(CREDENTIALS_PATH)
+		if err != OK:
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(CREDENTIALS_PATH))
+
+func _apply_saved_credentials() -> void:
+	var creds := load_saved_credentials()
+	if creds.get("remember", false):
+		if _remember_check:
+			_remember_check.button_pressed = true
+		if _user_input:
+			_user_input.text = creds.get("username", "")
+		if _pass_input:
+			_pass_input.text = creds.get("password", "")
+		if not _user_input.text.is_empty() and not _pass_input.text.is_empty():
+			_submit_btn.grab_focus()
+		elif not _user_input.text.is_empty():
+			_pass_input.grab_focus()
+		else:
+			_user_input.grab_focus()
+	else:
+		if _remember_check:
+			_remember_check.button_pressed = false
+		if _user_input:
+			_user_input.grab_focus()
