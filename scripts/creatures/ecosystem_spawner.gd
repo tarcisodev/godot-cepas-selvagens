@@ -406,7 +406,9 @@ func set_companion(m: Mount) -> bool:
 	return true
 
 ## Apito de Osso ([H], GDD-16 §5): a Companheira ouve dentro do alcance da faixa e vem pelo mundo.
-## Devolve o motivo: &"ok", &"sem_apito", &"montado", &"sem_companheira", &"longe", &"a_caminho"
+## Caindo, é a pegada no ar (só a Companheira plena voadora; ver catch_check).
+## Devolve o motivo: &"ok", &"sem_apito", &"montado", &"sem_companheira", &"longe", &"a_caminho",
+## &"pegando" ou o motivo de catch_check
 func whistle(player: Player) -> StringName:
 	if player == null or player.inventory == null or player.inventory.get_material_count(&"apito_osso") <= 0:
 		_tell(player, "Você precisa de um Apito de Osso (faça no [Tab]: 3 Restos Ósseos + 1 Fibra)")
@@ -418,6 +420,14 @@ func whistle(player: Player) -> StringName:
 	if m == null or m.kind == Mount.Kind.WATER:
 		_tell(player, "🎶 Nenhuma Companheira atende o apito (escolha uma no estábulo)")
 		return &"sem_companheira"
+	if player.is_skydiving or (not player.is_on_floor() and player.velocity.y < -3.0):
+		var why := catch_check(m, player)
+		if why == &"ok":
+			m.catch_falling(player)
+			_tell(player, "🪶 %s mergulhou atrás de você!" % m.display_name)
+		return why
+	if m.is_catching():
+		return &"pegando"
 	if m.is_coming():
 		_tell(player, "🎶 %s já está a caminho" % m.display_name)
 		return &"a_caminho"
@@ -427,6 +437,25 @@ func whistle(player: Player) -> StringName:
 		return &"longe"
 	m.call_to(player)
 	_tell(player, "🎶 %s ouviu o apito e está vindo (%d m)" % [m.display_name, roundi(dist)])
+	return &"ok"
+
+## Pode pegar o dono em queda? Companheira plena (Elo 75), voadora, a até 60 m e com fôlego
+func catch_check(m: Mount, player: Player) -> StringName:
+	if m.is_catching():
+		return &"pegando"
+	if m.kind != Mount.Kind.AIR:
+		_tell(player, "🎶 %s não voa: não te pega no ar" % m.display_name)
+		return &"nao_voa"
+	if m.bond.band() < MountBond.BAND_MIN.size() - 1:
+		_tell(player, "🎶 Só a Companheira plena (Elo 75) te pega no ar")
+		return &"elo_baixo"
+	var dist := m.global_position.distance_to(player.global_position)
+	if dist > Mount.CATCH_RANGE:
+		_tell(player, "🎶 %s está longe demais para te pegar (%d m; máx. %d m)" % [m.display_name, roundi(dist), roundi(Mount.CATCH_RANGE)])
+		return &"longe"
+	if m.stamina < Mount.CATCH_STAMINA:
+		_tell(player, "🎶 %s está cansada demais para mergulhar" % m.display_name)
+		return &"cansada"
 	return &"ok"
 
 func _on_care_requested(m: Mount, player: Player) -> void:
