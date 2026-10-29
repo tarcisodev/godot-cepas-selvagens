@@ -17,6 +17,8 @@ const POP_MIN: Dictionary = {CreatureDNA.Species.TROTADOR: 4, CreatureDNA.Specie
 const POP_MAX: Dictionary = {CreatureDNA.Species.TROTADOR: 24, CreatureDNA.Species.SALTARELO: 18, CreatureDNA.Species.PLANADOR: 6}
 const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, CreatureDNA.Species.PLANADOR: Mount.Kind.AIR}
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
+## Cuidar (escovar e tratar) só vale com a montaria perto do estábulo (GDD-16 §2)
+const CARE_RADIUS: float = 12.0
 
 @export var landscape: Node3D
 @export var world_seed: int = 2026
@@ -40,11 +42,16 @@ const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 var _rng := RandomNumberGenerator.new()
 ## DNAs das montarias capturadas (save) e os nós delas no estábulo
 var owned: Array[CreatureDNA] = []
+## Elo de cada montaria própria, na mesma ordem de `owned` (GDD-16)
+var bonds: Array[MountBond] = []
 var _owned_nodes: Array[Mount] = []
 var _stable_base: Vector3
 var _dialog: CaptureDialog
 var _pending_capture: WildCreature
 var _pending_player: Node
+var _care_dialog: MountCareDialog
+var _care_mount: Mount
+var _care_player: Player
 
 func _ready() -> void:
 	add_to_group("ecosystem")
@@ -57,6 +64,15 @@ func _ready() -> void:
 	_dialog = CaptureDialog.new()
 	layer.add_child(_dialog)
 	_dialog.chosen.connect(_on_capture_choice)
+	_care_dialog = MountCareDialog.new()
+	layer.add_child(_care_dialog)
+	_care_dialog.chosen.connect(_on_care_choice)
+	# Fome das montarias próprias: confere o dia de jogo de tempos em tempos
+	var hunger := Timer.new()
+	hunger.wait_time = 5.0
+	hunger.autostart = true
+	hunger.timeout.connect(tick_bonds)
+	add_child(hunger)
 	# Continuando um jogo com a natureza salva: ela volta pelo save, não precisa semear agora
 	var save := get_node_or_null("/root/SaveGame")
 	if not (save and save.load_on_enter and save.read_save().has("nature")):
@@ -320,21 +336,33 @@ func _say(msg: String) -> void:
 	if _pending_player and is_instance_valid(_pending_player) and _pending_player.has_signal("posture_changed"):
 		_pending_player.posture_changed.emit(msg)
 
-## Põe um bicho capturado no estábulo como montaria própria; false se cheio ou não montável
-func add_owned_mount(d: CreatureDNA) -> bool:
+## Põe um bicho no estábulo como montaria própria; false se cheio ou não montável.
+## Sem Elo dado, é a captura no laço (Elo 10, não marcada).
+func add_owned_mount(d: CreatureDNA, bond: MountBond = null) -> bool:
 	if owned.size() >= MAX_OWNED or not MOUNTABLE.has(d.species):
 		return false
 	owned.append(d)
+	bonds.append(bond if bond else MountBond.create(d, &"laco", today()))
 	_spawn_owned(d, owned.size() - 1)
 	return true
 
 func _spawn_owned(d: CreatureDNA, slot: int) -> void:
 	var m := _add_mount(d, MOUNTABLE[d.species], "Seu " + d.species_name().get_slice("-", 0), _stable_base + Vector3(-3.0 + slot * 3.0, 0, 4.0))
 	m.owned = true
+	m.set_bond(bonds[slot])
+	m.care_requested.connect(_on_care_requested)
 	_owned_nodes.append(m)
 
+static func today() -> int:
+	return MountBond.today()
+
 func owned_state() -> Array:
-	return owned.map(func(d): return d.to_dict())
+	var out: Array = []
+	for i in owned.size():
+		var e := owned[i].to_dict()
+		e["bond"] = bonds[i].to_dict()
+		out.append(e)
+	return out
 
 func restore_owned(list: Array) -> void:
 	for m in _owned_nodes:
@@ -344,9 +372,135 @@ func restore_owned(list: Array) -> void:
 			m.queue_free()
 	_owned_nodes.clear()
 	owned.clear()
+	bonds.clear()
 	for e in list:
 		if e is Dictionary and owned.size() < MAX_OWNED:
-			add_owned_mount(CreatureDNA.from_dict(e))
+			var d := CreatureDNA.from_dict(e)
+			# Save de antes do GDD-16: entra como capturada no laço
+			var bond: MountBond = MountBond.from_dict(e["bond"], d) if e.get("bond") is Dictionary else null
+			add_owned_mount(d, bond)
+
+# ---------------------------------------------------------------- Elo e Companheira (GDD-16)
+
+## Passa a fome dos dias de jogo que correram
+func tick_bonds() -> void:
+	var day := today()
+	for b in bonds:
+		b.tick_hunger(day)
+
+## A Companheira atual (ou null)
+func companion_mount() -> Mount:
+	for m in _owned_nodes:
+		if is_instance_valid(m) and m.bond and m.bond.companion:
+			return m
+	return null
+
+## Só uma Companheira por personagem: a anterior volta a Arisca (ciúme). false se a faixa não deixa.
+func set_companion(m: Mount) -> bool:
+	if m == null or m.bond == null or not m.bond.can_be_companion():
+		return false
+	for b in bonds:
+		if b != m.bond and b.companion:
+			b.jealous()
+	m.bond.companion = true
+	return true
+
+func _on_care_requested(m: Mount, player: Player) -> void:
+	_care_mount = m
+	_care_player = player
+	tick_bonds()
+	_care_dialog.ask(care_state(m, player))
+
+## O que a tela de cuidado mostra e quais botões ficam ativos
+func care_state(m: Mount, player: Player) -> Dictionary:
+	var b := m.bond
+	var food := _food_for(b, player)
+	var near_stable := Vector2(m.global_position.x, m.global_position.z).distance_to(STABLE_POS) <= CARE_RADIUS
+	var top := MountBond.BAND_MIN.size() - 1
+	var next := "Elo máximo." if b.band() == top else "Próxima faixa: %s com Elo %d (%s)" % [
+		MountBond.BAND_NAMES[b.band() + 1], roundi(MountBond.BAND_MIN[b.band() + 1]), MountBond.UNLOCKS[b.band() + 1]]
+	var info: Array[String] = [m.dna.species_name(), "Índole %s" % String(b.temperament).capitalize(), "%s (Elo %d)" % [b.band_name(), floori(b.elo)]]
+	if not b.accepts(false):
+		info.append("só aceita você")
+	if b.is_hungry(today()):
+		info.append("⚠ com fome")
+	var companion_text := "⭐  Já é a sua Companheira"
+	if not b.companion:
+		if not b.can_be_companion():
+			companion_text = "⭐  Companheira só a partir de Mansa (Elo 25)"
+		elif companion_mount():
+			companion_text = "⭐  Tornar Companheira (a atual fica com ciúme)"
+		else:
+			companion_text = "⭐  Tornar Companheira"
+	var feed_text := "🍎  Alimentar com %s" % MaterialData.of(food).display_name if food != &"" else "🍎  Alimentar (precisa de: %s)" % _diet_names(b)
+	var order_text := ""
+	if b.companion:
+		order_text = "🧭  Ordem: Seguir (toque para Ficar)" if b.order == MountBond.Order.FOLLOW else "🧭  Ordem: Ficar (toque para Seguir)"
+	return {
+		"title": "🐾 " + m.display_name,
+		"name": b.mount_name,
+		"info": " · ".join(info),
+		"elo": b.elo,
+		"next": next,
+		"feed": [feed_text, food != &""],
+		"care": ["🪮  Escovar e tratar" + ("" if near_stable else " (só no estábulo)"), near_stable],
+		"companion": [companion_text, not b.companion and b.can_be_companion()],
+		"order": [order_text, b.companion],
+	}
+
+func _on_care_choice(choice: StringName, text: String) -> void:
+	var m := _care_mount
+	var player := _care_player
+	if m == null or not is_instance_valid(m) or player == null:
+		return
+	var b := m.bond
+	var reopen := true
+	match choice:
+		&"montar":
+			reopen = false
+			m.begin_mount(player)
+		&"alimentar":
+			var food := _food_for(b, player)
+			if food != &"" and player.inventory.consume_material(food, 1):
+				var gain := b.feed(food, today())
+				_tell(player, "🍎 %s comeu %s%s" % [m.display_name, MaterialData.of(food).display_name, " · Elo +%d" % roundi(gain) if gain > 0.0 else " · já comeu hoje (sem Elo)"])
+		&"cuidar":
+			var gain := b.care(today())
+			_tell(player, "🪮 Você escovou %s%s" % [m.display_name, " · Elo +%d" % roundi(gain) if gain > 0.0 else " · já foi cuidada hoje"])
+		&"companheira":
+			if set_companion(m):
+				_tell(player, "⭐ %s agora é a sua Companheira" % m.display_name)
+		&"ordem":
+			b.order = MountBond.Order.STAY if b.order == MountBond.Order.FOLLOW else MountBond.Order.FOLLOW
+			_tell(player, "🧭 %s: %s" % [m.display_name, "vou te seguir" if b.order == MountBond.Order.FOLLOW else "fico aqui"])
+		&"batizar":
+			if b.rename(text):
+				m.set_bond(b)
+				_tell(player, "✏️ Agora ela se chama %s" % m.display_name)
+		_:
+			reopen = false
+	if reopen:
+		_care_dialog.ask(care_state(m, player))
+	else:
+		_care_dialog.close()
+		_care_mount = null
+		_care_player = null
+
+## Primeira comida da dieta da espécie que o jogador tem na mochila
+func _food_for(b: MountBond, player: Player) -> StringName:
+	if player == null or player.inventory == null:
+		return &""
+	for food in MountBond.DIET.get(b.species, []):
+		if player.inventory.get_material_count(food) > 0:
+			return food
+	return &""
+
+func _diet_names(b: MountBond) -> String:
+	return ", ".join(MountBond.DIET.get(b.species, []).map(func(f): return MaterialData.of(f).display_name))
+
+func _tell(player: Node, msg: String) -> void:
+	if player and player.has_signal("posture_changed"):
+		player.posture_changed.emit(msg)
 
 # ---------------------------------------------------------------- estábulo e montarias
 

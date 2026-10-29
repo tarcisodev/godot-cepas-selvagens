@@ -7,6 +7,11 @@ extends Node3D
 ## Golpe que quebra a Postura do cavaleiro derruba da montaria.
 ## A terrestre atravessa rio nadando: na água funda boia com o dorso na linha d'água, devagar,
 ## sem corrida nem pulo, gastando fôlego; sem fôlego nada mais devagar ainda.
+## Montaria própria tem Elo (GDD-16): [E] abre a tela de cuidado, andar montado soma Elo e a
+## Companheira com a ordem Seguir acompanha o dono a pé.
+
+## [E] numa montaria própria: o estábulo abre a tela de cuidado
+signal care_requested(mount: Mount, player: Player)
 
 enum Kind { LAND, AIR, WATER }
 
@@ -23,6 +28,9 @@ const LAND_SWIM_TIRED: float = 0.25
 const LAND_SWIM_DRAIN: float = 6.0
 ## Distância mínima da borda do mapa: a montaria anda por posição e atravessaria as paredes invisíveis
 const EDGE_MARGIN: float = 3.0
+## Companheira seguindo o dono: para a esta distância e corre quando ele se afasta mais que isto
+const FOLLOW_DISTANCE: float = 4.0
+const FOLLOW_RUN_DISTANCE: float = 12.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -32,6 +40,8 @@ const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.
 @export var display_name: String = "Montaria"
 ## Montaria própria (capturada) — velocidade pelo gene porte; as de teste ficam em 1.0
 @export var owned: bool = false
+## Elo com o dono (só montaria própria; GDD-16)
+var bond: MountBond
 
 var body: CreatureBody
 var rider: Player
@@ -50,6 +60,8 @@ var _speed: float = 0.0
 var _label: Label3D
 var _landscape: Node
 var _hud_timer: float = 0.0
+var _base_name: String = ""
+var _following: bool = false
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -70,9 +82,25 @@ func _ready() -> void:
 	_landscape = scene.get_node_or_null("Landscape") if scene else null
 	_settle.call_deferred()
 
-## Chamado pelo player no [E]: começa a montar (ou ignora se já tem cavaleiro)
+## Liga o Elo e mostra o nome que o dono deu (sem nome, "Seu Trotador")
+func set_bond(b: MountBond) -> void:
+	if _base_name.is_empty():
+		_base_name = display_name
+	bond = b
+	display_name = b.display_name(_base_name) if b else _base_name
+
+## Chamado pelo player no [E]: montaria própria abre a tela de cuidado; as outras começam a montar
 func talk_to(player: Node) -> void:
 	var p := player as Player
+	if p == null or rider != null or _channel_player != null or p.mounted_on != null:
+		return
+	if bond:
+		care_requested.emit(self, p)
+		return
+	begin_mount(p)
+
+## Começa a montar: MOUNT_TIME parado, dano cancela
+func begin_mount(p: Player) -> void:
 	if p == null or rider != null or _channel_player != null or p.mounted_on != null:
 		return
 	_channel_player = p
@@ -86,8 +114,12 @@ func _process(delta: float) -> void:
 	_label.visible = rider == null
 	var player := get_tree().get_first_node_in_group("player") as Node3D
 	var near := player != null and Player.talk_distance(player.global_position, self) < Player.TALK_RANGE
-	_label.text = "%s\n%s" % [display_name, "Montando..." if _channel_player else ("[E] Montar" if near else "chegue mais perto")]
-	if rider == null:
+	var action := "Montando..." if _channel_player else (("[E] Cuidar" if bond else "[E] Montar") if near else "chegue mais perto")
+	if bond:
+		_label.text = "%s\n%s · Elo %d\n%s" % [display_name, bond.band_name(), floori(bond.elo), action]
+	else:
+		_label.text = "%s\n%s" % [display_name, action]
+	if rider == null and not _following:
 		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
 		body.animate(delta, 0.0, 0.0, false)
 
@@ -147,10 +179,13 @@ func _on_rider_poise_broken() -> void:
 
 func _physics_process(delta: float) -> void:
 	if rider == null:
+		_following = bond != null and bond.companion and bond.order == MountBond.Order.FOLLOW and kind != Kind.WATER and _follow(delta)
 		return
 	if rider.is_downed:
 		dismount()
 		return
+	if bond:
+		bond.add_ride_time(delta, MountBond.today())
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 	var menus_open := not get_tree().get_nodes_in_group("open_menus").is_empty()
 	if menus_open:
@@ -178,7 +213,7 @@ func _physics_process(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 6.0))
 	match kind:
 		Kind.LAND:
-			_move_land(step, delta, menus_open)
+			_move_land(step, delta, not menus_open and Input.is_action_just_pressed("jump"))
 		Kind.AIR:
 			_move_air(step, delta, menus_open)
 		Kind.WATER:
@@ -195,7 +230,7 @@ func _physics_process(delta: float) -> void:
 		_hud_timer = 0.3
 		rider.posture_changed.emit("%s %s · Fôlego %d%% · [E] desmontar" % ["🌊" if swimming else "🐾", display_name + (" nadando" if swimming else ""), roundi(stamina)])
 
-func _move_land(step: Vector3, delta: float, menus_open: bool) -> void:
+func _move_land(step: Vector3, delta: float, jump: bool) -> void:
 	var next := global_position + step
 	var ground := _ground(next.x, next.z)
 	# Não sobe paredão (degrau maior que 1,2 m); nadando, o degrau conta da linha d'água
@@ -211,7 +246,7 @@ func _move_land(step: Vector3, delta: float, menus_open: bool) -> void:
 		global_position = Vector3(next.x, surface - body.back_height * 0.8, next.z)
 		return
 	swimming = false
-	if Input.is_action_just_pressed("jump") and not menus_open and global_position.y <= ground + 0.05 and not swimming:
+	if jump and global_position.y <= ground + 0.05:
 		_vertical = 7.0
 	_vertical -= GRAVITY * delta
 	var y := global_position.y + _vertical * delta
@@ -246,6 +281,44 @@ func _move_water(step: Vector3, moving: bool) -> void:
 			dismount()
 		return
 	global_position = Vector3(next.x, surface, next.z)
+
+## Companheira com a ordem Seguir: anda (ou corre, gastando fôlego) até perto do dono a pé.
+## Para quando chega, quando o dono monta outra montaria ou quando ele passa do alcance do apito.
+## false = parada (o _process faz a animação de descanso)
+func _follow(delta: float) -> bool:
+	var owner_node := get_tree().get_first_node_in_group("player") as Player
+	if owner_node == null or owner_node.mounted_on != null or _channel_player != null:
+		_speed = 0.0
+		return false
+	var to := owner_node.global_position - global_position
+	to.y = 0.0
+	var dist := to.length()
+	if dist <= FOLLOW_DISTANCE or dist > bond.whistle_range():
+		_speed = 0.0
+		return false
+	var run := dist > FOLLOW_RUN_DISTANCE and stamina > 1.0
+	if run:
+		stamina = maxf(0.0, stamina - STAMINA_DRAIN * delta)
+	else:
+		stamina = minf(STAMINA_MAX, stamina + STAMINA_REGEN * delta)
+	var speeds: Vector2 = SPEEDS[kind] * body.dna.mount_speed_factor()
+	_speed = move_toward(_speed, speeds.y if run else speeds.x, delta * 14.0)
+	var dir := to / dist
+	rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 6.0))
+	var step := _clamp_to_bounds(global_position + dir * _speed * delta) - global_position
+	if kind == Kind.AIR:
+		# A voadora segue rente ao chão e passa o rio planando baixo
+		var next := global_position + step
+		var ground := _ground(next.x, next.z)
+		var over_water := RiverSystem.is_in_water(Vector3(next.x, ground, next.z))
+		var target_y := maxf(ground, RiverSystem.get_water_height(next.z) + 1.5) if over_water else ground
+		airborne = over_water
+		next.y = lerpf(global_position.y, target_y, minf(1.0, delta * 5.0)) if over_water or global_position.y > ground + 0.05 else target_y
+		global_position = next
+	else:
+		_move_land(step, delta, false)
+	body.animate(delta, _speed, _vertical, airborne)
+	return true
 
 func _land() -> void:
 	airborne = false
