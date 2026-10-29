@@ -39,6 +39,7 @@ func _run() -> void:
 	test_bond_in_combat(player, eco)
 	await test_permanent_death(player, eco)
 	test_forge_saudade()
+	test_item_memory(player)
 	print("\n🎉 TODOS OS TESTES DE VIDA E MORTE DA MONTARIA PASSARAM COM SUCESSO!")
 	print("========================================================\n")
 	quit(0)
@@ -48,7 +49,7 @@ func _hit(target: Node, dmg: float, attacker: Node = null) -> float:
 	return float(CombatResolver.resolve_hit(hit).get(&"effective_damage", 0.0))
 
 func test_health_and_zones(player: Player, eco: EcosystemSpawner, zones: FakeZones) -> void:
-	print("\n[1/4] Vida e zona segura...")
+	print("\n[1/5] Vida e zona segura...")
 	var dna := CreatureDNA.randomized(CreatureDNA.Species.TROTADOR, 41)
 	dna.alleles["porte"] = ["T", "T"]
 	dna.alleles["indole"] = ["I", "i"]
@@ -70,7 +71,7 @@ func test_health_and_zones(player: Player, eco: EcosystemSpawner, zones: FakeZon
 	print("  ✓ Vida %d, vila segura, sem dano do dono" % roundi(m.stats.get_stat(&"max_health")))
 
 func test_bond_in_combat(player: Player, eco: EcosystemSpawner) -> void:
-	print("\n[2/4] Elo em combate...")
+	print("\n[2/5] Elo em combate...")
 	var m: Mount = eco._owned_nodes[0]
 	var elo0 := m.bond.elo
 	_hit(m, 5.0)
@@ -92,7 +93,7 @@ func test_bond_in_combat(player: Player, eco: EcosystemSpawner) -> void:
 	print("  ✓ Golpe forte −2, fuga junto +2")
 
 func test_permanent_death(player: Player, eco: EcosystemSpawner) -> void:
-	print("\n[3/4] Morte permanente...")
+	print("\n[3/5] Morte permanente...")
 	var second := CreatureDNA.randomized(CreatureDNA.Species.PLANADOR, 43)
 	assert(eco.add_owned_mount(second), "Segunda montaria")
 	var m: Mount = eco._owned_nodes[0]
@@ -114,12 +115,15 @@ func test_permanent_death(player: Player, eco: EcosystemSpawner) -> void:
 	var loot: DroppedLoot = loots[0]
 	assert(loot.stack.id == &"lembranca" and loot.stack.quality == 3 and loot.stack.traits.has(&"saudade"), "A Lembrança: 3★ com Saudade")
 	assert(Vector2(loot.global_position.x, loot.global_position.z).distance_to(Vector2(30, 30)) < 0.5, "No lugar do corpo")
+	assert(loot.stack.memory.name == "Estrela" and loot.stack.memory.species == "Trotador" and loot.stack.memory.kind == "lembranca", "A Lembrança guarda o nome e a espécie")
+	assert(loot.next_harvest_label().contains("Lembrança de Estrela"), "O chão mostra de quem é")
 	loot.talk_to(player)
 	assert(player.inventory.get_material_count(&"lembranca") == 1, "Qualquer um pega com [E] (o dono, aqui)")
+	assert(player.inventory.best_stack(&"lembranca").memory.name == "Estrela", "Na mochila o nome continua")
 	print("  ✓ Morreu de vez, saiu do save e deixou a Lembrança")
 
 func test_forge_saudade() -> void:
-	print("\n[4/4] Saudade na forja...")
+	print("\n[4/5] Saudade na forja...")
 	var core := {"id": &"pena_penacho", "quality": 3, "traits": [], "amount": 3}
 	var coat := {"id": &"fibra", "quality": 3, "traits": [], "amount": 4}
 	var temper := {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1}
@@ -129,3 +133,39 @@ func test_forge_saudade() -> void:
 	var weapon := Forge.preview(&"espada_ferro", {"id": &"barra_ferro", "quality": 3, "traits": [], "amount": 2}, {"id": &"fibra", "quality": 3, "traits": [], "amount": 2}, temper, Forge.TEMPER_LEVEL, false)
 	assert(not weapon.get("traits", []).has(&"saudade"), "Arma não leva Saudade")
 	print("  ✓ Saudade (+5% resistências) só em armadura")
+
+func test_item_memory(player: Player) -> void:
+	print("
+[5/5] Memória dos itens...")
+	var inv := player.inventory
+	var luar := {"kind": "lembranca", "name": "Luar", "species": "Planador-de-Penacho", "elo": 90, "day": 7}
+	inv.add_material(&"lembranca", 1, 3, [&"saudade"], luar)
+	assert(inv.get_material_count(&"lembranca") == 2 and inv.get_stacks(&"lembranca").size() == 2, "Lembranças de montarias diferentes não se juntam")
+	inv.add_material(&"lembranca", 1, 3, [&"saudade"], luar.duplicate())
+	assert(inv.get_stacks(&"lembranca").size() == 2, "Mesma memória junta na mesma pilha")
+	inv.add_material(&"fibra", 2)
+	assert(not inv.best_stack(&"fibra").has("memory"), "Pilha sem história continua sem a chave")
+	assert(MaterialData.memory_text(luar) == "Lembrança de Luar (Planador-de-Penacho, Elo 90, dia 7)", "Texto da memória")
+	# Save e load
+	var saved: Array = JSON.parse_string(JSON.stringify(inv.stacks_to_save()))
+	inv.load_from_save(saved)
+	var names: Array = inv.get_stacks(&"lembranca").map(func(st): return st.memory.name)
+	names.sort()
+	assert(names == ["Estrela", "Luar"], "O save guarda as memórias (%s)" % [names])
+	# Jogar no chão leva a memória junto
+	var luar_stack: Dictionary = inv.get_stacks(&"lembranca").filter(func(st): return st.memory.name == "Luar")[0]
+	var dropped := inv.drop_stack(luar_stack, 1)
+	assert(dropped.memory.name == "Luar", "No chão a memória vai junto")
+	inv.add_material(dropped.id, dropped.amount, dropped.quality, dropped.traits, dropped.memory)
+	# Forja: a peça herda a memória e o nome
+	inv.add_material(&"pena_penacho", 3, 3)
+	inv.add_material(&"fibra", 4, 3)
+	var estrela: Dictionary = inv.get_stacks(&"lembranca").filter(func(st): return st.memory.name == "Estrela")[0]
+	var rng := RandomNumberGenerator.new()
+	var item := Forge.forge(inv, &"capuz_penacho", inv.best_stack(&"pena_penacho"), inv.best_stack(&"fibra"), estrela, Forge.TEMPER_LEVEL, false, rng)
+	assert(item != null and item.traits.has(&"saudade"), "Forjou com a Lembrança")
+	assert(item.memory.name == "Estrela" and item.display_name.ends_with("Saudade de Estrela"), "A peça leva o nome dela: %s" % item.display_name)
+	assert(inv.get_stacks(&"lembranca").size() == 1 and inv.best_stack(&"lembranca").memory.name == "Luar", "Gastou a Lembrança certa")
+	var back := ForgedItem.from_dict(JSON.parse_string(JSON.stringify(item.to_dict())))
+	assert(back.memory.name == "Estrela" and back.display_name == item.display_name, "A peça guarda a memória no save")
+	print("  ✓ Memória separa pilhas, vai para o chão, o save e a peça forjada")

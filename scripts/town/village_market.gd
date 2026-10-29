@@ -67,7 +67,7 @@ func place_sell(inv: InventoryComponent, wallet: WalletComponent, id: StringName
 	var left := qty
 	for stack in inv.get_stacks(id):
 		var n := mini(left, int(stack.amount))
-		escrow.append({"q": int(stack.quality), "traits": Array(stack.get("traits", [])).duplicate(), "n": n})
+		escrow.append({"q": int(stack.quality), "traits": Array(stack.get("traits", [])).duplicate(), "n": n, "memory": Dictionary(stack.get("memory", {})).duplicate(true)})
 		inv.consume_stack(stack, n)
 		left -= n
 		if left == 0:
@@ -87,7 +87,7 @@ func cancel(index: int) -> bool:
 	else:
 		for e in o.escrow:
 			if e.n > 0:
-				pending_items.append({"id": o.id, "q": e.q, "traits": e.traits, "n": e.n})
+				pending_items.append({"id": o.id, "q": e.q, "traits": e.traits, "n": e.n, "memory": e.get("memory", {})})
 	orders.remove_at(index)
 	changed.emit()
 	return true
@@ -101,7 +101,7 @@ func collect(inv: InventoryComponent, wallet: WalletComponent) -> int:
 		n += 1
 	if inv:
 		for e in pending_items:
-			inv.add_material(e.id, e.n, e.q, e.traits)
+			inv.add_material(e.id, e.n, e.q, e.traits, e.get("memory", {}))
 			n += 1
 		pending_items.clear()
 	if n > 0:
@@ -157,7 +157,7 @@ func get_state() -> Dictionary:
 		saved_orders.append(d)
 	var items := []
 	for e in pending_items:
-		items.append({"id": String(e.id), "q": e.q, "traits": e.traits.map(func(t): return String(t)), "n": e.n})
+		items.append({"id": String(e.id), "q": e.q, "traits": e.traits.map(func(t): return String(t)), "n": e.n, "memory": e.get("memory", {})})
 	return {"orders": saved_orders, "money": pending_money, "items": items}
 
 func apply_state(d: Dictionary) -> void:
@@ -165,12 +165,12 @@ func apply_state(d: Dictionary) -> void:
 	for o in d.get("orders", []):
 		var escrow: Array = []
 		for e in o.get("escrow", []):
-			escrow.append({"q": int(e.q), "traits": Array(e.get("traits", [])).map(func(t): return StringName(t)), "n": int(e.n)})
+			escrow.append({"q": int(e.q), "traits": Array(e.get("traits", [])).map(func(t): return StringName(t)), "n": int(e.n), "memory": e.get("memory", {})})
 		orders.append({"kind": str(o.kind), "id": StringName(o.id), "qty": int(o.qty), "filled": int(o.filled), "price": int(o.price), "escrow": escrow})
 	pending_money = int(d.get("money", 0))
 	pending_items.clear()
 	for e in d.get("items", []):
-		pending_items.append({"id": StringName(e.id), "q": int(e.q), "traits": Array(e.get("traits", [])).map(func(t): return StringName(t)), "n": int(e.n)})
+		pending_items.append({"id": StringName(e.id), "q": int(e.q), "traits": Array(e.get("traits", [])).map(func(t): return StringName(t)), "n": int(e.n), "memory": e.get("memory", {})})
 	changed.emit()
 
 func _check(id: StringName, qty: int, price: int) -> String:
