@@ -73,7 +73,8 @@ func test_world_map_open_close_and_zoom() -> void:
 	map_screen.set_zoom_level(0.2)
 	assert(is_equal_approx(map_screen.zoom, 1.0), "Zoom limitado no mínimo em 1.0×")
 
-	# Centralizar no jogador
+	# Centralizar no jogador (com zoom, já que em 1× o mapa inteiro cabe na moldura)
+	map_screen.set_zoom_level(2.5)
 	map_screen.center_on_player()
 	assert(map_screen.pan_offset != Vector2.ZERO, "Pan ajustado para centralizar no jogador")
 

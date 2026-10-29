@@ -118,15 +118,36 @@ func center_on_player() -> void:
 		var base_scale: float = minf(c_size.x, c_size.y) / (WorldBounds.HALF * 2.0)
 		var scale_factor: float = base_scale * zoom
 		pan_offset = -Vector2(player.global_position.x * scale_factor, player.global_position.z * scale_factor)
+		clamp_pan()
 		if _status_lbl:
 			_status_lbl.text = "🎯 Mapa centralizado na sua posição!"
+		if _map_canvas:
+			_map_canvas.queue_redraw()
 
-func set_zoom_level(new_zoom: float) -> void:
+## Ajusta o zoom mantendo fixo o ponto do mapa sob `anchor` (coords locais do canvas).
+## Sem âncora, o zoom acontece em torno do centro do canvas.
+func set_zoom_level(new_zoom: float, anchor: Vector2 = Vector2(NAN, NAN)) -> void:
+	var old_zoom: float = zoom
 	zoom = clampf(new_zoom, 1.0, 4.0)
+	if _map_canvas and _map_canvas.size.x > 1.0 and not is_equal_approx(old_zoom, zoom):
+		var half_size: Vector2 = _map_canvas.size * 0.5
+		var rel: Vector2 = Vector2.ZERO if is_nan(anchor.x) else anchor - half_size
+		pan_offset = rel - (rel - pan_offset) * (zoom / old_zoom)
+	clamp_pan()
 	if _zoom_lbl:
 		_zoom_lbl.text = "Zoom: %.1f×" % zoom
 	if _map_canvas:
 		_map_canvas.queue_redraw()
+
+## Impede que o pergaminho saia da moldura: com o mapa maior que o canvas,
+## as bordas sempre cobrem a área visível; menor, ele fica centralizado.
+func clamp_pan() -> void:
+	if _map_canvas == null or _map_canvas.size.x <= 1.0 or _map_canvas.size.y <= 1.0:
+		return
+	var c_size: Vector2 = _map_canvas.size
+	var map_px: float = minf(c_size.x, c_size.y) * zoom
+	var limit := Vector2(maxf(map_px - c_size.x, 0.0), maxf(map_px - c_size.y, 0.0)) * 0.5
+	pan_offset = pan_offset.clamp(-limit, limit)
 
 func add_marker(world_pos: Vector2, icon: String = "🚩", label: String = "") -> bool:
 	if personal_markers.size() >= MAX_PERSONAL_MARKERS:
@@ -279,6 +300,7 @@ func _build_ui() -> void:
 
 	_map_canvas = MapCanvasControl.new()
 	_map_canvas.map_screen = self
+	_map_canvas.clip_contents = true
 	_map_canvas.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_map_canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	map_frame.add_child(_map_canvas)
@@ -471,9 +493,16 @@ func _clear_compass_target() -> void:
 class MapCanvasControl extends Control:
 	var map_screen: WorldMapScreen
 	var player: Node
+	const DRAG_THRESHOLD: float = 4.0
+
+	var _mouse_down: bool = false
 	var _is_dragging: bool = false
 	var _drag_start: Vector2 = Vector2.ZERO
 	var _pan_start: Vector2 = Vector2.ZERO
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_RESIZED and map_screen:
+			map_screen.clamp_pan()
 
 	func _world_to_map(wx: float, wz: float, rect_size: Vector2) -> Vector2:
 		var center := rect_size * 0.5 + (map_screen.pan_offset if map_screen else Vector2.ZERO)
@@ -495,11 +524,11 @@ class MapCanvasControl extends Control:
 		# Zoom na roda do mouse (GDD-11 §3)
 		if event is InputEventMouseButton:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-				map_screen.set_zoom_level(map_screen.zoom + 0.25)
+				map_screen.set_zoom_level(map_screen.zoom + 0.25, event.position)
 				accept_event()
 				return
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-				map_screen.set_zoom_level(map_screen.zoom - 0.25)
+				map_screen.set_zoom_level(map_screen.zoom - 0.25, event.position)
 				accept_event()
 				return
 
@@ -513,50 +542,58 @@ class MapCanvasControl extends Control:
 				accept_event()
 				return
 
-			# Clique Esquerdo: Seleção ou início de arraste
+			# Clique Esquerdo: arrastar move o mapa; clique curto (sem arraste) seleciona
 			if event.button_index == MOUSE_BUTTON_LEFT:
 				if event.pressed:
-					var world_click := _map_to_world(event.position, size)
-					# 1. Verifica clique em marcador pessoal para torná-lo ativo
-					for i in map_screen.personal_markers.size():
-						var m := map_screen.personal_markers[i]
-						if m.pos.distance_to(world_click) < (10.0 / map_screen.zoom):
-							map_screen.set_active_marker(i)
-							accept_event()
-							return
-
-					# 2. Verifica clique em Assentamentos ou Pontos Notáveis
-					var best_entry: Dictionary = {}
-					var best_dist: float = 24.0
-					for s in WorldSettlements.SETTLEMENTS:
-						var mp := _world_to_map(s.pos.x, s.pos.z, size)
-						var d: float = event.position.distance_to(mp)
-						if d < best_dist:
-							best_dist = d
-							best_entry = s
-					for lm in WorldSettlements.LANDMARKS:
-						var mp := _world_to_map(lm.pos.x, lm.pos.z, size)
-						var d: float = event.position.distance_to(mp)
-						if d < best_dist:
-							best_dist = d
-							best_entry = lm
-					if not best_entry.is_empty():
-						map_screen._select_entry(best_entry)
-						accept_event()
-						return
-
-					# Inicia arraste
-					_is_dragging = true
+					_mouse_down = true
+					_is_dragging = false
 					_drag_start = event.position
 					_pan_start = map_screen.pan_offset
 				else:
+					if _mouse_down and not _is_dragging:
+						_select_at(event.position)
+					_mouse_down = false
 					_is_dragging = false
+					mouse_default_cursor_shape = Control.CURSOR_ARROW
+				accept_event()
 
-		elif event is InputEventMouseMotion and _is_dragging:
+		elif event is InputEventMouseMotion and _mouse_down:
 			var diff: Vector2 = event.position - _drag_start
-			map_screen.pan_offset = _pan_start + diff
-			queue_redraw()
+			if not _is_dragging and diff.length() >= DRAG_THRESHOLD:
+				_is_dragging = true
+				mouse_default_cursor_shape = Control.CURSOR_DRAG
+			if _is_dragging:
+				map_screen.pan_offset = _pan_start + diff
+				map_screen.clamp_pan()
+				queue_redraw()
 			accept_event()
+
+	func _select_at(click_pos: Vector2) -> void:
+		var world_click := _map_to_world(click_pos, size)
+		# 1. Verifica clique em marcador pessoal para torná-lo ativo
+		for i in map_screen.personal_markers.size():
+			var m := map_screen.personal_markers[i]
+			if m.pos.distance_to(world_click) < (10.0 / map_screen.zoom):
+				map_screen.set_active_marker(i)
+				return
+
+		# 2. Verifica clique em Assentamentos ou Pontos Notáveis
+		var best_entry: Dictionary = {}
+		var best_dist: float = 24.0
+		for s in WorldSettlements.SETTLEMENTS:
+			var mp := _world_to_map(s.pos.x, s.pos.z, size)
+			var d: float = click_pos.distance_to(mp)
+			if d < best_dist:
+				best_dist = d
+				best_entry = s
+		for lm in WorldSettlements.LANDMARKS:
+			var mp := _world_to_map(lm.pos.x, lm.pos.z, size)
+			var d: float = click_pos.distance_to(mp)
+			if d < best_dist:
+				best_dist = d
+				best_entry = lm
+		if not best_entry.is_empty():
+			map_screen._select_entry(best_entry)
 
 	func _draw() -> void:
 		var r := size

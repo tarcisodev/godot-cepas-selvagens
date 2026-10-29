@@ -76,6 +76,7 @@ const SPECIES: Dictionary = {
 @export var dna_seed: int = 0
 ## Alelos (GDD-04 §1): "porte" (T/t, incompleta), "chifre" (C/c, dominante), "padrao" (P/p, dominante).
 ## "*" = mutação (3% por alelo): cor iridescente e pintas.
+## "indole" (I/i, incompleta; GDD-16 §3): II Ousada · Ii Equilibrada · ii Mansa · com "*" Leal.
 @export var alleles: Dictionary = {"porte": ["T", "t"], "chifre": ["c", "c"], "padrao": ["p", "p"]}
 @export var base_color: Color = Color(0.55, 0.38, 0.24)
 @export var belly_color: Color = Color(0.86, 0.78, 0.64)
@@ -115,6 +116,8 @@ static func randomized(p_species: Species, p_seed: int) -> CreatureDNA:
 	var info: Dictionary = SPECIES[p_species]
 	d.base_color = _jitter(rng, info["color"], 0.08)
 	d.belly_color = _jitter(rng, info["belly"], 0.04)
+	# Sorteada por último: não muda os genes e as cores dos bichos que já existiam
+	d.alleles["indole"] = [_allele(rng, "I", "i", 0.5), _allele(rng, "I", "i", 0.5)]
 	return d
 
 ## Cruza dois DNAs (GDD-04): cada filho herda um alelo de cada pai, com 3% de mutação
@@ -127,7 +130,8 @@ static func cross(a: CreatureDNA, b: CreatureDNA, p_seed: int, p_mutation_chance
 	child.gender = Gender.MALE if rng.randf() < 0.5 else Gender.FEMALE
 	child.stage = LifeStage.BABY
 	for gene in a.alleles:
-		var pick: Array = [a.alleles[gene][rng.randi() % 2], b.alleles[gene][rng.randi() % 2]]
+		var other: Array = b.alleles.get(gene, a.alleles[gene])
+		var pick: Array = [a.alleles[gene][rng.randi() % 2], other[rng.randi() % 2]]
 		for i in 2:
 			if rng.randf() < p_mutation_chance:
 				pick[i] = "*"
@@ -151,11 +155,23 @@ static func from_dict(d: Dictionary) -> CreatureDNA:
 		out.alleles[gene] = Array(al[gene]).map(func(x): return str(x))
 	out.base_color = Color.html(str(d.get("base", "8c613d")))
 	out.belly_color = Color.html(str(d.get("belly", "dbc7a3")))
+	# Save de antes do GDD-16: a índole sai da seed, sempre a mesma para o mesmo bicho
+	if not out.alleles.has("indole"):
+		var rng := RandomNumberGenerator.new()
+		rng.seed = out.dna_seed + 16
+		out.alleles["indole"] = [_allele(rng, "I", "i", 0.5), _allele(rng, "I", "i", 0.5)]
 	return out
 
 ## Montaria: velocidade pelo gene porte (GDD-03 §9.3): TT 100% · Tt 92% · tt 85%
 func mount_speed_factor() -> float:
 	return {1.0: 1.0, 0.75: 0.92, 0.5: 0.85}.get(size_factor(), 1.0)
+
+## Índole (GDD-16 §3): &"ousada", &"equilibrada", &"mansa" ou &"leal" (mutação)
+func temperament() -> StringName:
+	var al: Array = alleles.get("indole", ["I", "i"])
+	if al.has("*"):
+		return &"leal"
+	return [&"mansa", &"equilibrada", &"ousada"][al.count("I")]
 
 func info() -> Dictionary:
 	return SPECIES[species]
