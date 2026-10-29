@@ -12,6 +12,7 @@ extends Node3D
 ## pelo mundo, correndo ou voando (sem teleporte). Voando alto, [E] salta da montaria no ar; a
 ## Companheira plena voadora pega o dono em queda no [H], se chegar antes do chão.
 ## A montaria própria tem Vida e hurtbox: fora da vila pode ser ferida e morrer de vez (GDD-16 §7).
+## Montado na Companheira, segurar [Q] fareja (MountSenses, GDD-16 §6).
 
 ## [E] numa montaria própria: o estábulo abre a tela de cuidado
 signal care_requested(mount: Mount, player: Player)
@@ -92,6 +93,8 @@ var _call_time: float = 0.0
 ## Dono em queda que ela está tentando pegar, e a Vida dele quando o mergulho começou
 var _catching: Player
 var _catch_health: float = 0.0
+## Faro e Olho de caça ([Q] montado; só montaria própria)
+var senses: MountSenses
 ## Vida (só montaria própria)
 var stats: StatsComponent
 var pools: PoolsComponent
@@ -126,6 +129,9 @@ func set_bond(b: MountBond) -> void:
 	display_name = b.display_name(_base_name) if b else _base_name
 	if b and stats == null:
 		_build_combat()
+		senses = MountSenses.new()
+		senses.name = "MountSenses"
+		add_child(senses)
 
 ## Vida pela espécie e porte (a mesma tabela dos bichos selvagens) e hurtbox no corpo
 func _build_combat() -> void:
