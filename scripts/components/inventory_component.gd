@@ -11,6 +11,9 @@ const _StatsComponent = preload("res://scripts/components/stats_component.gd")
 ## Materiais ficam em pilhas (ADR-0005): { "id", "quality" (1–5), "traits" (ordenados), "amount" }.
 ## Unidades só se juntam com id, qualidade e traits iguais. A API por id (add/get/consume)
 ## continua valendo: conta a soma das pilhas e gasta da pior qualidade para a melhor.
+## Pilha com história tem também "memory" (ex.: a Lembrança guarda o nome da montaria que morreu,
+## GDD-16 §7); só se junta com outra de memória igual, e a memória vai junto para o chão, o save,
+## o mercado e a peça forjada. Sem história, a pilha não tem a chave.
 
 signal material_collected(material_id: StringName, amount: int)
 signal item_crafted(item_name: StringName, quality: int, traits: Array[StringName])
@@ -73,10 +76,10 @@ func _ready() -> void:
 		stats = get_parent().get_node_or_null("StatsComponent") as StatsComponent
 
 ## Adiciona material na pilha de mesma qualidade e traits (cria a pilha se não houver)
-func add_material(material_id: StringName, amount: int = 1, quality: int = 1, traits: Array = []) -> void:
+func add_material(material_id: StringName, amount: int = 1, quality: int = 1, traits: Array = [], memory: Dictionary = {}) -> void:
 	if amount <= 0:
 		return
-	_add_to_stack(material_id, amount, quality, traits)
+	_add_to_stack(material_id, amount, quality, traits, memory)
 	material_collected.emit(material_id, amount)
 	stacks_changed.emit()
 
@@ -145,6 +148,8 @@ func drop_stack(stack: Dictionary, amount: int = -1) -> Dictionary:
 		"traits": target.traits.duplicate(),
 		"amount": take,
 	}
+	if target.has("memory"):
+		dropped["memory"] = target.memory.duplicate(true)
 	target.amount -= take
 	_drop_empty()
 	stack_dropped.emit(dropped)
@@ -174,8 +179,9 @@ func _resolve_stack(stack: Dictionary) -> Dictionary:
 	var want_id := StringName(stack.get("id", &""))
 	var want_q: int = int(stack.get("quality", 1))
 	var want_traits: Array = stack.get("traits", [])
+	var want_memory: Dictionary = stack.get("memory", {})
 	for s in stacks:
-		if s.id == want_id and int(s.quality) == want_q and s.traits == want_traits:
+		if s.id == want_id and int(s.quality) == want_q and s.traits == want_traits and s.get("memory", {}) == want_memory:
 			return s
 	return {}
 
@@ -254,7 +260,10 @@ func get_total_weight() -> float:
 func stacks_to_save() -> Array:
 	var out: Array = []
 	for s in stacks:
-		out.append({"id": String(s.id), "quality": s.quality, "traits": s.traits.map(func(t): return String(t)), "amount": s.amount})
+		var e := {"id": String(s.id), "quality": s.quality, "traits": s.traits.map(func(t): return String(t)), "amount": s.amount}
+		if s.has("memory"):
+			e["memory"] = s.memory.duplicate(true)
+		out.append(e)
 	return out
 
 ## Recarrega as pilhas a partir de `stacks_to_save()`
@@ -263,7 +272,8 @@ func load_from_save(data: Array) -> void:
 	for e in data:
 		if e is Dictionary:
 			var traits: Array = e.get("traits", []).map(func(t): return StringName(t))
-			_add_to_stack(StringName(e.get("id", "")), int(e.get("amount", 0)), int(e.get("quality", 1)), traits)
+			var memory: Dictionary = e.get("memory", {}) if e.get("memory", {}) is Dictionary else {}
+			_add_to_stack(StringName(e.get("id", "")), int(e.get("amount", 0)), int(e.get("quality", 1)), traits, memory)
 	stacks_changed.emit()
 
 ## Pilha de maior qualidade de um material ({} se não houver)
@@ -271,7 +281,7 @@ func best_stack(material_id: StringName) -> Dictionary:
 	var list := _stacks_matching(material_id)
 	return list[list.size() - 1] if not list.is_empty() else {}
 
-func _add_to_stack(material_id: StringName, amount: int, quality: int, traits: Array) -> void:
+func _add_to_stack(material_id: StringName, amount: int, quality: int, traits: Array, memory: Dictionary = {}) -> void:
 	if material_id.is_empty() or amount <= 0:
 		return
 	var key_traits: Array[StringName] = []
@@ -280,10 +290,13 @@ func _add_to_stack(material_id: StringName, amount: int, quality: int, traits: A
 	key_traits.sort()
 	quality = clampi(quality, 1, 5)
 	for s in stacks:
-		if s.id == material_id and s.quality == quality and s.traits == key_traits:
+		if s.id == material_id and s.quality == quality and s.traits == key_traits and s.get("memory", {}) == memory:
 			s.amount += amount
 			return
-	stacks.append({"id": material_id, "quality": quality, "traits": key_traits, "amount": amount})
+	var stack := {"id": material_id, "quality": quality, "traits": key_traits, "amount": amount}
+	if not memory.is_empty():
+		stack["memory"] = memory.duplicate(true)
+	stacks.append(stack)
 
 ## Receitas de ofício simples (GDD-03 §9): resultado -> {materiais}
 const RECIPES: Dictionary = {

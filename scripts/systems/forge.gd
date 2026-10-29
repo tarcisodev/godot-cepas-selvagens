@@ -216,6 +216,11 @@ static func forge(inv: InventoryComponent, recipe_id: StringName, core: Dictiona
 	item.traits.assign(p.traits)
 	var other_family: bool = item.family != r.get("family", item.family)
 	item.display_name = r.name + (" de %s" % item.family_name() if other_family else "") + (" (Íntegro)" if item.traits.has(&"integro") else "")
+	# A Lembrança no tempero leva o nome da montaria para a peça
+	if not temper.is_empty() and temper.get("memory", {}) is Dictionary and not temper.get("memory", {}).is_empty():
+		item.memory = temper.memory.duplicate(true)
+		if item.memory.has("name"):
+			item.display_name += " · Saudade de %s" % item.memory.name
 	var dur := 100.0 * (1.15 if item.traits.has(&"integro") or item.traits.has(&"cicatrizado") else 1.0)
 	dur *= float(_option(r.core, core).get("durability", 1.0)) # couro de lobo dura mais
 	item.max_durability = dur

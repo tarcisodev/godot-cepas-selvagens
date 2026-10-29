@@ -36,6 +36,8 @@ const RENAMED: Dictionary = {&"bracadeiras_galhada": &"couraca_galhada"}
 @export var max_durability: float = 100.0
 ## Materiais usados {id: quantidade} — base do desmanche
 @export var materials: Dictionary = {}
+## História que a peça herdou do tempero (ex.: a Lembrança de uma montaria; GDD-16 §7)
+@export var memory: Dictionary = {}
 
 func is_broken() -> bool:
 	return durability <= 0.0
@@ -114,7 +116,8 @@ func to_dict() -> Dictionary:
 	for id in materials:
 		mats[String(id)] = materials[id]
 	return {"recipe": String(recipe_id), "name": display_name, "slot": int(slot), "family": String(family), "quality": quality,
-		"traits": traits.map(func(t): return String(t)), "durability": durability, "max": max_durability, "materials": mats}
+		"traits": traits.map(func(t): return String(t)), "durability": durability, "max": max_durability, "materials": mats,
+		"memory": memory.duplicate(true)}
 
 static func from_dict(d: Dictionary) -> ForgedItem:
 	var it := ForgedItem.new()
@@ -132,6 +135,7 @@ static func from_dict(d: Dictionary) -> ForgedItem:
 	for t in d.get("traits", []):
 		it.traits.append(StringName(t))
 	it.durability = float(d.get("durability", 100.0))
+	it.memory = d.get("memory", {}) if d.get("memory", {}) is Dictionary else {}
 	it.max_durability = float(d.get("max", 100.0))
 	for id in d.get("materials", {}):
 		it.materials[StringName(id)] = int(d["materials"][id])

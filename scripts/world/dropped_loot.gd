@@ -25,6 +25,8 @@ static func spawn_for_stack(parent: Node, origin_pos: Vector3, drop_pos: Vector3
 		"traits": stack_data.get("traits", []).duplicate(),
 		"amount": int(stack_data.get("amount", 1)),
 	}
+	if stack_data.get("memory", {}) is Dictionary and not stack_data.get("memory", {}).is_empty():
+		loot.stack["memory"] = stack_data.memory.duplicate(true)
 	parent.add_child(loot)
 	loot.global_position = drop_pos
 	loot._play_drop_arc(origin_pos, drop_pos)
@@ -98,7 +100,8 @@ func _collect_into(collector: Node) -> String:
 			StringName(stack.get("id", &"")),
 			int(stack.get("amount", 1)),
 			int(stack.get("quality", 1)),
-			stack.get("traits", [])
+			stack.get("traits", []),
+			stack.get("memory", {})
 		)
 	is_collected = true
 	if is_inside_tree():
@@ -116,6 +119,9 @@ func _item_title() -> String:
 		var data := MaterialData.of(StringName(stack.get("id", &"")))
 		var q: int = int(stack.get("quality", 1))
 		var amt: int = int(stack.get("amount", 1))
+		var memory := MaterialData.memory_text(stack.get("memory", {}))
+		if not memory.is_empty():
+			return "%s %s %s" % [data.icon, memory, "★".repeat(q)]
 		return "%s %s ×%d %s" % [data.icon, data.display_name, amt, "★".repeat(q)]
 	return "Trouxa"
 

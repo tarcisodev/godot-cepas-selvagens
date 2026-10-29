@@ -113,6 +113,15 @@ static func category_color(cat: int) -> Color:
 		_: return Color(0.95, 0.45, 0.75)
 
 ## Nome de exibição de um trait (StringName em snake_case → "Snake Case")
+## Texto da memória de uma pilha ou peça (vazio se não tiver). Lembrança: "Lembrança de Estrela
+## (Trotador, Elo 80, dia 12)"
+static func memory_text(memory: Dictionary) -> String:
+	if memory.is_empty():
+		return ""
+	if memory.get("kind", "") == "lembranca":
+		return "Lembrança de %s (%s, Elo %d, dia %d)" % [memory.get("name", "?"), memory.get("species", "?"), int(memory.get("elo", 0)), int(memory.get("day", 0))]
+	return str(memory.get("name", ""))
+
 static func trait_name(trait_id: StringName) -> String:
 	# Genoma do pinhão (GDD-10 §9) aparece legível no lugar do código
 	if String(trait_id).begins_with("gen_"):

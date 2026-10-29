@@ -367,7 +367,9 @@ func _on_owned_died(m: Mount) -> void:
 		_care_mount = null
 	var spot := m.global_position
 	spot.y = _ground(spot.x, spot.z) + 0.2
-	DroppedLoot.spawn_for_stack(self, m.global_position + Vector3.UP, spot, {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1})
+	# A Lembrança guarda quem ela foi (nome, espécie, Elo e o dia em que morreu)
+	var memory := {"kind": "lembranca", "name": m.display_name, "species": m.dna.species_name(), "elo": floori(m.bond.elo), "day": today()}
+	DroppedLoot.spawn_for_stack(self, m.global_position + Vector3.UP, spot, {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1, "memory": memory})
 	_tell(get_tree().get_first_node_in_group("player"), "💔 %s morreu. Ficou a Lembrança dela no chão." % m.display_name)
 	m.queue_free()
 
