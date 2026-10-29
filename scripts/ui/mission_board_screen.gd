@@ -23,7 +23,9 @@ var _status_toast: Label
 
 func _ready() -> void:
 	visible = false
-	set_anchors_preset(PRESET_FULL_RECT)
+	# "and_offsets": só as âncoras manteriam o tamanho 0×0 de recém-criado e o painel
+	# centralizaria no canto (0,0) da tela, cortado
+	set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_STOP
 	_build_ui()
 
@@ -52,20 +54,20 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_ui() -> void:
 	var backdrop := ColorRect.new()
 	backdrop.color = Color(0, 0, 0, 0.55)
-	backdrop.set_anchors_preset(PRESET_FULL_RECT)
+	backdrop.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
 	backdrop.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.pressed:
 			close()
 	)
 	add_child(backdrop)
 
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	center.mouse_filter = MOUSE_FILTER_IGNORE
+	add_child(center)
+
 	_panel = PanelContainer.new()
 	_panel.custom_minimum_size = Vector2(680, 520)
-	_panel.set_anchors_preset(PRESET_CENTER)
-	_panel.offset_left = -340
-	_panel.offset_top = -260
-	_panel.offset_right = 340
-	_panel.offset_bottom = 260
 
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.11, 0.10, 0.12, 0.97)
@@ -77,7 +79,7 @@ func _build_ui() -> void:
 	style.content_margin_top = 18
 	style.content_margin_bottom = 18
 	_panel.add_theme_stylebox_override("panel", style)
-	add_child(_panel)
+	center.add_child(_panel)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
