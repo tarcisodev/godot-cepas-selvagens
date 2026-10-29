@@ -351,7 +351,25 @@ func _spawn_owned(d: CreatureDNA, slot: int) -> void:
 	m.owned = true
 	m.set_bond(bonds[slot])
 	m.care_requested.connect(_on_care_requested)
+	m.died.connect(_on_owned_died)
 	_owned_nodes.append(m)
+
+## Morte permanente (GDD-16 §7): sai do estábulo e do save; no corpo fica a Lembrança (3★, Saudade)
+func _on_owned_died(m: Mount) -> void:
+	var i := _owned_nodes.find(m)
+	if i < 0:
+		return
+	_owned_nodes.remove_at(i)
+	owned.remove_at(i)
+	bonds.remove_at(i)
+	if _care_mount == m:
+		_care_dialog.close()
+		_care_mount = null
+	var spot := m.global_position
+	spot.y = _ground(spot.x, spot.z) + 0.2
+	DroppedLoot.spawn_for_stack(self, m.global_position + Vector3.UP, spot, {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1})
+	_tell(get_tree().get_first_node_in_group("player"), "💔 %s morreu. Ficou a Lembrança dela no chão." % m.display_name)
+	m.queue_free()
 
 static func today() -> int:
 	return MountBond.today()

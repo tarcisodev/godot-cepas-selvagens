@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"lembranca"
+display_name = "Lembrança"
+description = "Pena ou crina que fica de uma montaria que morreu. Como tempero de uma peça de armadura, dá o trait Saudade (+5% de resistência a corte, impacto e perfuração). Só se consegue assim."
+category = 3
+icon = "🪶"
+color = Color(0.86, 0.8, 0.95, 1)
+unit_weight = 0.1
+max_gather_quality = 5
+base_value = 40
