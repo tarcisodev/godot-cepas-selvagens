@@ -25,6 +25,7 @@ func _run() -> void:
 	_test_host_creates_character_on_own_server()
 	_test_websocket_peer_init()
 	_test_character_delete_and_stats()
+	_test_remember_credentials()
 
 	print("\n🎉 TODOS OS TESTES DE AUTENTICAÇÃO E WEBSOCKET PASSARAM COM SUCESSO!")
 	print("========================================================\n")
@@ -270,3 +271,38 @@ func _test_character_delete_and_stats() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(acct_file))
 	sp.queue_free()
 	print("     ✓ Exclusão de personagem, resumo com dinheiro e formatação de tempo validados com sucesso")
+
+func _test_remember_credentials() -> void:
+	print("  7. Verificando opção de 'Lembrar usuário e senha' no login...")
+	# 7.1 Garante estado limpo antes do teste
+	OnlineAuthModalClass.clear_saved_credentials()
+	var creds_initial := OnlineAuthModalClass.load_saved_credentials()
+	assert(not creds_initial.get("remember", false), "Inicialmente não deve ter credenciais salvas")
+
+	# 7.2 Salva credenciais com remember = true
+	OnlineAuthModalClass.save_credentials("HeroiDoVale", "SuperSenhaSecreta99!", true)
+	var creds_saved := OnlineAuthModalClass.load_saved_credentials()
+	assert(creds_saved.get("remember", false), "remember deve ser true")
+	assert(creds_saved.get("username", "") == "HeroiDoVale", "Usuário recuperado deve ser HeroiDoVale")
+	assert(creds_saved.get("password", "") == "SuperSenhaSecreta99!", "Senha recuperada deve corresponder à original")
+
+	# 7.3 Instancia OnlineAuthModal e verifica preenchimento automático
+	var modal: OnlineAuthModal = OnlineAuthModalClass.new()
+	modal.is_host_mode = false
+	root.add_child(modal)
+
+	assert(modal._remember_check != null, "_remember_check deve existir")
+	assert(modal._remember_check.button_pressed, "_remember_check deve iniciar marcado quando há credenciais salvas")
+	assert(modal._user_input.text == "HeroiDoVale", "_user_input deve ser preenchido automaticamente")
+	assert(modal._pass_input.text == "SuperSenhaSecreta99!", "_pass_input deve ser preenchido automaticamente")
+
+	# 7.4 Desmarcar o checkbox limpa as credenciais salvas
+	modal._remember_check.button_pressed = false
+	var creds_after_untoggle := OnlineAuthModalClass.load_saved_credentials()
+	assert(not creds_after_untoggle.get("remember", false), "Desmarcar _remember_check deve limpar as credenciais salvas")
+
+	modal.queue_free()
+
+	# 7.5 Limpeza final de teste
+	OnlineAuthModalClass.clear_saved_credentials()
+	print("     ✓ Salvar, carregar, auto-preenchimento e limpeza de credenciais validados com sucesso")
