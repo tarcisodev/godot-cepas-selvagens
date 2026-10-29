@@ -122,13 +122,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 transform = Transform3D(0.866025, 0, -0.5, 0, 1, 0, 0.5, 0, 0.866025, -5, 0, -11)
 
 [node name="WeaponTrainer" parent="." instance=ExtResource("17_trainer")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 6.2)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -10.2, 0, 9.4)
 
 [node name="CharacterStylist" parent="." instance=ExtResource("22_stylist")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, 0, 6.6)
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 12.6, 0, 14.6)
 
 [node name="SupplyChest" type="Node3D" parent="."]
-transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, 3.2, 0, 3.4)
+transform = Transform3D(0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, 0.866025, -2.4, 0, 1.0)
 script = ExtResource("28_chest")
 
 [node name="MonsterArena" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]

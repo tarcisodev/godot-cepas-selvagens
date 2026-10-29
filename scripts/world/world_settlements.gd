@@ -22,10 +22,10 @@ const SETTLEMENTS: Array[Dictionary] = [
 	{
 		"id": &"vila_esperanca",
 		"name": "🏛️ Vila da Esperança",
-		"subtitle": "Capital Central • Obras, Forja, Mercado, Taverna & Cosméticos",
-		"pos": Vector3(1.5, 0.0, 4.5),
-		"spawn_offset": Vector3(0.0, 0.0, -1.5),
-		"radius": 15.0,
+		"subtitle": "Capital Central • Praça da Cepa-Mãe, Forja, Feira, Cais, Taverna & Capela",
+		"pos": Vector3(-1.0, 0.0, 15.0),
+		"spawn_offset": Vector3(1.0, 0.0, -14.5),
+		"radius": 22.0,
 		"can_fast_travel": true,
 		"color": Color(0.96, 0.82, 0.42),
 		"kind": "capital",
@@ -198,14 +198,14 @@ func fast_travel_to(settlement_id: StringName, player: Node = null) -> bool:
 # ---------------------------------------------------------------- Estradas & Placas
 
 func _build_crossroads_and_roads() -> void:
-	# Placa Central na Encruzilhada Norte da Vila da Esperança
+	# Placa Central na Encruzilhada Norte, logo fora do portal da Vila da Esperança
 	_create_signpost(
-		Vector2(1.5, -9.8),
+		Vector2(1.6, -12.4),
 		"🪧 ENCRUZILHADA DO VALE\n⬆ Norte: Besta (-5,-11) & Vigia do Norte\n⬅ Oeste: Arena (-27,3)  •  ➡ Leste: Rio & Mirante\n⬇ Sul: Porto Bruma (42,48)   [M] Mapa Mundial"
 	)
-	# Placa na Saída Sul rumo a Porto Bruma
+	# Placa na Saída Sul rumo a Porto Bruma, fora do portal sul
 	_create_signpost(
-		Vector2(8.0, 17.5),
+		Vector2(2.8, 42.6),
 		"🪧 ESTRADA RIBEIRINHA\n↘ Vila de Porto Bruma (42, 48)\n↖ Vila da Esperança"
 	)
 	# Placa na Subida da Cachoeira rumo à Vigia do Norte
@@ -221,10 +221,10 @@ func _build_crossroads_and_roads() -> void:
 
 	# Pedras de estrada guiando as saídas principais
 	var road_chains: Array[Array] = [
-		# Saída Oeste para Arena
-		[Vector2(-6.0, 4.0), Vector2(-11.0, 3.8), Vector2(-16.0, 3.5), Vector2(-21.0, 3.2)],
-		# Saída Sudeste para Porto Bruma
-		[Vector2(8.5, 16.0), Vector2(14.0, 22.0), Vector2(21.0, 29.0), Vector2(29.0, 36.0), Vector2(36.0, 43.0)],
+		# Saída Oeste para Arena (do portal oeste)
+		[Vector2(-21.0, 4.2), Vector2(-23.0, 3.8)],
+		# Saída Sul para Porto Bruma (do portal sul, beirando o rio)
+		[Vector2(0.0, 44.5), Vector2(6.0, 46.0), Vector2(13.0, 47.0), Vector2(20.0, 47.5), Vector2(37.0, 47.5)],
 		# Saída Noroeste para Vigia do Norte
 		[Vector2(-6.5, -18.0), Vector2(-12.0, -28.0), Vector2(-18.0, -40.0), Vector2(-24.0, -52.0), Vector2(-29.0, -64.0)],
 		# Trilha Leste após o rio para o Santuário Astral

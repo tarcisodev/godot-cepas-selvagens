@@ -26,9 +26,8 @@ const CLAIM_GAP: float = 6.0
 ## Áreas de Zona Selvagem (vazio até o mapa ter uma): { "center": Vector2, "radius": float, "name": String }
 const WILD_PVP_ZONES: Array[Dictionary] = []
 
-## Centro e raio da Cidade Principal (Vila da Esperança); a paliçada fica em 13,5 m
-const CITY_CENTER: Vector2 = Vector2(1.5, 4.5)
-const CITY_RADIUS: float = 14.0
+## Planta da Cidade Principal (Vila da Esperança): elipse da paliçada (B36)
+const _VillageLayout = preload("res://scripts/town/village_layout.gd")
 
 ## Centros de perigo (Arena de monstros e Morro da Besta)
 const DANGER_ZONES: Array[Dictionary] = [
@@ -61,7 +60,7 @@ func get_zone_at(pos: Vector3) -> ZoneType:
 			return ZoneType.DANGER
 	
 	# 2. Cidade Principal
-	if p2.distance_to(CITY_CENTER) <= CITY_RADIUS:
+	if _VillageLayout.in_village(p2.x, p2.y, 0.0):
 		return ZoneType.CITY
 	
 	# 3. Rio e Água Profunda
@@ -211,7 +210,7 @@ func _check_new_totem(pos: Vector3, player_name: String, zone: ZoneType) -> Dict
 	var p2 := Vector2(pos.x, pos.z)
 	var r_new: float = ClaimTotemClass.DEFAULT_RADIUS
 	
-	if p2.distance_to(CITY_CENTER) - CITY_RADIUS < CITY_BUILD_MARGIN:
+	if _VillageLayout.edge_distance(p2.x, p2.y) < CITY_BUILD_MARGIN:
 		return {
 			"allowed": false,
 			"reason": "Arredores da Vila: Finque o totem a pelo menos %.0fm da cidade." % CITY_BUILD_MARGIN,

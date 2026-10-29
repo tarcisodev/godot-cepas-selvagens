@@ -7,6 +7,7 @@ class_name LandscapeGenerator
 # bacia da lagoa e rio sinuoso pelo vale.
 
 const RiverClass = preload("res://scripts/river_system.gd")
+const _VillageLayout = preload("res://scripts/town/village_layout.gd")
 const RIVER_SHADER: Shader = preload("res://materials/river_water.gdshader")
 const WATERFALL_SHADER: Shader = preload("res://materials/waterfall.gdshader")
 
@@ -99,6 +100,9 @@ func get_height_at(x: float, z: float) -> float:
 		else:
 			var beach_h: float = lerpf(h, -0.4, coast_t * coast_t)
 			h = minf(h, beach_h)
+
+	# 3d. Vila da Esperança: chão manso, praça plana e Colina da Capela (B36)
+	h = _VillageLayout.shape_height(x, z, h)
 
 	# 4. Leito do Rio e Cachoeira: corte em "U" com margem nítida.
 	# t = distância ao centro / meia-largura da água. t < 1: fundo em curva até `depth` abaixo
@@ -253,6 +257,8 @@ func _vertex_color(pos: Vector3) -> Color:
 		# Colinas e relevo geral
 		var t_hill: float = clamp(pos.y / (max_height * 0.9), 0.0, 1.0)
 		col = grass_color.lerp(earth_color, t_hill)
+		# Ruas de terra batida e grama variada dentro da vila (B36)
+		col = _VillageLayout.ground_tint(pos.x, pos.z, col)
 	return col
 
 func _rebuild_collision() -> void:

@@ -21,6 +21,8 @@ signal talked(player: Node)
 @export var look_at_player: bool = true
 ## Ícone que fica no lugar do nome de 6 a 15 m (WorldLabel)
 @export var icon: String = "💬"
+## false = fica na altura dada (pescador no píer); true = assenta no relevo
+@export var snap_to_ground: bool = true
 
 var visual: CharacterVisual
 var _prompt_label: _WorldLabel
@@ -41,7 +43,8 @@ func _ready() -> void:
 		_prompt_label = _WorldLabel.make(_WorldLabel.Kind.PROMPT, prompt)
 		_prompt_label.position.y = 2.0
 		add_child(_prompt_label)
-	_snap_to_ground.call_deferred()
+	if snap_to_ground:
+		_snap_to_ground.call_deferred()
 
 func _process(_delta: float) -> void:
 	if not is_inside_tree():

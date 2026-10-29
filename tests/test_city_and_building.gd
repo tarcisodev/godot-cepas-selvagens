@@ -45,8 +45,8 @@ func test_zone_manager_rules() -> void:
 	assert(not zm.can_combat_at(city_pos), "Combate deve ser desativado na Cidade")
 	assert(zm.can_combat_at(city_pos, true), "Duelo aceito libera o combate na Cidade (GDD-08 §8)")
 	
-	# Posição na Natureza aberta (30, 0, 30)
-	var wild_pos := Vector3(30.0, 0.0, 30.0)
+	# Posição na Natureza aberta, a mais de 20 m da paliçada (B36: a vila cresceu)
+	var wild_pos := Vector3(45.0, 0.0, 30.0)
 	assert(zm.get_zone_at(wild_pos) == ZoneManagerClass.ZoneType.WILDERNESS, "Deve ser Zona Selvagem")
 	assert(zm.can_combat_at(wild_pos), "Combate deve ser liberado na Natureza")
 	
@@ -75,7 +75,7 @@ func test_claim_totem_territory() -> void:
 	var zm := ZoneManagerClass.new()
 	root.add_child(zm)
 	
-	var totem_spot := Vector3(35.0, 0.0, 25.0)
+	var totem_spot := Vector3(48.0, 0.0, 32.0)
 	var totem := ClaimTotemClass.new()
 	totem.position = totem_spot
 	totem.owner_name = "Explorador"
@@ -208,8 +208,8 @@ func test_territory_rules_gdd08() -> void:
 	var zm := ZoneManagerClass.new()
 	root.add_child(zm)
 	
-	# Totem a menos de 20 m da borda da cidade (centro 1.5,4.5; raio 16.5): (1.5, 30) fica a ~9 m
-	var near_city := zm.can_build_at(Vector3(1.5, 0.0, 30.0), &"claim_totem", "Explorador")
+	# Totem a menos de 20 m da paliçada (elipse do B36, portão sul em z = 40): (1.5, 50) fica a ~10 m
+	var near_city := zm.can_build_at(Vector3(1.5, 0.0, 50.0), &"claim_totem", "Explorador")
 	assert(not near_city["allowed"] and near_city["reason"].contains("Vila"), "Totem colado na vila deve ser negado")
 	
 	var totem := ClaimTotemClass.new()
