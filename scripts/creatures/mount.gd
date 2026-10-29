@@ -21,6 +21,8 @@ const LAND_SWIM_DEPTH: float = 0.9
 const LAND_SWIM_SPEED: float = 0.45
 const LAND_SWIM_TIRED: float = 0.25
 const LAND_SWIM_DRAIN: float = 6.0
+## Distância mínima da borda do mapa: a montaria anda por posição e atravessaria as paredes invisíveis
+const EDGE_MARGIN: float = 3.0
 
 ## Velocidades (m/s) por tipo: [passeio, corrida]
 const SPEEDS: Dictionary = {Kind.LAND: Vector2(9.0, 15.0), Kind.AIR: Vector2(11.0, 17.0), Kind.WATER: Vector2(7.0, 11.0)}
@@ -125,10 +127,12 @@ func dismount() -> void:
 	if p.pools and p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.disconnect(_on_rider_poise_broken)
 	var side := global_transform.basis.x.normalized()
-	var spot := global_position + side * 1.6
+	var spot := _clamp_to_bounds(global_position + side * 1.6)
 	if kind == Kind.WATER:
+		# Sem margem por perto (mar aberto) o cavaleiro cai n'água ali mesmo, na superfície
 		spot = _nearest_shore(global_position)
-	spot.y = _ground(spot.x, spot.z) + 0.1
+	else:
+		spot.y = _ground(spot.x, spot.z) + 0.1
 	p.global_position = spot
 	p.velocity = Vector3.ZERO
 	if kind == Kind.AIR and airborne:
@@ -168,6 +172,8 @@ func _physics_process(delta: float) -> void:
 		target_speed *= LAND_SWIM_SPEED if stamina > 1.0 else LAND_SWIM_TIRED
 	_speed = move_toward(_speed, target_speed, delta * 14.0)
 	var step := (dir.normalized() if moving else -global_transform.basis.z) * _speed * delta
+	# Na borda do mapa desliza ao longo dela em vez de sair
+	step = _clamp_to_bounds(global_position + step) - global_position
 	if moving:
 		rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), minf(1.0, delta * 6.0))
 	match kind:
@@ -260,6 +266,8 @@ func _nearest_shore(from: Vector3) -> Vector3:
 		for i in 16:
 			var a := TAU * i / 16.0
 			var p := from + Vector3(cos(a), 0, sin(a)) * float(r)
+			if not WorldBounds.inside(p.x, p.z, EDGE_MARGIN):
+				continue
 			var g := _ground(p.x, p.z)
 			var surface := RiverSystem.get_water_height(p.z)
 			# Seco (acima da água): escolhe o ponto menos alto, para não descer em cima do barranco
@@ -267,10 +275,20 @@ func _nearest_shore(from: Vector3) -> Vector3:
 				best = Vector3(p.x, g, p.z)
 				best_rise = g - surface
 		if best != Vector3.INF:
-			return best
+			return best + Vector3(0, 0.1, 0)
+	var spot := _clamp_to_bounds(from)
+	if RiverSystem.is_in_sea(spot.x, spot.z):
+		spot.y = RiverSystem.get_water_height(spot.z)
+		return spot
 	var cx := RiverSystem.get_river_center_x(from.z)
 	var side := 1.0 if from.x >= cx else -1.0
-	return Vector3(cx + side * (RiverSystem.get_water_half_width(from.z) + 1.5), from.y, from.z)
+	spot = _clamp_to_bounds(Vector3(cx + side * (RiverSystem.get_water_half_width(from.z) + 1.5), 0, from.z))
+	spot.y = _ground(spot.x, spot.z) + 0.1
+	return spot
+
+func _clamp_to_bounds(pos: Vector3) -> Vector3:
+	var h := WorldBounds.get_half() - EDGE_MARGIN
+	return Vector3(clampf(pos.x, -h, h), pos.y, clampf(pos.z, -h, h))
 
 func _ground(x: float, z: float) -> float:
 	return _landscape.get_height_at(x, z) if _landscape else 0.0

@@ -563,8 +563,9 @@ func _physics_process(delta: float) -> void:
 		last_safe_position = global_position
 
 	# Resgate automático caso caia no limbo ou saia do mapa (os limites vêm do WorldBounds: com
-	# os números do mapa antigo, descer da montaria longe do centro mandava de volta ao estábulo)
-	if global_position.y < -20.0 or not WorldBounds.inside(global_position.x, global_position.z, -20.0):
+	# os números do mapa antigo, descer da montaria longe do centro mandava de volta ao estábulo).
+	# Parado no piso de segurança (topo em y -9) ou além das paredes da borda (6 m) também é limbo.
+	if global_position.y < -8.5 or not WorldBounds.inside(global_position.x, global_position.z, -8.0):
 		_recover_from_void()
 
 	# Altura da câmera e colisão suaves
