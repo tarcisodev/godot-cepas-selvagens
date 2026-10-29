@@ -293,6 +293,7 @@ const RECIPES: Dictionary = {
 	&"vara_pesca": {&"galho": 3, &"fibra": 4},
 	&"armadilha_mola": {&"madeira": 3, &"pedra": 2, &"tendao_elastico": 1},
 	&"isca_feromonio": {&"erva": 2, &"folha": 2, &"frutinha": 2},
+	&"apito_osso": {&"ossos": 3, &"fibra": 1},
 }
 
 ## Faz 1 unidade da receita (gasta a pior qualidade primeiro). false se faltar material.

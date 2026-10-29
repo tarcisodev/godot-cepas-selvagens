@@ -81,7 +81,7 @@ func _ready() -> void:
 	var gs = get_node_or_null("/root/GameSettings")
 	if gs:
 		gs.setting_changed.connect(_on_setting_changed)
-	# Mantém as dicas de texto recolhidas por padrão para não poluir a tela ([H] alterna)
+	# Mantém as dicas de texto recolhidas por padrão para não poluir a tela ([F2] alterna; o [H] é o Apito de Osso)
 	_set_tips_visible(false)
 
 	_update_hud_status()
@@ -846,7 +846,7 @@ func _update_underwater_tint() -> void:
 	_underwater_tint.visible = under
 
 func _input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_H:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F2:
 		var gs = get_node_or_null("/root/GameSettings")
 		if gs:
 			gs.set_value("video", "show_tips", not tips_visible)

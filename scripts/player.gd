@@ -581,6 +581,13 @@ func _physics_process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
+	# [H] Apito de Osso: chama a Companheira (GDD-16 §5)
+	if event.keycode == KEY_H and not is_downed and (get_tree() == null or get_tree().get_nodes_in_group("open_menus").is_empty()):
+		var eco := get_tree().get_first_node_in_group("ecosystem")
+		if eco and eco.has_method("whistle"):
+			get_viewport().set_input_as_handled()
+			eco.whistle(self)
+		return
 	var pool: StringName = QUICK_USE_KEYS.get(event.keycode, &"")
 	if pool.is_empty() or inventory == null or pools == null or is_downed:
 		return
