@@ -9,6 +9,8 @@ extends Node3D
 ## Também cria Marcos de Viagem Rápida ([E] abre o Mapa [M]) e placas nas encruzilhadas.
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const _CostelariaHub = preload("res://scripts/costelaria/costelaria_hub.gd")
+const _CostelariaLayout = preload("res://scripts/costelaria/costelaria_layout.gd")
 const ROCK_SCENE = preload("res://assets/models/nature/Rock_Medium_2.gltf")
 const PATH_SCENE = preload("res://assets/models/nature/RockPath_Square_Wide.gltf")
 const CART_SCENE = preload("res://assets/models/props/fantasy/Stall_Cart_Empty.gltf")
@@ -62,6 +64,17 @@ const SETTLEMENTS: Array[Dictionary] = [
 		"can_fast_travel": true,
 		"color": Color(0.78, 0.58, 0.98),
 		"kind": "settlement",
+	},
+	{
+		"id": &"costelaria",
+		"name": "🦴 Costelária",
+		"subtitle": "Cidade dentro do Colosso • Lojas, Compradores, Mestres & Arquivo",
+		"pos": Vector3(-110.0, 0.0, -10.0),
+		"spawn_offset": Vector3(10.0, 0.0, 0.0),
+		"radius": 34.0,
+		"can_fast_travel": true,
+		"color": Color(0.98, 0.72, 0.4),
+		"kind": "capital",
 	},
 ]
 
@@ -136,6 +149,7 @@ func _ready() -> void:
 	_build_porto_bruma()
 	_build_vigia_do_norte()
 	_build_santuario_astral()
+	_build_costelaria()
 
 func _ground_y(x: float, z: float) -> float:
 	if landscape and landscape.has_method("get_height_at"):
@@ -219,8 +233,16 @@ func _build_crossroads_and_roads() -> void:
 		"🪧 TRILHA DAS ESTRELAS\n↗ Santuário Astral do Mirante (82, -38)\n⬅ Ponte & Vila da Esperança"
 	)
 
+	# Placa no portão oeste da Vila rumo à Costelária
+	_create_signpost(
+		Vector2(-23.5, -3.5),
+		"🪧 ESTRADA DO COLOSSO\n⬅ Costelária (-110, -10)\n➡ Vila da Esperança"
+	)
+
 	# Pedras de estrada guiando as saídas principais
 	var road_chains: Array[Array] = [
+		# Saída Oeste para a Costelária, pelo norte da Arena até o Portão da Cauda
+		[Vector2(-24.0, -4.0), Vector2(-30.0, -8.0), Vector2(-36.0, -9.5), Vector2(-42.0, -10.0), Vector2(-48.0, -10.0)],
 		# Saída Oeste para Arena (do portal oeste)
 		[Vector2(-21.0, 4.2), Vector2(-23.0, 3.8)],
 		# Saída Sul para Porto Bruma (do portal sul, beirando o rio)
@@ -286,6 +308,17 @@ func _create_waystone(pos2d: Vector2, settlement_id: StringName, title: String) 
 	ws.title = title
 	ws.position = Vector3(pos2d.x, _ground_y(pos2d.x, pos2d.y), pos2d.y)
 	add_child(ws)
+
+# ---------------------------------------------------------------- Costelária (B38)
+
+func _build_costelaria() -> void:
+	var hub := _CostelariaHub.new()
+	hub.name = "Costelaria"
+	hub.landscape = landscape
+	add_child(hub)
+	# Marco de Viagem ao pé do cristal de âmbar, na praça do Coração
+	var heart := _CostelariaLayout.to_world(_CostelariaLayout.HEART + Vector2(2.6, 2.6))
+	_create_waystone(heart, &"costelaria", "⚡ Marco de Viagem: Costelária")
 
 # ---------------------------------------------------------------- 1. Vila Ribeirinha de Porto Bruma
 

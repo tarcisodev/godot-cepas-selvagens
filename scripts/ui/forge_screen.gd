@@ -100,6 +100,13 @@ func close() -> void:
 func _forge_level() -> int:
 	return player.mastery.get_level(&"forja") if player and player.mastery else 1
 
+## Encaixe de tempero: nível 10 e a Técnica "Mão de Tempero" do mestre (B38)
+func _temper_ok() -> bool:
+	return player != null and player.mastery != null and player.mastery.has_technique(&"forja", 10)
+
+func _crit_bonus() -> float:
+	return player.mastery.technique_bonus(&"forge_crit") if player and player.mastery else 0.0
+
 # ---------------------------------------------------------------- filtros e derivações
 
 func set_slot_filter(slot: int) -> void:
@@ -393,13 +400,13 @@ func _slot_row(i: int) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	var list := candidates(key)
-	var locked := i == 2 and _forge_level() < Forge.TEMPER_LEVEL
+	var locked := i == 2 and (_forge_level() < Forge.TEMPER_LEVEL or not _temper_ok())
 	var prev := _button("◀", false)
 	var next := _button("▶", false)
 	var s := _chosen(i)
 	var text := "—"
 	if locked:
-		text = "🔒 Tempero libera na forja %d (você: %d)" % [Forge.TEMPER_LEVEL, _forge_level()]
+		text = "🔒 Tempero libera na forja %d (você: %d)" % [Forge.TEMPER_LEVEL, _forge_level()] if _forge_level() < Forge.TEMPER_LEVEL else "🔒 Tempero: aprenda Mão de Tempero com a Mestra Bigorna Velha" 
 	elif s.is_empty():
 		text = "nenhum" if i == 2 else "❌ Falta material (veja a prévia no boneco)"
 	else:
@@ -444,7 +451,7 @@ func _cycle(i: int, step: int) -> void:
 	refresh()
 
 func _build_preview() -> void:
-	var p := Forge.preview(_recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge)
+	var p := Forge.preview(_recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge, _temper_ok(), _crit_bonus())
 	var demo := current_preview_item()
 	_preview.add_child(HSeparator.new())
 	if demo != null:
@@ -461,7 +468,7 @@ func _build_preview() -> void:
 	_preview.add_child(forge_btn)
 
 func _do_forge() -> void:
-	var item := Forge.forge(player.inventory, _recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge, _rng)
+	var item := Forge.forge(player.inventory, _recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge, _rng, _temper_ok(), _crit_bonus())
 	if item == null:
 		_status.text = "Não deu para forjar"
 		return

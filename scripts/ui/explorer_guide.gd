@@ -27,6 +27,15 @@ const GUIDE_SECTIONS: Array[Dictionary] = [
 		"action_text": "✨ Abrir Ateliê [F9]",
 	},
 	{
+		"icon": "🦴",
+		"title": "Costelária, a Cidade dentro do Colosso",
+		"desc": "A oeste, depois da Arena, fica a Costelária: lojas sob as costelas, compradores com bolsa do dia, encomendas, mestres que ensinam Técnicas no Pátio e o Arquivista com o Compêndio. [E] em qualquer morador abre a Ficha dele.",
+		"target_name": "Portão da Cauda (Costelária)",
+		"target_pos": Vector3(-52.0, 0.0, -10.0),
+		"action": "",
+		"action_text": "",
+	},
+	{
 		"icon": "⚔️",
 		"title": "2. Mestre de Armas, Estilos & Arena",
 		"desc": "Aperte [E] no Mestre de Armas para testar os 3 estilos: Espada e Escudo (combo + bloqueio), Martelo Pesado (investida) e Cajado Arcano (botão direito mira no ombro + esquerdo dispara dardo!).",
@@ -131,6 +140,12 @@ func _cardinal_from_vec(v: Vector2) -> String:
 	if not ns.is_empty() and not ew.is_empty():
 		return ns + "-" + ew
 	return ns if not ns.is_empty() else (ew if not ew.is_empty() else "Frente")
+
+## Liga a bússola até um ponto (Guarda, Cartógrafa e Compêndio da Costelária, B38)
+func point_to(target_name: String, pos: Vector3) -> void:
+	active_target_name = target_name
+	active_target_pos = pos
+	has_active_target = true
 
 func open_guide(p: Player = null) -> void:
 	if p != null:

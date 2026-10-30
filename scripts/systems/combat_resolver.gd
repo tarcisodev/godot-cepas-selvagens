@@ -4,6 +4,23 @@ extends RefCounted
 ## Pipeline autoritativo de resolução de combate (ADR-0002 e ADR-0003).
 ## Resolve o dano mitigado, quebra de postura e dano a partes anatômicas.
 
+## Bônus das Técnicas de quem bate (0 sem maestria ou sem Técnica)
+static func _technique(attacker: Node, stat: StringName) -> float:
+	if stat.is_empty() or attacker == null or not is_instance_valid(attacker):
+		return 0.0
+	var m = attacker.get("mastery")
+	return m.technique_bonus(stat) if m != null and m.has_method("technique_bonus") else 0.0
+
+static func _damage_stat(t: DamageType.Type) -> StringName:
+	match t:
+		DamageType.Type.SLASH:
+			return &"dmg_slash"
+		DamageType.Type.IMPACT:
+			return &"dmg_impact"
+		DamageType.Type.FIRE, DamageType.Type.EARTH, DamageType.Type.LIGHTNING:
+			return &"dmg_magic"
+	return &""
+
 static func resolve_hit(hit: HitEvent) -> Dictionary:
 	var result := {
 		&"success": false,
@@ -28,7 +45,8 @@ static func resolve_hit(hit: HitEvent) -> Dictionary:
 		hit.target.filter_incoming_hit(hit)
 
 	# 1. Cálculo de Resistência / Mitigação por tipo de dano
-	var raw_dmg: float = hit.raw_damage
+	# Técnicas do atacante (B38): bônus de dano pelo tipo, ensinados pelos mestres
+	var raw_dmg: float = hit.raw_damage * (1.0 + _technique(hit.attacker, _damage_stat(hit.damage_type)))
 	var resist_stat: StringName = StringName("resist_" + DamageType.to_string_name(hit.damage_type))
 	var resistance: float = 0.0
 	
@@ -43,7 +61,7 @@ static func resolve_hit(hit: HitEvent) -> Dictionary:
 	var dealt_damage: float = target_pools.take_damage(effective_damage)
 	
 	# 3. Aplicação do dano de postura
-	var poise_dmg: float = hit.poise_damage
+	var poise_dmg: float = hit.poise_damage * (1.0 + _technique(hit.attacker, &"poise"))
 	if target_stats != null:
 		var poise_resist: float = clampf(target_stats.get_stat(&"poise_resist"), 0.0, 0.90)
 		poise_dmg *= (1.0 - poise_resist)
@@ -52,7 +70,7 @@ static func resolve_hit(hit: HitEvent) -> Dictionary:
 	
 	# 4. Quebra de parte anatômica (se a parte for especificada)
 	var broke_part := false
-	var part_dmg: float = hit.part_break_damage if hit.part_break_damage > 0.0 else dealt_damage
+	var part_dmg: float = (hit.part_break_damage if hit.part_break_damage > 0.0 else dealt_damage) * (1.0 + _technique(hit.attacker, &"part_break"))
 	if not hit.part_id.is_empty():
 		if hit.target.has_method("damage_part"):
 			broke_part = hit.target.damage_part(hit.part_id, part_dmg)

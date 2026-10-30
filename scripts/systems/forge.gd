@@ -168,7 +168,8 @@ const CORE_TRAITS: Array[StringName] = [&"cicatrizado", &"integro", &"iridescent
 
 ## Prévia sem gastar nada. `core`/`coat`/`temper` = pilhas do inventário ({} = vazio).
 ## Devolve {"ok", "reason", "quality", "traits", "crit", "family"}.
-static func preview(recipe_id: StringName, core: Dictionary, coat: Dictionary, temper: Dictionary, forge_level: int, public_forge: bool) -> Dictionary:
+## `temper_ok` = Técnica "Mão de Tempero" aprendida; `crit_bonus` = Técnicas de crítico (B38).
+static func preview(recipe_id: StringName, core: Dictionary, coat: Dictionary, temper: Dictionary, forge_level: int, public_forge: bool, temper_ok: bool = true, crit_bonus: float = 0.0) -> Dictionary:
 	var r: Dictionary = RECIPES.get(recipe_id, {})
 	if r.is_empty():
 		return {"ok": false, "reason": "Receita desconhecida"}
@@ -181,6 +182,8 @@ static func preview(recipe_id: StringName, core: Dictionary, coat: Dictionary, t
 	var temper_opt := _option(r.temper, temper)
 	if not temper.is_empty() and forge_level < TEMPER_LEVEL:
 		return {"ok": false, "reason": "Tempero só com forja %d" % TEMPER_LEVEL}
+	if not temper.is_empty() and not temper_ok:
+		return {"ok": false, "reason": "Tempero só com a Técnica Mão de Tempero (Mestra Bigorna Velha, Costelária)"}
 	var q := roundi((core.quality * 2.0 + coat.quality) / 3.0)
 	var traits: Array[StringName] = []
 	for t in CORE_TRAITS:
@@ -189,13 +192,13 @@ static func preview(recipe_id: StringName, core: Dictionary, coat: Dictionary, t
 			break
 	if not temper_opt.is_empty():
 		traits.append(temper_opt.trait)
-	var crit := forge_level * CRIT_PER_LEVEL + (PUBLIC_FORGE_CRIT if public_forge else 0.0)
+	var crit := forge_level * CRIT_PER_LEVEL + (PUBLIC_FORGE_CRIT if public_forge else 0.0) + crit_bonus
 	var family: StringName = coat_opt.get("family", r.get("family", &""))
 	return {"ok": true, "reason": "", "quality": clampi(q, 1, 5), "traits": traits, "crit": clampf(crit, 0.0, 0.9), "family": family}
 
 ## Forja de verdade: gasta as pilhas escolhidas, rola o crítico e devolve o item (ou null)
-static func forge(inv: InventoryComponent, recipe_id: StringName, core: Dictionary, coat: Dictionary, temper: Dictionary, forge_level: int, public_forge: bool, rng: RandomNumberGenerator) -> ForgedItem:
-	var p := preview(recipe_id, core, coat, temper, forge_level, public_forge)
+static func forge(inv: InventoryComponent, recipe_id: StringName, core: Dictionary, coat: Dictionary, temper: Dictionary, forge_level: int, public_forge: bool, rng: RandomNumberGenerator, temper_ok: bool = true, crit_bonus: float = 0.0) -> ForgedItem:
+	var p := preview(recipe_id, core, coat, temper, forge_level, public_forge, temper_ok, crit_bonus)
 	if not p.ok:
 		return null
 	var r: Dictionary = RECIPES[recipe_id]

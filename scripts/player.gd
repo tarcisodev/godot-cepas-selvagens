@@ -771,12 +771,13 @@ func _update_animation(speed: float) -> void:
 func get_harvest_time() -> float:
 	if harvest_target and harvest_target.has_method("get_gather_time"):
 		return harvest_target.get_gather_time(mastery)
+	# Cada degrau precisa do nível e da Técnica ensinada pelo Mestre Esfolador (B38)
 	var level: int = mastery.get_level(&"esfola") if mastery else 1
-	if level >= 100:
+	if level >= 100 and mastery.has_technique(&"esfola", 100):
 		return 0.5
-	elif level >= 50:
+	elif level >= 50 and mastery.has_technique(&"esfola", 50):
 		return 1.5
-	elif level >= 10:
+	elif level >= 10 and mastery.has_technique(&"esfola", 10):
 		return 2.5
 	return 3.0
 
