@@ -13,6 +13,17 @@ const _Player = preload("res://scripts/player.gd")
 const _MapImageBaker = preload("res://scripts/systems/map_image_baker.gd")
 
 const MAX_PERSONAL_MARKERS: int = 20
+## Sombra das Ilhotas no pergaminho (GDD-18 §10)
+const SKY_SHADOW_FILL: Color = Color(0.32, 0.27, 0.22, 0.16)
+const SKY_SHADOW_LINE: Color = Color(0.3, 0.24, 0.18, 0.75)
+static var _sky_shadows: Dictionary = {}
+
+## Contornos das Ilhotas do mundo atual (a seed vem do céu; sem céu, a padrão), calculados uma vez
+static func sky_shadows() -> Array:
+	var seed: int = SkyIslandField.instance.world_seed if is_instance_valid(SkyIslandField.instance) else 2026
+	if not _sky_shadows.has(seed):
+		_sky_shadows[seed] = SkyIslandSchedule.common_outlines(seed)
+	return _sky_shadows[seed]
 const MARKER_ICONS: Array[String] = ["🚩", "💀", "🌿", "🐟", "👁️", "⭐"]
 
 @export var player: Node
@@ -622,6 +633,17 @@ class MapCanvasControl extends Control:
 		var lair_center := _world_to_map(85.0, 85.0, r)
 		var lair_rad: float = 24.0 * (minf(r.x, r.y) / (WorldBounds.HALF * 2.0)) * (map_screen.zoom if map_screen else 1.0)
 		draw_arc(lair_center, lair_rad, 0.0, TAU, 32, Color(0.85, 0.25, 0.25, 0.6), 2.0)
+
+		# 2.5 SOMBRAS DAS ILHOTAS (GDD-18 §10): só as comuns, que são fixas e fazem parte da
+		# geografia; contorno pontilhado e sombra clara. As outras ilhas são exploração.
+		for outline in WorldMapScreen.sky_shadows():
+			var pts := PackedVector2Array()
+			for wp in outline:
+				pts.append(_world_to_map(wp.x, wp.y, r))
+			draw_colored_polygon(pts, SKY_SHADOW_FILL)
+			for i in pts.size() - 1:
+				if i % 2 == 0:
+					draw_line(pts[i], pts[i + 1], SKY_SHADOW_LINE, 1.5)
 
 		# 3. ESTRADAS PRINCIPAIS
 		var cap := _world_to_map(1.5, 4.5, r)

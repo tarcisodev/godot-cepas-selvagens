@@ -116,6 +116,23 @@ static func next_event(world_seed: int, rarity: int, day: float) -> Vector3:
 			return Vector3(w.x, w.y, w.y + dur)
 	return Vector3.INF
 
+## Ilhotas (comuns) do mundo: fixas para sempre, as únicas que aparecem no mapa [M] (GDD-18 §10)
+static func commons(world_seed: int) -> Array[Dictionary]:
+	return _commons(world_seed)
+
+## Contorno de cada Ilhota no chão (x, z do mundo), para a sombra pontilhada do mapa
+static func common_outlines(world_seed: int, points: int = 28) -> Array[PackedVector2Array]:
+	var out: Array[PackedVector2Array] = []
+	for isl in _commons(world_seed):
+		var shape := SkyIslandShape.new(isl)
+		var c: Vector3 = isl.center
+		var line := PackedVector2Array()
+		for i in points + 1:
+			var a := TAU * float(i) / float(points)
+			line.append(Vector2(c.x, c.z) + Vector2(cos(a), sin(a)) * shape.edge_radius(a))
+		out.append(line)
+	return out
+
 # ---------------------------------------------------------------- por raridade
 
 static func _commons(world_seed: int) -> Array[Dictionary]:
