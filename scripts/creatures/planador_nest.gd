@@ -262,9 +262,11 @@ func _fly_toward(target: Vector3, speed: float, delta: float) -> void:
 	if flat.length() > 0.05:
 		adult.rotation.y = lerp_angle(adult.rotation.y, atan2(-to.x, -to.z), minf(1.0, delta * 5.0))
 
+## Chão do vale, ou o da ilha voadora onde o ninho está (GDD-18)
 func _ground(x: float, z: float) -> float:
 	var land := get_tree().current_scene.get_node_or_null("Landscape") if get_tree().current_scene else null
-	return land.get_height_at(x, z) if land else global_position.y
+	var terrain: float = land.get_height_at(x, z) if land else global_position.y
+	return SkyIslandField.ground_at(x, z, global_position.y, terrain)
 
 func _tell(p: Node, msg: String) -> void:
 	if p and is_instance_valid(p) and p.has_signal("posture_changed"):

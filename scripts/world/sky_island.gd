@@ -10,6 +10,8 @@ const CURRENT_SHADER: Shader = preload("res://materials/sky_current.gdshader")
 
 var data: Dictionary
 var shape: SkyIslandShape
+## Flora, veios, baú e ninho; só existe com jogador perto (SkyIslandField)
+var content: SkyIslandContent
 var body: AnimatableBody3D
 var _mesh: MeshInstance3D
 var _current: Node3D

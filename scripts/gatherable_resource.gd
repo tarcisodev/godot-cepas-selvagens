@@ -18,7 +18,10 @@ enum Type {
 	ERVA,
 	MEL,
 	VEIO_FERRO,
-	VEIO_QUARTZO
+	VEIO_QUARTZO,
+	VEIO_CRISTAL_VENTO,
+	VEIO_FERRO_CELESTE,
+	VEIO_AMBAR_ESTELAR
 }
 
 const TYPE_CONFIG: Dictionary = {
@@ -180,7 +183,59 @@ const TYPE_CONFIG: Dictionary = {
 		"hits": 3,
 		"respawn": 300.0,
 		"color": Color(0.62, 0.86, 0.95)
+	},
+	# Veios das ilhas voadoras (GDD-18 §9): não voltam sozinhos; a ilha renova o conteúdo
+	Type.VEIO_CRISTAL_VENTO: {
+		"id": &"cristal_vento",
+		"name": "Veio de Cristal-de-Vento",
+		"action": "Minerar",
+		"verb": "Minerando",
+		"tag": &"mineracao",
+		"xp": 30.0,
+		"time": 1.3,
+		"min": 1,
+		"max": 2,
+		"hits": 3,
+		"respawn": 0.0,
+		"color": Color(0.72, 0.9, 0.86)
+	},
+	Type.VEIO_FERRO_CELESTE: {
+		"id": &"ferro_celeste",
+		"name": "Veio de Ferro-Celeste",
+		"action": "Minerar",
+		"verb": "Minerando",
+		"tag": &"mineracao",
+		"xp": 40.0,
+		"time": 1.6,
+		"min": 1,
+		"max": 2,
+		"hits": 5,
+		"respawn": 0.0,
+		"color": Color(0.5, 0.6, 0.78)
+	},
+	Type.VEIO_AMBAR_ESTELAR: {
+		"id": &"ambar_estelar",
+		"name": "Veio de Âmbar-Estelar",
+		"action": "Minerar",
+		"verb": "Minerando",
+		"tag": &"mineracao",
+		"xp": 60.0,
+		"time": 2.0,
+		"min": 1,
+		"max": 1,
+		"hits": 6,
+		"respawn": 0.0,
+		"color": Color(0.98, 0.66, 0.22)
 	}
+}
+
+## Veios: cor do minério à mostra, se é cristal (prisma que brilha) e a cor do brilho
+const VEIN_LOOK: Dictionary = {
+	Type.VEIO_FERRO: {"ore": Color(0.58, 0.3, 0.16), "crystal": false},
+	Type.VEIO_QUARTZO: {"ore": Color(0.62, 0.86, 0.95, 0.9), "crystal": true, "glow": Color(0.35, 0.7, 0.95)},
+	Type.VEIO_CRISTAL_VENTO: {"ore": Color(0.78, 0.95, 0.9, 0.85), "crystal": true, "glow": Color(0.5, 0.95, 0.85)},
+	Type.VEIO_FERRO_CELESTE: {"ore": Color(0.45, 0.56, 0.78), "crystal": false},
+	Type.VEIO_AMBAR_ESTELAR: {"ore": Color(1.0, 0.68, 0.22, 0.9), "crystal": true, "glow": Color(1.0, 0.6, 0.15)},
 }
 
 # Assets existentes
@@ -264,7 +319,7 @@ func _get_label_height() -> float:
 			return 0.85
 		Type.ERVA, Type.FIBRA, Type.OSSOS:
 			return 0.6
-		Type.VEIO_FERRO, Type.VEIO_QUARTZO:
+		Type.VEIO_FERRO, Type.VEIO_QUARTZO, Type.VEIO_CRISTAL_VENTO, Type.VEIO_FERRO_CELESTE, Type.VEIO_AMBAR_ESTELAR:
 			return 1.3
 		_:
 			return 0.45
@@ -379,8 +434,8 @@ func _rebuild_visual() -> void:
 				m.scale = Vector3.ONE * 0.6
 				visual_container.add_child(m)
 
-		Type.VEIO_FERRO, Type.VEIO_QUARTZO:
-			_build_vein(type == Type.VEIO_QUARTZO)
+		Type.VEIO_FERRO, Type.VEIO_QUARTZO, Type.VEIO_CRISTAL_VENTO, Type.VEIO_FERRO_CELESTE, Type.VEIO_AMBAR_ESTELAR:
+			_build_vein(VEIN_LOOK[type])
 
 		Type.MEL:
 			if BEEHIVE_SCENE:
@@ -499,23 +554,23 @@ func respawn() -> void:
 		var tw := create_tween()
 		tw.tween_property(visual_container, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
-## Rocha do veio: pedra escura com pedaços de minério à mostra (ferro enferrujado ou cristal)
-func _build_vein(crystal: bool) -> void:
+## Rocha do veio: pedra escura com pedaços de minério à mostra (metal em blocos ou cristal)
+func _build_vein(look: Dictionary) -> void:
+	var crystal: bool = look.crystal
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(Vector2i(int(global_position.x * 10.0), int(global_position.z * 10.0))) if is_inside_tree() else randi()
 	var rock_mat := StandardMaterial3D.new()
 	rock_mat.albedo_color = Color(0.3, 0.29, 0.28)
 	rock_mat.roughness = 0.95
 	var ore_mat := StandardMaterial3D.new()
+	ore_mat.albedo_color = look.ore
 	if crystal:
-		ore_mat.albedo_color = Color(0.62, 0.86, 0.95, 0.9)
 		ore_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		ore_mat.roughness = 0.1
 		ore_mat.emission_enabled = true
-		ore_mat.emission = Color(0.35, 0.7, 0.95)
+		ore_mat.emission = look.glow
 		ore_mat.emission_energy_multiplier = 0.9
 	else:
-		ore_mat.albedo_color = Color(0.58, 0.3, 0.16)
 		ore_mat.metallic = 0.55
 		ore_mat.roughness = 0.5
 	var rock := MeshInstance3D.new()
@@ -547,7 +602,7 @@ func _build_vein(crystal: bool) -> void:
 		visual_container.add_child(chunk)
 	if crystal:
 		var glow := OmniLight3D.new()
-		glow.light_color = Color(0.5, 0.8, 1.0)
+		glow.light_color = look.glow
 		glow.light_energy = 0.35
 		glow.omni_range = 2.5
 		glow.position.y = 0.6

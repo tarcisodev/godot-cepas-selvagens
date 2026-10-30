@@ -14,6 +14,10 @@ const CURRENT_LIFT: float = 8.0
 ## Até este tanto abaixo do topo a montaria ainda "está em cima" da ilha (degrau que ela sobe)
 const STEP_UP: float = 1.5
 const REFRESH: float = 0.5
+## Conteúdo da ilha (flora, veios, baú, ninho) nasce com um jogador a NEAR metros e some quando
+## não há ninguém a FAR metros (a folga evita nascer e sumir na beirada)
+const CONTENT_NEAR: float = 150.0
+const CONTENT_FAR: float = 200.0
 
 static var instance: SkyIslandField
 
@@ -23,6 +27,8 @@ static var instance: SkyIslandField
 
 ## Ilhas no mundo, por id
 var islands: Dictionary = {}
+## O que já foi pego em cada ilha, pela chave ilha@época (SkyIslandContent.capture_state)
+var content_state: Dictionary = {}
 var _timer: float = 0.0
 
 func _enter_tree() -> void:
@@ -65,8 +71,56 @@ func refresh(at_day: float = -1.0) -> void:
 			node.apply(isl)
 	for id in islands.keys():
 		if not seen.has(id):
+			_drop_state(islands[id])
 			islands[id].queue_free()
 			islands.erase(id)
+	_update_content()
+
+## Cria o conteúdo das ilhas com gente perto, guarda e tira o das que ficaram sozinhas, e troca o
+## das que viraram de época (a incomum se renova a cada 4 dias de jogo)
+func _update_content() -> void:
+	var players: Array[Vector3] = []
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is Node3D:
+			players.append((p as Node3D).global_position)
+	for isl: SkyIsland in islands.values():
+		var c := isl.content
+		var key := SkyIslandContent.key_for(isl.data)
+		if c and c.key != key:
+			c.queue_free()
+			isl.content = null
+			c = null
+		_drop_state(isl, key)
+		var near := INF
+		for p in players:
+			near = minf(near, p.distance_to(isl.global_position))
+		if c == null and isl.is_solid() and near <= CONTENT_NEAR:
+			c = SkyIslandContent.new()
+			isl.add_child(c)
+			c.setup(isl, content_state.get(key, {}))
+			isl.content = c
+		elif c and (near > CONTENT_FAR or not isl.is_solid()) and not c.busy():
+			store_content(isl)
+			c.queue_free()
+			isl.content = null
+
+## Guarda o estado do conteúdo que está no mundo (antes de ele sumir, ou para o save)
+func store_content(isl: SkyIsland) -> void:
+	if isl.content == null:
+		return
+	var st := isl.content.capture_state()
+	if st.is_empty():
+		content_state.erase(isl.content.key)
+	else:
+		content_state[isl.content.key] = st
+
+## Esquece o que foi pego nas épocas da ilha que não são `keep` (sem `keep`: todas). A ilha saiu
+## do céu (a rara trocou de lugar, a lendária afundou) ou se renovou: o que tinha nela acabou.
+func _drop_state(isl: SkyIsland, keep: String = "") -> void:
+	var prefix := String(isl.data.id) + "@"
+	for k in content_state.keys():
+		if String(k).begins_with(prefix) and k != keep:
+			content_state.erase(k)
 
 func list() -> Array[SkyIsland]:
 	var out: Array[SkyIsland] = []

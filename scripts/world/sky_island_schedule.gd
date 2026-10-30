@@ -29,6 +29,8 @@ const AREA: float = 0.8
 const VILLAGE_MARGIN: float = 30.0
 ## Distância mínima entre bordas de ilhas da mesma raridade (m)
 const GAP: float = 12.0
+## Ilhotas com ninho de Planador (GDD-18 §3), sorteadas pela seed
+const NEST_COMMONS: int = 2
 
 ## Incomum: gira em volta de um ponto fixo (~2 m por minuto real com o dia de 5 min);
 ## o conteúdo se renova a cada RENEW_DAYS
@@ -99,6 +101,14 @@ static func _commons(world_seed: int) -> Array[Dictionary]:
 				break
 		isl.current_angle = _current_angle(isl, [])
 		out.append(isl)
+	var slots := range(out.size())
+	for i in slots.size():
+		var j := rng.randi_range(i, slots.size() - 1)
+		var t: int = slots[i]
+		slots[i] = slots[j]
+		slots[j] = t
+	for i in mini(NEST_COMMONS, slots.size()):
+		out[slots[i]].nest = true
 	return out
 
 static func _uncommon(world_seed: int, slot: int, day: float, commons: Array[Dictionary]) -> Dictionary:
@@ -189,7 +199,7 @@ static func _base(world_seed: int, rarity: int, slot: int, epoch: int, rng: Rand
 		"relief": spec.relief,
 		"shape_seed": hash([world_seed, rarity, slot, epoch, "forma"]),
 		"current_angle": 0.0,
-		"phase": &"firme", "ends_at": INF, "solid": true,
+		"phase": &"firme", "ends_at": INF, "solid": true, "nest": false,
 	}
 
 ## Ponto do vale (x, z) longe da vila; `extra` é o que a ilha anda além do raio

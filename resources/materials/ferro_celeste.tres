@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"ferro_celeste"
+display_name = "Ferro-Celeste"
+description = "Ferro azulado das Ilhas-Ruína. Não atrai raio e aguenta pancada melhor que o ferro do vale."
+category = 2
+icon = "🔩"
+color = Color(0.5, 0.6, 0.78, 1)
+unit_weight = 1.2
+max_gather_quality = 2
+base_value = 70

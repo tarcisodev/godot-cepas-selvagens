@@ -147,6 +147,8 @@ static func tatu_espinho() -> Dictionary:
 ## Além disso do jogador, parado, o bicho dorme (pensa a cada FAR_TICK s)
 const FAR_RANGE: float = 60.0
 const FAR_TICK: float = 0.25
+## Altura (m) acima ou abaixo da fera em que o jogador deixa de ser alvo (ilha voadora, voo alto)
+const REACH_HEIGHT: float = 15.0
 var _far_tick: float = 0.0
 
 func _far_from_player() -> bool:
@@ -284,9 +286,11 @@ static func is_night() -> bool:
 	var sun := DayNightCycle.instance
 	return sun != null and (sun.current_time_hours >= 18.5 or sun.current_time_hours < 6.0)
 
+## Jogador que a fera pode perseguir: não caído e na mesma altura dela (quem está numa ilha voadora
+## ou voando alto, bem acima da clareira, não puxa a fera nem acende a barra do boss)
 func _target() -> Player:
 	var p := get_tree().get_first_node_in_group("player") as Player if is_inside_tree() else null
-	if p == null or p.is_downed:
+	if p == null or p.is_downed or absf(p.global_position.y - global_position.y) > REACH_HEIGHT:
 		return null
 	return p
 

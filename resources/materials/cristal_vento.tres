@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"cristal_vento"
+display_name = "Cristal-de-Vento"
+description = "Cristal quase sem peso que zune quando o vento passa. Só nasce nas Ilhas da Ventania, acima das nuvens."
+category = 2
+icon = "🔷"
+color = Color(0.72, 0.9, 0.86, 1)
+unit_weight = 0.3
+max_gather_quality = 2
+base_value = 40

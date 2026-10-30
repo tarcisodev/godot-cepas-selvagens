@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"ambar_estelar"
+display_name = "Âmbar-Estelar"
+description = "Resina de estrela endurecida, achada só no Arquipélago do Eclipse. Uma lasca basta para dar alma a uma peça."
+category = 2
+icon = "🟠"
+color = Color(0.98, 0.66, 0.22, 1)
+unit_weight = 0.4
+max_gather_quality = 2
+base_value = 160
