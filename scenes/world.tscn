@@ -43,6 +43,7 @@
 [ext_resource type="Script" path="res://scripts/world/tutorial_trail.gd" id="49_trail"]
 [ext_resource type="Script" path="res://scripts/ui/world_map_screen.gd" id="50_worldmap"]
 [ext_resource type="Script" path="res://scripts/world/terrain_chunk_manager.gd" id="51_chunks"]
+[ext_resource type="Script" path="res://scripts/world/sky_island_field.gd" id="52_skyislands"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_world"]
 sky_top_color = Color(0.32, 0.48, 0.68, 1)
@@ -165,6 +166,9 @@ script = ExtResource("31_ecology")
 [node name="EcosystemSpawner" type="Node3D" parent="." node_paths=PackedStringArray("landscape")]
 script = ExtResource("29_eco")
 landscape = NodePath("../Landscape")
+
+[node name="SkyIslandField" type="Node3D" parent="."]
+script = ExtResource("52_skyislands")
 
 [node name="ZoneManager" type="Node" parent="."]
 script = ExtResource("24_zone")
