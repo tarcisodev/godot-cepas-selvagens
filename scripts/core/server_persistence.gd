@@ -128,6 +128,11 @@ static func serialize_player(player: Node) -> Dictionary:
 	if inv and inv.has_method("serialize"):
 		dict["inventory"] = inv.serialize()
 
+	# Diário do Caçador (GDD-19): o servidor é quem escreve
+	var diary = player.get_node_or_null("DiaryComponent")
+	if diary:
+		dict["diary"] = diary.to_dict()
+
 	# Montaria atual
 	var mount = player.get("mounted_on")
 	if mount != null:
@@ -165,6 +170,11 @@ static func apply_player_data(player: Node, data: Dictionary) -> void:
 		var inv = player.get("inventory")
 		if inv and inv.has_method("deserialize"):
 			inv.deserialize(data["inventory"])
+
+	if data.has("diary"):
+		var diary = player.get_node_or_null("DiaryComponent")
+		if diary:
+			diary.from_dict(data["diary"])
 
 func autosave_all_active_players() -> void:
 	var tree := get_tree()
