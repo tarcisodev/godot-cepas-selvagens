@@ -178,6 +178,7 @@ func _add_wild(species: CreatureDNA.Species, pos: Vector3, roam: float, p_dna: C
 # ---------------------------------------------------------------- captura (GDD-03 §9.3)
 
 func _on_captured(c: WildCreature, player: Node) -> void:
+	EventBusAutoload.report(player, &"captura", {"species": c.dna.species_name()})
 	_pending_capture = c
 	_pending_player = player
 	var can := MOUNTABLE.has(c.dna.species) and owned.size() < MAX_OWNED
@@ -374,6 +375,7 @@ func _on_owned_died(m: Mount) -> void:
 	# A Lembrança guarda quem ela foi (nome, espécie, Elo e o dia em que morreu)
 	var memory := {"kind": "lembranca", "name": m.display_name, "species": m.dna.species_name(), "elo": floori(m.bond.elo), "day": today()}
 	DroppedLoot.spawn_for_stack(self, m.global_position + Vector3.UP, spot, {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1, "memory": memory})
+	EventBusAutoload.report(get_tree().get_first_node_in_group("player"), &"companheira_perdida", memory)
 	_tell(get_tree().get_first_node_in_group("player"), "💔 %s morreu. Ficou a Lembrança dela no chão." % m.display_name)
 	m.queue_free()
 

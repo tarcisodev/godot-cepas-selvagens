@@ -433,6 +433,7 @@ func harvest_next(harvester: Node = null) -> String:
 			inv = harvester.inventory
 		if inv != null:
 			inv.add_material(material_id, amount, quality)
+		EventBusAutoload.report(harvester, &"coleta", {"material": String(material_id), "amount": amount, "quality": quality})
 
 		if mst != null:
 			mst.add_xp(mastery_tag, mastery_xp)

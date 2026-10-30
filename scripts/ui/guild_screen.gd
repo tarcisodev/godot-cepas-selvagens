@@ -6,10 +6,12 @@ const _GuildData = preload("res://scripts/data/guild_data.gd")
 const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
 const _GuildComponent = preload("res://scripts/components/guild_component.gd")
 const _MaterialData = preload("res://scripts/data/material_data.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const _GuildLedger = preload("res://scripts/data/guild_ledger.gd")
 
 ## Tela de Gerenciamento da Guilda, Território, Contribuição e Uniformes (GDD-15).
 
-enum Tab { OVERVIEW, DONATIONS, MEMBERS, WARDROBE }
+enum Tab { OVERVIEW, DONATIONS, MEMBERS, WARDROBE, BOOK }
 
 const TEXT_COLOR := Color(0.92, 0.9, 0.86)
 const ACCENT_COLOR := Color(1.0, 0.72, 0.3)
@@ -98,11 +100,11 @@ func _build_ui() -> void:
 	var tabs_box := HBoxContainer.new()
 	tabs_box.add_theme_constant_override("separation", 8)
 
-	var tab_names := ["🏛️ Visão Geral", "📦 Contribuição do Clã", "👥 Membros", "🎩 Armário de Uniformes"]
+	var tab_names := ["🏛️ Visão Geral", "📦 Contribuição do Clã", "👥 Membros", "🎩 Armário de Uniformes", "📕 Livro do Totem"]
 	for i in tab_names.size():
 		var btn := Button.new()
 		btn.text = tab_names[i]
-		btn.custom_minimum_size = Vector2(160, 36)
+		btn.custom_minimum_size = Vector2(150, 36)
 		var t_idx := i
 		btn.pressed.connect(func(): _switch_tab(t_idx))
 		tabs_box.add_child(btn)
@@ -155,6 +157,7 @@ func _switch_tab(tab_idx: int) -> void:
 
 func _refresh_screen() -> void:
 	for child in _content_box.get_children():
+		_content_box.remove_child(child)
 		child.queue_free()
 
 	if current_guild == null:
@@ -180,6 +183,8 @@ func _refresh_screen() -> void:
 			_render_members()
 		Tab.WARDROBE:
 			_render_wardrobe()
+		Tab.BOOK:
+			_render_book()
 
 func _show_no_guild_view() -> void:
 	_title_label.text = "SEM GUILDA"
@@ -287,6 +292,8 @@ func _donate_material(mat_id: StringName) -> void:
 		return
 	if inv.consume_materials({mat_id: 1}):
 		current_guild.add_donation(mat_id, 1)
+		# Livro do Totem (GDD-19 §7): o Diário do servidor dá o valor e credita o membro
+		EventBusAutoload.report(player, &"doacao", {"material": String(mat_id), "amount": 1})
 		_refresh_screen()
 
 func _render_members() -> void:
@@ -385,3 +392,36 @@ func _set_uniform(occ: _GuildData.Occasion) -> void:
 	if g_comp:
 		g_comp.set_occasion(occ)
 		_refresh_screen()
+
+## Livro do Totem (GDD-19 §7): quem deu o quê nesta semana e os Feitos da Guilda.
+## Todos os membros leem; quem é de fora não vê nada
+func _render_book() -> void:
+	var book: Dictionary = _GuildBook.view_for(player).get("book", {})
+	if book.is_empty() or book.get("tag", "") != current_guild.tag:
+		var lbl := Label.new()
+		lbl.text = "📕 Só os membros do clã leem o Livro do Totem."
+		_content_box.add_child(lbl)
+		return
+	var header := Label.new()
+	header.text = "📕 Semana de %s (7 dias reais)" % _GuildLedger.week_start_text(int(book["week"]))
+	header.add_theme_color_override("font_color", ACCENT_COLOR)
+	_content_box.add_child(header)
+	var rows: Array = book.get("rows", [])
+	if rows.is_empty():
+		var empty := Label.new()
+		empty.text = "Ninguém contribuiu nesta semana ainda."
+		empty.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+		_content_box.add_child(empty)
+	for row in rows:
+		var lbl := Label.new()
+		lbl.text = "👤 " + _GuildBook.row_text(row)
+		_content_box.add_child(lbl)
+	var feats_header := Label.new()
+	feats_header.text = "🏅 Feitos da Guilda"
+	feats_header.add_theme_color_override("font_color", ACCENT_COLOR)
+	_content_box.add_child(feats_header)
+	for line in _GuildBook.feat_lines(book):
+		var lbl := Label.new()
+		lbl.text = line
+		lbl.add_theme_color_override("font_color", ACCENT_COLOR if line.begins_with("✔") else TEXT_COLOR)
+		_content_box.add_child(lbl)

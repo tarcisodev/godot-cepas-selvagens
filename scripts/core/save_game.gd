@@ -149,6 +149,9 @@ func collect(player: Node) -> Dictionary:
 	var eco_comp = player.get("ecology")
 	if eco_comp and eco_comp.has_method("to_dict"):
 		data["ecology_knowledge"] = eco_comp.to_dict()
+	var diary = player.get("diary")
+	if diary:
+		data["diary"] = diary.to_dict()
 	var objectives := _objectives()
 	if objectives:
 		data["objectives"] = objectives.get_state()
@@ -261,6 +264,11 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 		var eco_comp = player.get("ecology")
 		if eco_comp and eco_comp.has_method("from_dict"):
 			eco_comp.from_dict(data["ecology_knowledge"])
+
+	if data.has("diary"):
+		var diary = player.get("diary")
+		if diary:
+			diary.from_dict(data["diary"])
 
 	if data.has("map_markers") and player.is_inside_tree():
 		var map_scr = player.get_tree().root.find_child("WorldMapScreen", true, false)

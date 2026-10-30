@@ -318,6 +318,7 @@ func pull_spit() -> Dictionary:
 		_status_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 
 	inv.add_material(result_id, 1, out_q, base_traits)
+	EventBusAutoload.report(player, &"cozinha", {"result": String(result_id), "quality": out_q, "burned": result_id == &"carne_torrada"})
 	_status_label.text = message
 	_action_button.text = "Assar mais uma [Espaço]"
 

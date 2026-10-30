@@ -223,6 +223,7 @@ func _land_fish() -> void:
 	var item: StringName = info["item"]
 	if player.inventory:
 		player.inventory.add_material(item, 1, quality, traits)
+	EventBusAutoload.report(player, &"pesca", {"material": String(item), "species": c.dna.species_name(), "quality": quality})
 	if player.mastery:
 		player.mastery.add_xp(&"coleta", float(info["xp"]))
 	fish = null

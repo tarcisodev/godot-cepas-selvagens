@@ -10,6 +10,8 @@ const PLAYERS_DIR: String = "user://server_saves/players"
 const ACCOUNTS_DIR: String = "user://server_saves/accounts"
 const WORLD_FILE: String = "user://server_saves/world/world_state.json"
 const AUTOSAVE_INTERVAL: float = 60.0
+const GUILDS_FILE: String = "user://server_saves/world/guilds.json"
+const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
 
 signal player_saved(player_name: String)
 signal player_loaded(player_name: String)
@@ -128,6 +130,11 @@ static func serialize_player(player: Node) -> Dictionary:
 	if inv and inv.has_method("serialize"):
 		dict["inventory"] = inv.serialize()
 
+	# Diário do Caçador (GDD-19): o servidor é quem escreve
+	var diary = player.get_node_or_null("DiaryComponent")
+	if diary:
+		dict["diary"] = diary.to_dict()
+
 	# Montaria atual
 	var mount = player.get("mounted_on")
 	if mount != null:
@@ -166,10 +173,17 @@ static func apply_player_data(player: Node, data: Dictionary) -> void:
 		if inv and inv.has_method("deserialize"):
 			inv.deserialize(data["inventory"])
 
+	if data.has("diary"):
+		var diary = player.get_node_or_null("DiaryComponent")
+		if diary:
+			diary.from_dict(data["diary"])
+
 func autosave_all_active_players() -> void:
 	var tree := get_tree()
 	if tree == null:
 		return
+	if _net != null and _net.get("state") == _net.NetworkState.HOSTING_SERVER:
+		save_guilds()
 	for player in tree.get_nodes_in_group("player"):
 		var p_name: String = player.get("character_name") if "character_name" in player else ""
 		if p_name.is_empty() and player.has_meta("player_name"):
@@ -361,3 +375,22 @@ func delete_character_for_account(username: String, char_name: String) -> Dictio
 		"message": "Personagem '%s' excluído com sucesso." % clean_char,
 		"characters": chars
 	}
+
+## Guildas e o Livro do Totem de cada uma (GDD-15, GDD-19 §7): ficam no mundo, não no jogador
+func save_guilds(path: String = GUILDS_FILE) -> bool:
+	_ensure_directories()
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(JSON.stringify({"version": 1, "guilds": _GuildSystem.get_instance().to_array()}, "	"))
+	file.close()
+	return true
+
+func load_guilds(path: String = GUILDS_FILE) -> bool:
+	if not FileAccess.file_exists(path):
+		return false
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary) or not (parsed.get("guilds") is Array):
+		return false
+	_GuildSystem.get_instance().load_from_array(parsed["guilds"])
+	return true

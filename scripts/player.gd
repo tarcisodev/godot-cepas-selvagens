@@ -36,6 +36,7 @@ const _CardCollectionComponent = preload("res://scripts/components/card_collecti
 const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
 const _GuildComponent = preload("res://scripts/components/guild_component.gd")
 const _FamilyComponent = preload("res://scripts/components/family_component.gd")
+const _DiaryComponent = preload("res://scripts/components/diary_component.gd")
 const _EcologyKnowledgeComponent = preload("res://scripts/components/ecology_knowledge_component.gd")
 const _CreatureDNA = preload("res://scripts/data/creature_dna.gd")
 
@@ -67,6 +68,8 @@ var food_buff: _FoodBuffComponent
 ## Filiação a guilda, estandarte e uniformes de clã (GDD-15)
 var guild: _GuildComponent
 var family: _FamilyComponent
+## Diário do Caçador (GDD-19): contadores e Páginas de abates e quedas
+var diary: _DiaryComponent
 ## Matrizes reprodutivas capturadas para o Cercado do Rancho (GDD-04 §2)
 var livestock: Array[_CreatureDNA] = []
 const MAX_LIVESTOCK: int = 12
@@ -350,6 +353,12 @@ func _setup_components() -> void:
 			family = _FamilyComponent.new()
 			family.name = "FamilyComponent"
 			add_child(family)
+	if diary == null:
+		diary = get_node_or_null("DiaryComponent") as _DiaryComponent
+		if diary == null:
+			diary = _DiaryComponent.new()
+			diary.name = "DiaryComponent"
+			add_child(diary)
 	if inventory and not inventory.equipment_changed.is_connected(_on_equipment_changed):
 		inventory.equipment_changed.connect(_on_equipment_changed)
 

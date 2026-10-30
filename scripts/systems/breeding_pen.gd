@@ -271,6 +271,7 @@ func harvest_offspring(player: Node) -> Array[Dictionary]:
 	if offspring == null:
 		status_message.emit("❌ Nenhum filhote no cercado para abate")
 		return []
+	EventBusAutoload.report(player, &"cria", {"species": offspring.species_name(), "generation": generation + 1})
 	
 	var inv: _InventoryComponent = _get_inventory(player)
 	var traits: Array = [&"integro"]
@@ -351,6 +352,7 @@ func promote_offspring_to_mount(player: Node) -> bool:
 		added = true
 	
 	if added:
+		EventBusAutoload.report(player, &"cria", {"species": offspring.species_name(), "generation": generation + 1})
 		var name_str := offspring.species_name()
 		offspring = null
 		status_message.emit("🐎 %s promovido a montaria própria!" % name_str)

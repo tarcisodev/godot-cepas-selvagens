@@ -96,12 +96,14 @@ func cancel(index: int) -> bool:
 func collect(inv: InventoryComponent, wallet: WalletComponent) -> int:
 	var n := 0
 	if pending_money > 0 and wallet:
+		EventBusAutoload.report(wallet.get_parent(), &"venda", {"money": pending_money, "where": "mercado"})
 		wallet.add(pending_money)
 		pending_money = 0
 		n += 1
 	if inv:
 		for e in pending_items:
 			inv.add_material(e.id, e.n, e.q, e.traits, e.get("memory", {}))
+			EventBusAutoload.report(inv.get_parent(), &"compra", {"material": String(e.id), "amount": e.n})
 			n += 1
 		pending_items.clear()
 	if n > 0:

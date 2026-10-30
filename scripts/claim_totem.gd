@@ -240,7 +240,10 @@ func deposit_maintenance(amount: int, player: Node = null) -> bool:
 		if wallet == null or wallet.money < amount:
 			return false
 		wallet.spend(amount)
+	var paid := mini(amount, MAX_FUNDS - maintenance_funds)
 	maintenance_funds = mini(MAX_FUNDS, maintenance_funds + amount)
+	if player != null and paid > 0:
+		EventBusAutoload.report(player, &"manutencao", {"money": paid})
 	grace_days_elapsed = 0.0
 	_update_status()
 	return true
@@ -258,6 +261,7 @@ func withdraw_maintenance(amount: int, player: Node = null) -> bool:
 		var wallet := _get_wallet(player)
 		if wallet:
 			wallet.add(amount)
+		EventBusAutoload.report(player, &"manutencao_retirada", {"money": amount})
 	_update_status()
 	return true
 

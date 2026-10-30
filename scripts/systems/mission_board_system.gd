@@ -147,6 +147,15 @@ const CONTRACT_TEMPLATES: Dictionary = {
 }
 
 const MAX_ACTIVE_CONTRACTS: int = 6
+## Contrato de Mestre (GDD-19 §6): o dobro do pedido e da paga, só para quem cravou o Marco
+## de Trilha do capítulo no Diário do Caçador
+const MASTER_CHAPTER: Dictionary = {
+	Category.HUNT: &"caca",
+	Category.FORGE: &"forja",
+	Category.COOK: &"fogao",
+	Category.PHOTO: &"andancas",
+}
+const MASTER_REWARD_MULT: float = 2.5
 
 @export var active_contracts: Array[Dictionary] = []
 var _rng := RandomNumberGenerator.new()
@@ -162,20 +171,23 @@ func ensure_contracts_filled(p_seed: int = 0) -> void:
 	while active_contracts.size() < MAX_ACTIVE_CONTRACTS:
 		var cat_idx: int = int(active_contracts.size() % Category.size())
 		var cat: Category = cat_idx as Category
-		var contract := generate_contract(cat)
+		# A última vaga do Quadro é sempre um Contrato de Mestre
+		var contract := generate_contract(cat, active_contracts.size() == MAX_ACTIVE_CONTRACTS - 1)
 		if contract != null and not contract.is_empty():
 			active_contracts.append(contract)
 
 ## Gera um contrato dinâmico único baseado na categoria
-func generate_contract(p_category: Category = Category.HUNT) -> Dictionary:
+func generate_contract(p_category: Category = Category.HUNT, master: bool = false) -> Dictionary:
 	var templates: Array = CONTRACT_TEMPLATES.get(p_category, [])
 	if templates.is_empty():
 		return {}
 	var tmpl: Dictionary = templates[_rng.randi() % templates.size()]
 	var amount := _rng.randi_range(tmpl.min_amount, tmpl.max_amount)
 	var is_photo: bool = p_category == Category.PHOTO
-	var reward_money: int = int(tmpl.reward_base * (1.0 + 0.35 * (amount - 1)))
-	var rep_val: int = int(tmpl.rep)
+	if master:
+		amount = int(tmpl.max_amount) * 2
+	var reward_money: int = int(tmpl.reward_base * (1.0 + 0.35 * (amount - 1)) * (MASTER_REWARD_MULT if master else 1.0))
+	var rep_val: int = int(tmpl.rep) * (2 if master else 1)
 	var uid := "%s_%d" % [tmpl.id_base, _rng.randi() % 99999]
 
 	return {
@@ -183,7 +195,9 @@ func generate_contract(p_category: Category = Category.HUNT) -> Dictionary:
 		"category": int(p_category),
 		"category_name": CATEGORY_NAMES[p_category],
 		"category_icon": CATEGORY_ICONS[p_category],
-		"title": tmpl.title,
+		"title": ("Contrato de Mestre: " if master else "") + tmpl.title,
+		"is_master": master,
+		"requires_access": String(MASTER_CHAPTER.get(p_category, &"")) if master else "",
 		"client": tmpl.client,
 		"desc": tmpl.desc,
 		"target_id": tmpl.target_id,
@@ -194,7 +208,7 @@ func generate_contract(p_category: Category = Category.HUNT) -> Dictionary:
 		"reward_money": reward_money,
 		"reward_rep": rep_val,
 		"reward_mastery": tmpl.mastery,
-		"reward_xp": tmpl.xp,
+		"reward_xp": tmpl.xp * (2.0 if master else 1.0),
 		"is_photo": is_photo,
 		"is_completed": false
 	}
@@ -220,9 +234,19 @@ func _get_mastery(p: Node) -> _MasteryComponent:
 		return p.get("mastery") as _MasteryComponent
 	return p.get_node_or_null("MasteryComponent") as _MasteryComponent
 
+## Contrato de Mestre só para quem tem o Marco de Trilha do capítulo (Diário do Caçador)
+func has_access(contract: Dictionary, player: Node) -> bool:
+	var chapter: String = contract.get("requires_access", "")
+	if chapter.is_empty():
+		return true
+	var diary = player.get_node_or_null("DiaryComponent") if player else null
+	return diary != null and diary.has_board_access(StringName(chapter))
+
 ## Verifica se o jogador pode cumprir o contrato
 func can_deliver(contract: Dictionary, player: Node) -> bool:
 	if contract.get("is_completed", false):
+		return false
+	if not has_access(contract, player):
 		return false
 	if contract.get("is_photo", false):
 		return contract.get("amount_current", 0) >= contract.get("amount_needed", 1)
@@ -274,6 +298,7 @@ func deliver_contract(contract: Dictionary, player: Node, city_node: Node = null
 		mastery.add_xp(mastery_id, xp)
 
 	# Notifica player se tiver sinal
+	EventBusAutoload.report(player, &"missao", {"title": String(contract.get("title", "")), "money": money})
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.emit("📜 Missão Cumprida: %s (+%s)" % [contract.title, _WalletComponent.format(money)])
 

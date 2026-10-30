@@ -326,7 +326,10 @@ func _physics_process(delta: float) -> void:
 		dismount()
 		return
 	if bond:
+		var elo_before := floori(bond.elo)
 		bond.add_ride_time(delta, MountBond.today())
+		if floori(bond.elo) > elo_before:
+			EventBusAutoload.report(rider, &"elo", {"mount": display_name, "elo": floori(bond.elo)})
 		if _escape_timer > 0.0:
 			_escape_timer -= delta
 			if _escape_timer <= 0.0:
