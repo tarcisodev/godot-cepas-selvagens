@@ -28,6 +28,7 @@ const WILD_PVP_ZONES: Array[Dictionary] = []
 
 ## Planta da Cidade Principal (Vila da Esperança): elipse da paliçada (B36)
 const _VillageLayout = preload("res://scripts/town/village_layout.gd")
+const _CostelariaLayout = preload("res://scripts/costelaria/costelaria_layout.gd")
 
 ## Centros de perigo (Arena de monstros e Morro da Besta)
 const DANGER_ZONES: Array[Dictionary] = [
@@ -60,7 +61,7 @@ func get_zone_at(pos: Vector3) -> ZoneType:
 			return ZoneType.DANGER
 	
 	# 2. Cidade Principal
-	if _VillageLayout.in_village(p2.x, p2.y, 0.0):
+	if _VillageLayout.in_village(p2.x, p2.y, 0.0) or _CostelariaLayout.in_city(p2.x, p2.y, 0.0):
 		return ZoneType.CITY
 	
 	# 3. Rio e Água Profunda
@@ -90,13 +91,16 @@ func get_claim_at(pos: Vector3) -> Node3D:
 	return null
 
 ## Define se o combate é permitido na posição. Cidade é Zona de Paz, exceto em duelo aceito (GDD-05).
+## Exceção: o Pátio dos Mestres da Costelária, onde se treina nos bonecos (B38).
 func can_combat_at(pos: Vector3, in_duel: bool = false) -> bool:
-	return in_duel or get_zone_at(pos) != ZoneType.CITY
+	return in_duel or get_zone_at(pos) != ZoneType.CITY or _CostelariaLayout.in_training_yard(pos.x, pos.z)
 
 ## Nome descritivo da zona para exibição no HUD
 func get_zone_name_at(pos: Vector3) -> String:
 	match get_zone_at(pos):
 		ZoneType.CITY:
+			if _CostelariaLayout.in_city(pos.x, pos.z, 0.0):
+				return "🦴 Costelária (Pátio dos Mestres: treino liberado)" if _CostelariaLayout.in_training_yard(pos.x, pos.z) else "🦴 Costelária (Zona Segura)"
 			return "🏛️ Vila da Esperança (Zona Segura)"
 		ZoneType.DANGER:
 			return "⚠️ Covil Selvagem (Área de Risco)"
@@ -210,7 +214,7 @@ func _check_new_totem(pos: Vector3, player_name: String, zone: ZoneType) -> Dict
 	var p2 := Vector2(pos.x, pos.z)
 	var r_new: float = ClaimTotemClass.DEFAULT_RADIUS
 	
-	if _VillageLayout.edge_distance(p2.x, p2.y) < CITY_BUILD_MARGIN:
+	if _VillageLayout.edge_distance(p2.x, p2.y) < CITY_BUILD_MARGIN or _CostelariaLayout.edge_distance(p2.x, p2.y) < CITY_BUILD_MARGIN:
 		return {
 			"allowed": false,
 			"reason": "Arredores da Vila: Finque o totem a pelo menos %.0fm da cidade." % CITY_BUILD_MARGIN,

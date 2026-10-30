@@ -3,9 +3,12 @@ extends Node3D
 
 ## NPC da vila com corpo procedural (CharacterDNA, B09) e animação do rig UAL, no lugar dos
 ## modelos prontos que ficavam em T-pose. Assenta no relevo, olha para quem chega perto e,
-## se tiver `prompt`, entra no grupo "talkable" e emite `talked` no [E].
+## se tiver `prompt`, entra no grupo "talkable" e emite `talked` no [E]. Com `profile` (GDD-17),
+## o [E] abre a Ficha do NPC (retrato 3D, papel e ações) em vez da fala solta.
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const _NpcProfile = preload("res://scripts/npc/npc_profile.gd")
+const _NpcDialog = preload("res://scripts/ui/npc_dialog.gd")
 
 signal talked(player: Node)
 
@@ -23,8 +26,16 @@ signal talked(player: Node)
 @export var icon: String = "💬"
 ## false = fica na altura dada (pescador no píer); true = assenta no relevo
 @export var snap_to_ground: bool = true
+## Ficha do NPC (GDD-17 §8); null = comportamento antigo (fala solta ou `talked`).
+## Pode chegar depois do _ready (o `_npc` da vila já adicionou o nó): os rótulos se refazem.
+var profile: _NpcProfile:
+	set(value):
+		profile = value
+		if is_node_ready():
+			_build_labels()
 
 var visual: CharacterVisual
+var _name_label: _WorldLabel
 var _prompt_label: _WorldLabel
 
 func _ready() -> void:
@@ -33,18 +44,37 @@ func _ready() -> void:
 	visual.dna = dna if dna else CharacterDNA.randomized(hash(name))
 	add_child(visual)
 	visual.play(idle_anim)
-
-	if not display_name.is_empty():
-		var name_label := _WorldLabel.make(_WorldLabel.Kind.NAME, display_name, icon)
-		name_label.position.y = 2.25
-		add_child(name_label)
-	if not prompt.is_empty():
-		add_to_group("talkable")
-		_prompt_label = _WorldLabel.make(_WorldLabel.Kind.PROMPT, prompt)
-		_prompt_label.position.y = 2.0
-		add_child(_prompt_label)
+	_build_labels()
 	if snap_to_ground:
 		_snap_to_ground.call_deferred()
+
+## Nome (com o papel, se houver Ficha) e o prompt do [E]
+func _build_labels() -> void:
+	for l in [_name_label, _prompt_label]:
+		if l:
+			l.queue_free()
+	_name_label = null
+	_prompt_label = null
+	var shown_name := display_name
+	var shown_prompt := prompt
+	if profile:
+		if shown_name.is_empty():
+			shown_name = profile.display_name
+		if not profile.title.is_empty() and not shown_name.contains(profile.title):
+			shown_name = "%s · %s" % [shown_name, profile.title]
+		if shown_prompt.is_empty():
+			shown_prompt = "[E] Falar"
+		if profile.greetings.is_empty() and not line.is_empty():
+			profile.greet("sempre", line)
+	if not shown_name.is_empty():
+		_name_label = _WorldLabel.make(_WorldLabel.Kind.NAME, shown_name, icon)
+		_name_label.position.y = 2.25
+		add_child(_name_label)
+	if not shown_prompt.is_empty():
+		add_to_group("talkable")
+		_prompt_label = _WorldLabel.make(_WorldLabel.Kind.PROMPT, shown_prompt)
+		_prompt_label.position.y = 2.0
+		add_child(_prompt_label)
 
 func _process(_delta: float) -> void:
 	if not is_inside_tree():
@@ -59,6 +89,10 @@ func _process(_delta: float) -> void:
 
 ## Chamado pelo player ao apertar [E] perto do NPC.
 func talk_to(player: Node) -> void:
+	if profile:
+		_NpcDialog.open_for(self, player)
+		talked.emit(player)
+		return
 	if talked.get_connections().is_empty():
 		if not line.is_empty() and player and player.has_signal("posture_changed"):
 			player.posture_changed.emit("%s: '%s'" % [display_name, line])

@@ -141,6 +141,8 @@ func collect(player: Node) -> Dictionary:
 	var mastery = player.get("mastery")
 	if mastery:
 		data["mastery"] = _keys_to_str(mastery._masteries)
+		data["techniques"] = _keys_to_str(mastery.techniques)
+		data["lessons"] = _keys_to_str(mastery.lessons_done)
 	var cards = player.get("card_collection")
 	if cards:
 		data["cards"] = cards.get_unlocked_ids().map(func(id): return String(id))
@@ -166,6 +168,9 @@ func collect(player: Node) -> Dictionary:
 		var city := player.get_tree().get_first_node_in_group("city_hub")
 		if city:
 			data["town"] = city.get_state()
+		var costelaria := player.get_tree().get_first_node_in_group("costelaria")
+		if costelaria:
+			data["costelaria"] = costelaria.get_state()
 		var eco := player.get_tree().get_first_node_in_group("ecosystem")
 		if eco:
 			data["mounts"] = eco.owned_state()
@@ -236,6 +241,16 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 			var entry: Dictionary = data["mastery"][tag]
 			restored[StringName(tag)] = {"level": int(entry.get("level", 1)), "xp": float(entry.get("xp", 0.0))}
 		mastery._masteries = restored
+	# Técnicas dos mestres e Lições feitas (B38); o JSON devolve os números como float
+	if mastery:
+		for key in ["techniques", "lessons"]:
+			var restored_lists := {}
+			for tag in data.get(key, {}):
+				restored_lists[StringName(tag)] = data[key][tag].map(func(v): return int(v))
+			if key == "techniques":
+				mastery.techniques = restored_lists
+			else:
+				mastery.lessons_done = restored_lists
 
 	var cards = player.get("card_collection")
 	if cards:
@@ -291,6 +306,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var city := player.get_tree().get_first_node_in_group("city_hub") if player.is_inside_tree() else null
 	if city and data.has("town"):
 		city.apply_state(data["town"])
+	# Costelária: estoque, bolsas, encomendas, Reputação e páginas do Compêndio (B38)
+	var costelaria := player.get_tree().get_first_node_in_group("costelaria") if player.is_inside_tree() else null
+	if costelaria and data.has("costelaria"):
+		costelaria.apply_state(data["costelaria"])
 	# Montarias capturadas (GDD-03 §9.3)
 	var eco := player.get_tree().get_first_node_in_group("ecosystem") if player.is_inside_tree() else null
 	if eco and data.has("mounts"):

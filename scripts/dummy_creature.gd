@@ -29,6 +29,10 @@ var corpse_time_left: float = 0.0
 # Besta de treino: renasce depois que o corpo é esfolado ou se decompõe
 const RESPAWN_DELAY: float = 40.0
 var respawn_timer: float = -1.0
+## Boneco do Pátio dos Mestres (B38): apanha e quebra, mas não dá loot, carta nem corpo
+## (a cidade não pode virar torneira) e levanta em poucos segundos
+@export var training_only: bool = false
+const TRAINING_RESPAWN_DELAY: float = 4.0
 
 func _ready() -> void:
 	_setup_components()
@@ -237,6 +241,8 @@ func _on_poise_recovered() -> void:
 	_update_label()
 
 func _award_loot_to_player(mat_id: StringName, amount: int = 1, quality: int = 2, traits: Array = []) -> void:
+	if training_only:
+		return
 	var player_node: Node = null
 	if is_inside_tree() and get_tree() != null:
 		player_node = get_tree().get_first_node_in_group("player")
@@ -255,6 +261,8 @@ func _award_loot_to_player(mat_id: StringName, amount: int = 1, quality: int = 2
 			inv.add_material(mat_id, amount, quality, traits)
 
 func _unlock_card_for_player(card_id: StringName) -> void:
+	if training_only:
+		return
 	var player_node: Node = null
 	if is_inside_tree() and get_tree() != null:
 		player_node = get_tree().get_first_node_in_group("player")
@@ -303,6 +311,10 @@ func _on_health_depleted() -> void:
 	# Esfola manual (GDD-03 §8): cada parte vira um passo de ~3 s no corpo, que dura 5 min.
 	# Cada material: [id, quantidade, qualidade, traits]. Íntegro = +1★ e trait (GDD-06 §1).
 	harvest_queue.clear()
+	if training_only:
+		respawn_timer = TRAINING_RESPAWN_DELAY
+		_update_label("🪵 Boneco no chão. Levanta já já.")
+		return
 	if anatomy and anatomy.is_part_intact(&"horn"):
 		harvest_queue.append({"label": "Chifre Íntegro", "materials": [[&"chifre_rinolito", 1, 3, [&"integro"]]], "cards": [&"polinization"]})
 	harvest_queue.append({"label": "2x Placas de Carapaça", "materials": [[&"placa_carapaca", 2, 2, []]], "cards": [&"element_earth"]})

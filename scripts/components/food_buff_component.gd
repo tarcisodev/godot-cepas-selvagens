@@ -58,6 +58,11 @@ func apply_food_buff(buff_id: StringName, duration: float, quality: int = 1, tra
 	if buff_id.is_empty() or duration <= 0.0:
 		return
 	
+	# Técnicas de culinária de quem come (B38): o efeito dura mais
+	var eater_mastery = get_parent().get("mastery") if get_parent() else null
+	if eater_mastery != null and eater_mastery.has_method("technique_bonus"):
+		duration *= 1.0 + eater_mastery.technique_bonus(&"food_duration")
+
 	# Remove buff pré-existente
 	clear_buff(false)
 	

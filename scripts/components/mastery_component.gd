@@ -1,6 +1,8 @@
 class_name MasteryComponent
 extends Node
 
+const _MasterTechniques = preload("res://scripts/costelaria/master_techniques.gd")
+
 ## Componente de Maestria e Progressão por Uso (GDD-02 e B03).
 ## Escuta sinais de combate e atribui XP a tags específicas sem nível global de personagem.
 
@@ -11,6 +13,11 @@ signal level_up(tag: StringName, new_level: int)
 
 # Estrutura: tag -> { "level": int, "xp": float }
 var _masteries: Dictionary = {}
+## Técnicas de marco ensinadas pelos mestres (B38): tag -> [marcos]. Sem o mestre, o marco
+## alcançado não libera nada (GDD-17 §5).
+var techniques: Dictionary = {}
+## Lições do Pátio já feitas (bônus de primeira vez): tag -> [faixas]
+var lessons_done: Dictionary = {}
 
 func _ready() -> void:
 	for tag in initial_tags:
@@ -51,6 +58,28 @@ func add_xp(tag: StringName, amount: float) -> void:
 	data["level"] = current_level
 	data["xp"] = current_xp
 	xp_gained.emit(tag, amount, current_level, current_xp, needed_xp)
+
+func has_technique(tag: StringName, milestone: int) -> bool:
+	return techniques.get(tag, []).has(milestone)
+
+func learn_technique(tag: StringName, milestone: int) -> void:
+	if not techniques.has(tag):
+		techniques[tag] = []
+	if not techniques[tag].has(milestone):
+		techniques[tag].append(milestone)
+
+## Soma dos bônus das Técnicas aprendidas num stat (ver MasterTechniques)
+func technique_bonus(stat: StringName) -> float:
+	return _MasterTechniques.bonus(techniques, stat)
+
+func has_lesson(tag: StringName, band: int) -> bool:
+	return lessons_done.get(tag, []).has(band)
+
+func mark_lesson(tag: StringName, band: int) -> void:
+	if not lessons_done.has(tag):
+		lessons_done[tag] = []
+	if not lessons_done[tag].has(band):
+		lessons_done[tag].append(band)
 
 ## Retorna o nível atual de uma tag
 func get_level(tag: StringName) -> int:

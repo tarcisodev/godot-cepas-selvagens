@@ -2,6 +2,9 @@ class_name CharacterStylist
 extends Node3D
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const _NpcProfile = preload("res://scripts/npc/npc_profile.gd")
+const _NpcAction = preload("res://scripts/npc/npc_action.gd")
+const _NpcDialog = preload("res://scripts/ui/npc_dialog.gd")
 
 ## Barbeiro do acampamento (B09): [E] abre o editor de aparência do jogador.
 ## "Aplicar" remonta o Player com o DNA editado e salva o jogo.
@@ -13,6 +16,8 @@ const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 var prompt_label: _WorldLabel
 
 var is_open: bool = false
+## Ficha do NPC (GDD-17 §8): o [E] abre a Ficha; "Mudar o visual" abre o editor
+var profile: _NpcProfile
 var editor: AppearanceEditor
 var _player: Player
 var _layer: CanvasLayer
@@ -25,6 +30,10 @@ func _ready() -> void:
 	prompt_label = _WorldLabel.replace($PromptLabel, _WorldLabel.Kind.PROMPT)
 	_snap_to_ground.call_deferred()
 	_build_layer()
+	profile = _NpcProfile.make(&"barbeiro", "Barbeiro", "Aparência", "✂️", "Feira") \
+		.greet("sempre", "Senta aí. Cabelo, barba, rosto... a gente muda o que você quiser.") \
+		.add(_NpcAction.make(&"visual", _NpcAction.Kind.SERVICE, "Mudar o visual", serve, "✂️")) \
+		.topic("Custa alguma coisa?", "Por enquanto é por conta da casa.")
 
 func _snap_to_ground() -> void:
 	var landscape := get_tree().current_scene.get_node_or_null("Landscape") if get_tree().current_scene else null
@@ -40,6 +49,10 @@ func _process(_delta: float) -> void:
 
 ## Chamado pelo player ao apertar [E] perto do NPC.
 func talk_to(player: Player) -> void:
+	_NpcDialog.open_for(self, player)
+
+## Atende de fato: abre o editor de aparência
+func serve(player: Player) -> void:
 	_player = player
 	open_editor()
 

@@ -67,7 +67,7 @@ func test_long_hair_and_beard() -> void:
 func test_editor_flow() -> void:
 	print("\n[2/4] Editor: abrir, trocar gênero, cabelo, barba e aplicar...")
 	var before: CharacterDNA = _player.character_visual.dna
-	_stylist.talk_to(_player)
+	_stylist.serve(_player)
 	_check(_stylist.is_open, "editor deve abrir com [E]")
 	_check(_stylist.editor.draft != before, "editor deve trabalhar numa cópia do DNA")
 	_stylist.editor.set_gender(true)
@@ -85,7 +85,7 @@ func test_editor_flow() -> void:
 		"player deve ficar com o visual escolhido (feminino, juba e barba cheia)")
 	_check(after != _stylist.editor.draft, "player deve receber uma cópia, não o rascunho")
 	_check(_player.character_visual.has(&"Walk"), "player remontado deve continuar animado")
-	_stylist.talk_to(_player)
+	_stylist.serve(_player)
 	_stylist.editor.set_gender(false)
 	_stylist.close_editor()
 	_check(_player.character_visual.dna.femininity >= 0.5, "cancelar não deve aplicar nada")

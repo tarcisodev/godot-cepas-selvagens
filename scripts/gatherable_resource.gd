@@ -410,6 +410,8 @@ func get_gather_time(mastery: MasteryComponent = null) -> float:
 	if mastery:
 		var lvl: int = mastery.get_level(mastery_tag)
 		mult = clampf(1.0 - (float(lvl - 1) / 100.0) * 0.5, 0.45, 1.0)
+		# Técnicas de coleta/mineração ensinadas pelos mestres (B38)
+		mult *= clampf(1.0 - mastery.technique_bonus(StringName("speed_" + String(mastery_tag))), 0.5, 1.0)
 	return base_gather_time * mult
 
 func harvest_next(harvester: Node = null) -> String:
