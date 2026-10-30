@@ -54,6 +54,11 @@ func unregister_totem(totem: Node3D) -> void:
 ## Retorna o tipo de zona em uma coordenada 3D
 func get_zone_at(pos: Vector3) -> ZoneType:
 	var p2 := Vector2(pos.x, pos.z)
+
+	# 0. No topo de uma ilha voadora rara, lendária ou mítica: Zona Selvagem (GDD-18 §8).
+	# Antes de tudo: a ilha está no céu, acima do que houver no chão embaixo dela.
+	if SkyIslandField.wild_island_at(pos) != null:
+		return ZoneType.WILD_PVP
 	
 	# 1. Zonas de Perigo dos Monstros (antes da cidade: um covil na borda continua sendo covil)
 	for dz in DANGER_ZONES:
@@ -107,6 +112,9 @@ func get_zone_name_at(pos: Vector3) -> String:
 		ZoneType.WATER:
 			return "🌊 Rio da Cachoeira"
 		ZoneType.WILD_PVP:
+			var isl := SkyIslandField.wild_island_at(pos)
+			if isl:
+				return "☠️ %s (Zona Selvagem · PvP e full loot)" % SkyIslandSchedule.NAMES[isl.rarity()]
 			return "☠️ Zona Selvagem (PvP aberto)"
 		ZoneType.CLAIMED:
 			var totem := get_claim_at(pos)

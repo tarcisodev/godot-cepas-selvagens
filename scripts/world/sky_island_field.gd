@@ -32,6 +32,8 @@ var content_state: Dictionary = {}
 ## Avisos de afundamento já dados: "id do jogador|ilha|etapa" → true
 var _told: Dictionary = {}
 var _timer: float = 0.0
+## Rajadas, Corrente da lendária e raios (GDD-18 §8)
+var hazards: SkyIslandHazards
 
 func _enter_tree() -> void:
 	instance = self
@@ -42,6 +44,9 @@ func _exit_tree() -> void:
 
 func _ready() -> void:
 	add_to_group("sky_islands")
+	hazards = SkyIslandHazards.new()
+	hazards.name = "Perigos"
+	add_child(hazards)
 	refresh()
 
 func _process(delta: float) -> void:
@@ -129,12 +134,22 @@ static func warning_text(isl: SkyIsland, at_day: float) -> String:
 	if isl.data.phase == &"afundando":
 		return "⚠️ %s está afundando! Saia agora ou caia junto." % name
 	var secs := maxf(0.0, (float(isl.data.sinks_at) - at_day) * DayNightCycle.seconds_per_day())
-	return "⚠️ %s está tremendo e rachando: afunda em ~%d s." % [name, roundi(secs)]
+	var left := "~%d min" % roundi(secs / 60.0) if secs >= 90.0 else "~%d s" % roundi(secs)
+	return "⚠️ %s está tremendo e rachando: afunda em %s." % [name, left]
 
 ## (x, y, z) está em cima da ilha (no topo ou até 6 m acima dele, a pé ou montado)?
 static func on_island(isl: SkyIsland, p: Vector3) -> bool:
 	var t := isl.top_at(p.x, p.z)
 	return t > -INF and p.y >= t - STEP_UP and p.y <= t + 6.0
+
+## Ilha rara ou acima em que o ponto está (no topo): Zona Selvagem, PvP e full loot (GDD-18 §8)
+static func wild_island_at(p: Vector3) -> SkyIsland:
+	if not is_instance_valid(instance):
+		return null
+	for isl: SkyIsland in instance.islands.values():
+		if isl.is_solid() and isl.rarity() >= SkyIslandSchedule.Rarity.RARA and on_island(isl, p):
+			return isl
+	return null
 
 ## Cria o conteúdo das ilhas com gente perto, guarda e tira o das que ficaram sozinhas, e troca o
 ## das que viraram de época (a incomum se renova a cada 4 dias de jogo)
