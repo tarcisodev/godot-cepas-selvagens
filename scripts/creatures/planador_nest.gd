@@ -22,8 +22,20 @@ const WAIT_TIME: float = 60.0
 const TRIAL_HEIGHT: float = 18.0
 const TRIAL_RADIUS: float = 22.0
 const TRIAL_SPEED: float = 14.0
+## Voo bravio do Eclipse: 25 s, janela de 0,7 s e trancos 20% mais seguidos
+const ECLIPSE_FLIGHT: Vector3 = Vector3(25.0, 0.7, 0.8)
+## Sem ninguém a esta distância, o do Eclipse sai do ninho e voa em volta (m)
+const ECLIPSE_ROAM: float = 30.0
+const ECLIPSE_ROAM_RADIUS: float = 26.0
 
 var state: State = State.READY
+## Ninho do Arquipélago do Eclipse (GDD-18 §7.2): o Planador do Eclipse já está nele, sem oferenda,
+## e monta quem chegar primeiro; o voo bravio é mais duro e sai com Elo 30. Uma vez por evento.
+var eclipse: bool = false
+## Ninho da Matriarca: o filhote só aparece depois que ela cai (unlock_eclipse)
+var locked: bool = false
+## Nome do bicho que aparece no ninho
+var eclipse_name: String = "Planador do Eclipse"
 var adult: Mount
 var offered_by: Player
 var flight: BraveFlight
@@ -54,6 +66,9 @@ func _ready() -> void:
 	add_child(_label)
 
 func _process(delta: float) -> void:
+	if eclipse:
+		_process_eclipse(delta)
+		return
 	if state == State.EMPTY and MountBond.today() >= regrow_day:
 		state = State.READY
 	if state == State.WAITING:
@@ -62,6 +77,62 @@ func _process(delta: float) -> void:
 			_tell(offered_by, "🪶 O Planador cansou de esperar e foi embora")
 			_send_away()
 	_label.text = "Ninho de Planador\n" + _status()
+
+# ---------------------------------------------------------------- Eclipse
+
+func _process_eclipse(delta: float) -> void:
+	if state == State.READY and not locked:
+		_spawn_eclipse()
+	if state == State.WAITING and adult and is_instance_valid(adult) and adult.rider == null:
+		# Ninguém perto: sai voando em volta da ilha; alguém chegou: volta e pousa no ninho
+		var near := _nearest_player() < ECLIPSE_ROAM
+		if not near:
+			_angle += delta * FLY_SPEED * 0.5 / ECLIPSE_ROAM_RADIUS
+			adult.airborne = true
+			var c := global_position + Vector3(cos(_angle), 0, sin(_angle)) * ECLIPSE_ROAM_RADIUS + Vector3(0, 10.0, 0)
+			_fly_toward(c, FLY_SPEED * 0.6, delta)
+		else:
+			var spot := global_position + Vector3(1.6, 0, 0)
+			if adult.global_position.distance_to(spot) > 0.3:
+				adult.airborne = true
+				_fly_toward(spot, FLY_SPEED, delta)
+			else:
+				adult.global_position = spot
+				adult.airborne = false
+				adult._speed = 0.0
+	if state == State.WAITING:
+		_label.text = "%s\n[E] montar (voo bravio)" % eclipse_name
+	elif state == State.EMPTY:
+		_label.text = "Ninho do Eclipse\nVazio"
+	elif locked:
+		_label.text = "Ninho da Matriarca\nGuardado por ela"
+	else:
+		_label.text = ""
+
+func _nearest_player() -> float:
+	var best := INF
+	for p in get_tree().get_nodes_in_group("player"):
+		if p is Node3D:
+			best = minf(best, (p as Node3D).global_position.distance_to(global_position))
+	return best
+
+## A Matriarca caiu: o filhote dela aparece no ninho
+func unlock_eclipse() -> void:
+	locked = false
+
+func _spawn_eclipse() -> void:
+	nest_seed += 1
+	adult = Mount.new()
+	adult.name = "PlanadorDoEclipse"
+	adult.dna = CreatureDNA.eclipse(hash([global_position, nest_seed, "eclipse"]))
+	adult.kind = Mount.Kind.AIR
+	adult.display_name = eclipse_name
+	adult.skip_settle = true
+	get_parent().add_child(adult)
+	adult.global_position = global_position + Vector3(1.6, 0, 0)
+	adult.autopilot = func(_d: float) -> void: pass
+	adult.rider_mounted.connect(_on_adult_mounted)
+	state = State.WAITING
 
 func _status() -> String:
 	match state:
@@ -82,12 +153,15 @@ func talk_to(node: Node) -> void:
 			if p != offered_by:
 				steal(p)
 		State.WAITING:
-			if p == offered_by:
+			if eclipse or p == offered_by:
 				adult.begin_mount(p)
 			else:
 				_tell(p, "O Planador não deixa você chegar perto")
 		State.EMPTY:
-			_tell(p, "🪶 Ninho vazio · o próximo filhote cresce em %d dia(s)" % maxi(1, regrow_day - MountBond.today()))
+			if eclipse:
+				_tell(p, "🪶 Ninho do Eclipse vazio: o Planador já foi levado neste evento")
+			else:
+				_tell(p, "🪶 Ninho vazio · o próximo filhote cresce em %d dia(s)" % maxi(1, regrow_day - MountBond.today()))
 
 ## Deixa a carne Íntegra; devolve o motivo: &"ok", &"sem_carne", &"estabulo_cheio" ou &"ocupado"
 func offer(p: Player) -> StringName:
@@ -160,10 +234,14 @@ func _arrive(delta: float) -> void:
 	_fly_toward(spot, FLY_SPEED, delta)
 
 func _on_adult_mounted(p: Player) -> void:
+	if eclipse and state == State.WAITING:
+		offered_by = p
 	if p != offered_by or state != State.WAITING:
 		return
 	state = State.TRIAL
 	flight = BraveFlight.new(hash([global_position, nest_seed, "voo"]))
+	if eclipse:
+		flight.make_hard(ECLIPSE_FLIGHT.x, ECLIPSE_FLIGHT.y, ECLIPSE_FLIGHT.z)
 	_rider_health = p.pools.current_health if p.pools else 0.0
 	_angle = 0.0
 	adult.airborne = true
@@ -212,7 +290,8 @@ func _tame(p: Player) -> void:
 	adult = null
 	state = State.EMPTY
 	regrow_day = MountBond.today() + REGROW_DAYS
-	if eco == null or not eco.add_owned_mount(dna, MountBond.create(dna, &"ninho", MountBond.today())):
+	var origin := &"eclipse" if eclipse else &"ninho"
+	if eco == null or not eco.add_owned_mount(dna, MountBond.create(dna, origin, MountBond.today())):
 		_tell(p, "🪶 Sem lugar no estábulo: o Planador foi embora")
 		return
 	var m: Mount = eco._owned_nodes[eco._owned_nodes.size() - 1]
@@ -222,7 +301,10 @@ func _tame(p: Player) -> void:
 	m.rotation.z = 0.0
 	m.airborne = true
 	m.mount(p)
-	p.posture_changed.emit("🪶 Você domou o Planador! Ele é seu (Elo 50, só aceita você)")
+	if eclipse:
+		p.posture_changed.emit("🌑 Você domou o %s! Ele é seu (Elo 30, só aceita você)" % eclipse_name)
+	else:
+		p.posture_changed.emit("🪶 Você domou o Planador! Ele é seu (Elo 50, só aceita você)")
 
 ## Caiu (ou saltou): a queda é de verdade; ele vai embora e o ninho volta a aceitar oferenda
 func _fail(p: Player) -> void:
@@ -233,7 +315,8 @@ func _fail(p: Player) -> void:
 
 ## Some no céu: sobe e se afasta por alguns segundos e vai embora
 func _send_away() -> void:
-	state = State.READY
+	# O do Eclipse não volta: uma chance por evento
+	state = State.EMPTY if eclipse else State.READY
 	offered_by = null
 	flight = null
 	if adult == null or not is_instance_valid(adult):

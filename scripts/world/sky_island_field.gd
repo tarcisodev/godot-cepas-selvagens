@@ -86,6 +86,7 @@ func refresh(at_day: float = -1.0) -> void:
 			islands.erase(id)
 	_update_content()
 	_warn_players()
+	_update_eclipse(d)
 
 # ---------------------------------------------------------------- save (GDD-18 §5)
 
@@ -127,6 +128,33 @@ func _warn_players() -> void:
 			_told[key] = true
 			if p.has_signal("posture_changed"):
 				p.posture_changed.emit(warning_text(isl, day()))
+
+## Eclipse do Arquipélago (GDD-18 §7.4): sobe do anúncio até a subida, fica no evento e volta no
+## afundamento. Todo jogador recebe uma vez o aviso de que o arquipélago vai subir.
+func _update_eclipse(d: float) -> void:
+	var w := SkyIslandSchedule.next_myth(world_seed, d)
+	var e := eclipse_at(w, d)
+	var sun := DayNightCycle.instance
+	if is_instance_valid(sun):
+		sun.eclipse = e
+	if w != Vector3.INF and d >= w.x and d < w.y:
+		var key := "anuncio|%d" % roundi(w.y * 1000.0)
+		for p in get_tree().get_nodes_in_group("player"):
+			var pk := "%d|%s" % [p.get_instance_id(), key]
+			if _told.has(pk) or not p.has_signal("posture_changed"):
+				continue
+			_told[pk] = true
+			var mins := maxi(1, roundi((w.y - d) * DayNightCycle.seconds_per_day() / 60.0))
+			p.posture_changed.emit("🌑 O céu escurece: o Arquipélago do Eclipse sobe em ~%d min." % mins)
+
+## Quanto do eclipse em `d`, para a janela [anúncio, subida, fim] da mítica
+static func eclipse_at(w: Vector3, d: float) -> float:
+	if w == Vector3.INF or d < w.x or d >= w.z:
+		return 0.0
+	if d < w.y:
+		return clampf((d - w.x) / maxf(w.y - w.x, 0.0001), 0.0, 1.0)
+	var rise := SkyIslandSchedule.days(SkyIslandSchedule.RISE_S)
+	return clampf((w.z - d) / rise, 0.0, 1.0)
 
 ## Texto do aviso para quem está na ilha
 static func warning_text(isl: SkyIsland, at_day: float) -> String:

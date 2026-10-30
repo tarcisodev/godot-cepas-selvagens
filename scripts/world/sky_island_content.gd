@@ -51,6 +51,16 @@ const RECIPES: Dictionary = {
 		"decor": [[&"crystal", 18, 1.0], [&"wispy", 10, 0.9]],
 	},
 }
+## Ilhotas do Arquipélago do Eclipse (GDD-18 §7.4): flora de cristal e pouso dos Planadores do Eclipse
+const SATELLITE: Dictionary = {
+	"flora": [[G.ERVA, 2], [G.FOLHA, 2]],
+	"veins": [],
+	"chest": {},
+	"decor": [[&"crystal", 8, 0.9], [&"wispy", 4, 0.8]],
+}
+## Enquanto a Matriarca vive, o veio e o Relicário ficam selados
+const SEAL_TEXT: String = "Selado pela Matriarca do Eclipse"
+
 ## Coisas de coleta ficam até esta fração do raio da borda, e longe uma da outra (m)
 const SPREAD: float = 0.72
 const SPACING: float = 2.6
@@ -68,6 +78,9 @@ var veins: Array[GatherableResource] = []
 var flora: Array[GatherableResource] = []
 var chest: WildChest
 var nest: PlanadorNest
+## Chefe da ilha: a Sentinela de Pedra (lendária) ou a Matriarca do Eclipse (núcleo da mítica)
+var guardian: BeastFighter
+var _boss_dead: bool = false
 var _spots: Array[Vector2] = []
 var _rng := RandomNumberGenerator.new()
 
@@ -80,10 +93,23 @@ func setup(p_island: SkyIsland, state: Dictionary) -> void:
 	key = key_for(island.data)
 	name = "Conteudo"
 	_rng.seed = hash([int(island.data.shape_seed), int(island.data.epoch), "conteudo"])
-	var recipe: Dictionary = RECIPES[island.rarity()]
-	# Ninho e baú primeiro: precisam do miolo da ilha, que fica sem lugar depois da flora
+	var satellite := island.is_link()
+	var recipe: Dictionary = SATELLITE if satellite else RECIPES[island.rarity()]
+	# Chefe, ninho e baú primeiro: precisam do miolo da ilha, que fica sem lugar depois da flora
+	_boss_dead = bool(state.get("chefe", false))
+	if has_boss():
+		_spots.append(Vector2.ZERO)
+		if not _boss_dead:
+			_build_guardian()
 	if island.data.get("nest", false):
 		_build_nest()
+		nest.eclipse = satellite
+	elif has_boss() and island.rarity() == R.MITICA:
+		# Ninho da Matriarca: o filhote dela só aparece depois que ela cai
+		_build_nest()
+		nest.eclipse = true
+		nest.locked = not _boss_dead
+		nest.eclipse_name = "Filhote da Matriarca"
 	if not recipe.chest.is_empty():
 		_build_chest(recipe.chest)
 	for v in recipe.veins:
@@ -101,6 +127,15 @@ func setup(p_island: SkyIsland, state: Dictionary) -> void:
 		for i in roundi(d[1] * area):
 			_decor(d[0], d[2])
 	apply_state(state)
+	_set_sealed(island.rarity() == R.MITICA and not _boss_dead)
+
+## Lendária e núcleo da mítica têm chefe
+func has_boss() -> bool:
+	return island != null and not island.is_link() and island.rarity() >= R.LENDARIA
+
+## O chefe desta época já caiu
+func boss_dead() -> bool:
+	return _boss_dead
 
 ## O que mudou desde que a ilha nasceu: batidas que faltam em cada veio, baú aberto, ninho vazio
 func capture_state() -> Dictionary:
@@ -113,6 +148,8 @@ func capture_state() -> Dictionary:
 		out["bau"] = true
 	if nest and is_instance_valid(nest) and nest.state == PlanadorNest.State.EMPTY:
 		out["ninho"] = nest.regrow_day
+	if _boss_dead:
+		out["chefe"] = true
 	return out
 
 func apply_state(state: Dictionary) -> void:
@@ -133,9 +170,48 @@ func apply_state(state: Dictionary) -> void:
 		nest.state = PlanadorNest.State.EMPTY
 		nest.regrow_day = int(state["ninho"])
 
-## Ninho com prova em andamento: a ilha não pode sumir agora
+## Ninho com prova em andamento ou chefe lutando: a ilha não pode sumir agora. O ninho do Eclipse
+## esperando montaria não segura (o bicho só fica pousado nele).
 func busy() -> bool:
-	return nest != null and is_instance_valid(nest) and nest.state in [PlanadorNest.State.OFFERED, PlanadorNest.State.WAITING, PlanadorNest.State.TRIAL]
+	if guardian and is_instance_valid(guardian) and not guardian.state in [BeastFighter.State.IDLE, BeastFighter.State.DEAD]:
+		return true
+	if nest == null or not is_instance_valid(nest):
+		return false
+	if nest.eclipse:
+		return nest.state == PlanadorNest.State.TRIAL
+	return nest.state in [PlanadorNest.State.OFFERED, PlanadorNest.State.WAITING, PlanadorNest.State.TRIAL]
+
+## Sentinela de Pedra na lendária, Matriarca do Eclipse no núcleo da mítica, no meio da ilha. A
+## arena é a ilha: o chefe não passa da borda.
+func _build_guardian() -> void:
+	var cfg := BeastFighter.sentinela_da_ruina() if island.rarity() == R.LENDARIA else BeastFighter.matriarca_do_eclipse()
+	cfg.arena_radius = island.shape.radius - 4.0
+	guardian = BeastFighter.new()
+	guardian.name = "Sentinela" if island.rarity() == R.LENDARIA else "Matriarca"
+	guardian.config = cfg
+	guardian.position = Vector3(0.0, island.shape.top_at(0.0, 0.0) + 0.3, 0.0)
+	add_child(guardian)
+	guardian.home = guardian.global_position
+	guardian.defeated.connect(_on_guardian_defeated)
+
+func _on_guardian_defeated() -> void:
+	_boss_dead = true
+	_set_sealed(false)
+	if nest and island.rarity() == R.MITICA and not island.is_link():
+		nest.unlock_eclipse()
+	for p in get_tree().get_nodes_in_group("player"):
+		if p.has_signal("posture_changed") and SkyIslandField.on_island(island, (p as Node3D).global_position):
+			if island.rarity() == R.MITICA:
+				p.posture_changed.emit("🌑 A Matriarca caiu: o Âmbar-Estelar e o Relicário estão livres, e o filhote dela espera no ninho")
+
+## Veio de Âmbar-Estelar e Relicário selados enquanto a Matriarca vive
+func _set_sealed(on: bool) -> void:
+	var why := SEAL_TEXT if on else ""
+	for v in veins:
+		if is_instance_valid(v):
+			v.sealed = why
+	if chest and is_instance_valid(chest):
+		chest.sealed = why
 
 # ---------------------------------------------------------------- partes
 

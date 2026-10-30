@@ -58,6 +58,13 @@ const RISE_S: float = 60.0
 const SINK_DEPTH: float = 40.0
 ## Antes de afundar, a ilha treme e racha por 2 min reais: tempo de quem está em cima ir embora
 const WARN_S: float = 120.0
+## Ilhotas satélites do Arquipélago do Eclipse (GDD-18 §7.4): quantas, diâmetro, quanto ficam abaixo
+## do chão do núcleo, folga até a borda dele (m) e quantas têm ninho do Eclipse
+const SATELLITES: int = 4
+const SAT_DIAM: Vector2 = Vector2(14.0, 20.0)
+const SAT_DROP: float = 1.5
+const SAT_GAP: float = 10.0
+const SAT_NESTS: int = 2
 
 ## Segundos reais em dias de jogo
 static func days(seconds: float) -> float:
@@ -88,6 +95,7 @@ static func islands_at(world_seed: int, day: float) -> Array[Dictionary]:
 	var myth := _event(world_seed, Rarity.MITICA, day, days(MYTH_CYCLE_S), days(MYTH_S), days(ANNOUNCE_S), commons)
 	if not myth.is_empty():
 		out.append(myth)
+		out.append_array(_satellites(world_seed, myth))
 	return out
 
 ## Próxima ilha mítica a partir de `day`: [início do anúncio, subida, fim] em dias
@@ -200,6 +208,34 @@ static func _event_window(world_seed: int, rarity: int, k: int, cycle: float, du
 	var room := cycle - duration - announce - days(RISE_S)
 	var rise := float(k) * cycle + announce + rng.randf() * room
 	return Vector2(rise - announce, rise)
+
+## Ilhotas em volta do núcleo da mítica: mesma vida (surgem, afundam e somem junto), um pouco mais
+## baixas, ligadas a ele por uma Corrente lateral (o `current_angle` aponta para o núcleo)
+static func _satellites(world_seed: int, core: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var rng := _rng(world_seed, Rarity.MITICA, 50, int(core.epoch))
+	var base := rng.randf() * TAU
+	var half := WorldBounds.HALF - 4.0
+	for i in SATELLITES:
+		var diam := rng.randf_range(SAT_DIAM.x, SAT_DIAM.y)
+		var r := diam * 0.5
+		var a := base + float(i) * TAU / float(SATELLITES) + rng.randf_range(-0.25, 0.25)
+		var c: Vector3 = core.center
+		var d := float(core.radius) + SAT_GAP + r
+		var p := Vector2(c.x, c.z) + Vector2.from_angle(a) * d
+		p = Vector2(clampf(p.x, -half + r, half - r), clampf(p.y, -half + r, half - r))
+		var sat := core.duplicate()
+		sat.merge({
+			"id": StringName("%s_%d_%d" % [RARITY_NAMES[Rarity.MITICA].to_lower(), i + 1, int(core.epoch)]),
+			"slot": i + 1, "radius": r, "depth": minf(MAX_DEPTH, diam * DEPTH_RATIO), "relief": 1.2,
+			"shape_seed": hash([world_seed, "satelite", i, int(core.epoch)]),
+			"center": Vector3(p.x, c.y - SAT_DROP, p.y), "satellite": true, "core_center": c,
+			"core_radius": float(core.radius), "nest": i < SAT_NESTS,
+		}, true)
+		var to_core := Vector2(c.x - p.x, c.z - p.y)
+		sat.current_angle = atan2(to_core.y, to_core.x)
+		out.append(sat)
+	return out
 
 # ---------------------------------------------------------------- partes
 

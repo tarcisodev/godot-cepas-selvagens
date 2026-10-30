@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"pedra_runica"
+display_name = "Pedra Rúnica"
+description = "Bloco entalhado da Sentinela de Pedra, com runas que ainda brilham de leve. Bom para construir e enfeitar."
+category = 2
+icon = "🪨"
+color = Color(0.62, 0.6, 0.58, 1)
+unit_weight = 2.0
+max_gather_quality = 2
+base_value = 35

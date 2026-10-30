@@ -9,6 +9,9 @@ extends CharacterBody3D
 
 enum State { IDLE, CHASE, WINDUP, ACTIVE, RECOVER, DAZED, STAGGER, DEAD, RETURN }
 
+## Caiu de vez (Vida zerada): quem guarda algo destrava (veio e Relicário da mítica)
+signal defeated()
+
 ## Configuração (ver `rinolito_anciao()`); precisa estar pronta antes de entrar na árvore
 var config: Dictionary = {}
 
@@ -25,6 +28,12 @@ var home: Vector3
 var enraged: bool = false
 var horn_broken: bool = false
 var carapace_broken: bool = false
+## Para-raios (Sentinela, GDD-18 §7.1): segundos que ainda faltam Carregada
+var charged_time: float = 0.0
+## Partes que só aparecem depois de um golpe (o núcleo, depois do Martelo): parte → segundos
+var _exposed: Dictionary = {}
+## Partes quebradas (o golpe que precisa dela some)
+var _broken: Dictionary = {}
 ## Distância para esfolar (o corpo é grande): o Player desconta isto da distância
 var talk_radius: float = 1.5
 var harvest_queue: Array[Dictionary] = []
@@ -90,6 +99,78 @@ static func rinolito_anciao() -> Dictionary:
 			{"label": "Placas de Carapaça", "materials": [[&"placa_carapaca", 6, 3, []]], "if_broken": &"carapace", "broken_materials": [[&"placa_carapaca", 3, 3, []]]},
 			{"label": "Ossos do Ancião", "materials": [[&"ossos", 4, 2, []]]},
 			{"label": "Carne de Rinolito", "materials": [[&"carne_crua", 3, 1, []]]},
+		],
+	}
+
+## Guardião da Ilha-Ruína (GDD-18 §7.1): gigante de pedra que dorme sentado entre os pilares.
+## Para-raios: o raio da tempestade carrega o núcleo (golpes mais rápidos e o Martelo vira anel de
+## raio). O núcleo só fica exposto depois do Martelo. Uma por surgimento da ilha (não volta).
+static func sentinela_da_ruina() -> Dictionary:
+	return {
+		"name": "Sentinela de Pedra", "boss": true,
+		"species": CreatureDNA.Species.SENTINELA, "seed": 7101,
+		"alleles": {"porte": ["T", "T"], "chifre": ["c", "c"], "padrao": ["p", "p"]},
+		"max_health": 1400.0, "max_poise": 300.0,
+		"resistances": {&"resist_slash": 0.45, &"resist_pierce": 0.25, &"resist_impact": -0.15, &"resist_lightning": 0.9},
+		"move_speed": 2.6, "turn_speed": 1.4, "aggro_range": 14.0, "arena_radius": 30.0,
+		"knock_taken": 0.05, "enrage_at": 0.4, "enrage_windup": 0.8, "chain_charges": 1,
+		"stagger_time": 3.0, "stagger_bonus": 0.3, "sleep_pose": &"sit", "lightning_rod": true,
+		"respawn": -1.0, "corpse": 600.0,
+		"attacks": [
+			{"id": &"punho", "name": "Punho", "kind": &"melee", "min": 0.0, "max": 4.2, "front": 0.45,
+				"windup": 0.6, "active": 0.22, "recover": 0.8, "damage": 32.0, "type": DamageType.Type.IMPACT,
+				"poise": 35.0, "reach": 3.4, "pose": &"head_low", "cooldown": 1.4, "knock": 1.6, "weight": 3.0},
+			{"id": &"martelo", "name": "Martelo", "kind": &"area", "min": 0.0, "max": 4.5,
+				"windup": 1.0, "active": 0.2, "recover": 1.4, "damage": 30.0, "type": DamageType.Type.IMPACT,
+				"poise": 60.0, "radius": 5.0, "pose": &"rear", "cooldown": 6.0, "knock": 1.5, "weight": 2.0},
+			{"id": &"avanco", "name": "Avanço de ombro", "kind": &"charge", "min": 6.0, "max": 18.0,
+				"windup": 0.9, "recover": 0.9, "damage": 38.0, "type": DamageType.Type.IMPACT, "poise": 55.0,
+				"speed": 11.0, "distance": 13.0, "pose": &"paw", "cooldown": 8.0, "knock": 1.8, "daze": 1.8, "weight": 3.0},
+		],
+		"parts": {
+			&"core": {"hp": 220.0, "drop": [&"ferro_celeste", 2, 3, []], "label": "💥 Núcleo da Sentinela quebrado! Ela não carrega mais raio",
+				"hurt": {"size": Vector3(0.4, 0.35, 0.35), "pos": Vector3(0.0, 0.6, -0.55)}, "exposed_after": &"martelo", "exposed_time": 3.5},
+			&"carapace": {"hp": 300.0, "drop": [&"pedra_runica", 2, 2, []], "label": "💥 Couraça de ruína rachada! Agora o corte entra"},
+		},
+		"harvest": [
+			{"label": "Núcleo da Ruína", "needs_intact": &"core", "materials": [[&"nucleo_ruina", 1, 4, []]]},
+			{"label": "Ferro-Celeste", "materials": [[&"ferro_celeste", 3, 3, []]]},
+			{"label": "Pedra Rúnica", "materials": [[&"pedra_runica", 4, 2, []]]},
+		],
+	}
+
+## Chefe mítico (GDD-18 §7.3): a mãe gigante dos Planadores do Eclipse, que guarda o Âmbar-Estelar
+## e o Relicário. Luta no chão: bicada, rajada de asas que joga para a borda e mergulho.
+static func matriarca_do_eclipse() -> Dictionary:
+	return {
+		"name": "Matriarca do Eclipse", "boss": true, "dna_kind": &"matriarca",
+		"species": CreatureDNA.Species.PLANADOR, "seed": 7201,
+		"max_health": 2200.0, "max_poise": 350.0,
+		"resistances": {&"resist_slash": 0.1, &"resist_pierce": 0.1, &"resist_lightning": 0.3},
+		"move_speed": 4.0, "turn_speed": 2.2, "aggro_range": 22.0, "arena_radius": 40.0,
+		"knock_taken": 0.05, "enrage_at": 0.5, "enrage_windup": 0.8, "chain_charges": 2,
+		"stagger_time": 3.0, "stagger_bonus": 0.3,
+		"respawn": -1.0, "corpse": 600.0,
+		"attacks": [
+			{"id": &"bicada", "name": "Bicada", "kind": &"melee", "min": 0.0, "max": 7.0, "front": 0.5,
+				"windup": 0.5, "active": 0.2, "recover": 0.7, "damage": 30.0, "type": DamageType.Type.PIERCE,
+				"poise": 30.0, "reach": 4.5, "pose": &"head_low", "cooldown": 1.3, "knock": 1.5, "weight": 3.0},
+			{"id": &"rajada", "name": "Rajada de asas", "kind": &"area", "min": 0.0, "max": 9.0, "needs_part": &"wings",
+				"windup": 1.1, "active": 0.25, "recover": 1.0, "damage": 18.0, "type": DamageType.Type.IMPACT,
+				"poise": 40.0, "radius": 9.0, "pose": &"rear", "cooldown": 7.0, "knock": 2.2, "weight": 2.0},
+			{"id": &"mergulho", "name": "Mergulho", "kind": &"charge", "min": 8.0, "max": 28.0,
+				"windup": 1.0, "recover": 1.0, "damage": 45.0, "type": DamageType.Type.IMPACT, "poise": 60.0,
+				"speed": 16.0, "distance": 22.0, "pose": &"paw", "cooldown": 7.0, "knock": 1.8, "daze": 2.0, "dive": 6.0, "weight": 3.0},
+		],
+		"parts": {
+			&"wings": {"hp": 350.0, "drop": [&"pena_eclipse", 2, 4, []], "label": "💥 Asas da Matriarca quebradas! Acabou a rajada",
+				"hurt": {"size": Vector3(2.4, 0.3, 0.6), "pos": Vector3(0.0, 0.95, 0.0)}},
+			&"beak": {"hp": 200.0, "drop": [&"pena_eclipse", 1, 3, []], "label": "💥 Bico da Matriarca rachado!",
+				"hurt": {"size": Vector3(0.5, 0.4, 0.5), "pos": Vector3(0.0, 1.0, -0.75)}},
+		},
+		"harvest": [
+			{"label": "Penas do Eclipse", "materials": [[&"pena_eclipse", 4, 4, []]]},
+			{"label": "Carne da Matriarca", "materials": [[&"carne_crua", 6, 1, []]]},
 		],
 	}
 
@@ -176,7 +257,10 @@ func _ready() -> void:
 	_build_label()
 
 func _build_dna_and_body() -> void:
-	dna = CreatureDNA.randomized(config.get("species", CreatureDNA.Species.RINOLITO), int(config.get("seed", 1)))
+	if config.get("dna_kind", &"") == &"matriarca":
+		dna = CreatureDNA.eclipse(int(config.get("seed", 1)), true)
+	else:
+		dna = CreatureDNA.randomized(config.get("species", CreatureDNA.Species.RINOLITO), int(config.get("seed", 1)))
 	if config.has("alleles"):
 		dna.alleles = config.alleles.duplicate(true)
 	body = CreatureBody.new()
@@ -184,9 +268,10 @@ func _build_dna_and_body() -> void:
 	body.dna = dna
 	add_child(body)
 	var info := dna.info()
-	var f := dna.size_factor()
+	# Matriarca e Eclipse são maiores pela idade/gene (stage_scale); os outros, adultos, ficam 1×
+	var f := dna.size_factor() * dna.stage_scale()
 	_body_size = info["body"] * f
-	_leg = float(info["leg"]) * f
+	_leg = float(info.get("leg", 0.45)) * f
 	talk_radius = _body_size.z * 0.5
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(_body_size.x * 0.9, _leg + _body_size.y * 0.8, _body_size.z * 0.9)
@@ -240,6 +325,16 @@ func _build_hurtboxes() -> void:
 		_add_hurtbox(&"horn", SphereShape3D.new(), Vector3.ONE * head_size * 1.6, Vector3(0, center_y + _body_size.y * 0.25, -(_body_size.z * 0.5 + head_size * 1.6)))
 	if parts.has(&"carapace"):
 		_add_hurtbox(&"carapace", BoxShape3D.new(), Vector3(_body_size.x * 0.8, _body_size.y * 0.35, _body_size.z * 0.7), Vector3(0, center_y + _body_size.y * 0.45, 0))
+	# Outras partes: caixa em frações do corpo (x e z do tronco; y a partir do alto das pernas)
+	for pid in parts:
+		var hurt: Dictionary = parts[pid].get("hurt", {})
+		if hurt.is_empty():
+			continue
+		var sz: Vector3 = hurt.size
+		var at: Vector3 = hurt.pos
+		_add_hurtbox(pid, BoxShape3D.new(), sz * _body_size, Vector3(at.x * _body_size.x, _leg + at.y * _body_size.y, at.z * _body_size.z))
+		if parts[pid].has("exposed_after"):
+			_hurtbox(pid).monitorable = false
 
 func _add_hurtbox(part: StringName, shape: Shape3D, size: Vector3, pos: Vector3) -> void:
 	if shape is BoxShape3D:
@@ -255,6 +350,9 @@ func _add_hurtbox(part: StringName, shape: Shape3D, size: Vector3, pos: Vector3)
 	hb.add_child(cs)
 	hb.position = pos
 	add_child(hb)
+
+func _hurtbox(part: StringName) -> HurtboxComponent:
+	return get_node_or_null("Hurtbox_%s" % part) as HurtboxComponent
 
 func _build_hitbox() -> void:
 	hitbox = HitboxComponent.new()
@@ -329,6 +427,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_far_tick = 0.0
 	_state_time += delta
+	_tick_charge_and_exposed(delta)
 	for id in _cooldowns.keys():
 		_cooldowns[id] -= delta
 		if _cooldowns[id] <= 0.0:
@@ -346,7 +445,14 @@ func _physics_process(delta: float) -> void:
 	match state:
 		State.IDLE:
 			body.pose = &""
-			if config.get("nocturnal", false) and not is_night():
+			if config.has("sleep_pose"):
+				# Dorme no lugar (Sentinela sentada entre os pilares) até alguém chegar perto
+				body.pose = config.sleep_pose
+				body.pose_amount = 1.0
+				if player_in_arena and dist < float(config.get("aggro_range", 12.0)):
+					_say("🗿 A %s se levanta!" % config.get("name", ""))
+					_set_state(State.CHASE)
+			elif config.get("nocturnal", false) and not is_night():
 				# Dormindo na toca: cabeça baixa, parado
 				body.pose = &"head_low"
 				body.pose_amount = 0.8
@@ -381,6 +487,8 @@ func _physics_process(delta: float) -> void:
 					turn_to = goal if dist > stop else to_player
 		State.WINDUP:
 			var windup: float = float(_attack.windup) * (float(config.get("enrage_windup", 1.0)) if enraged else 1.0)
+			if charged_time > 0.0:
+				windup *= CHARGED_WINDUP
 			if _chain_left > 0 and _attack.get("chained", false):
 				windup *= 0.5
 			if player:
@@ -395,6 +503,10 @@ func _physics_process(delta: float) -> void:
 				move_dir = _charge_dir
 				speed = float(_attack.speed)
 				_charge_left -= step
+				if _attack.has("dive"):
+					# Mergulho: sobe e cai no fim da investida (só o corpo; a colisão segue no chão)
+					var k := clampf(1.0 - _charge_left / float(_attack.distance), 0.0, 1.0)
+					body.position.y = sin(k * PI) * float(_attack.dive)
 				if _charge_left <= 0.0 or (is_on_wall() and _state_time > 0.15):
 					hitbox.deactivate()
 					if _chain_left > 0 and player:
@@ -408,10 +520,12 @@ func _physics_process(delta: float) -> void:
 			elif _state_time >= float(_attack.get("active", 0.2)):
 				_set_state(State.RECOVER)
 		State.RECOVER:
+			body.position.y = 0.0
 			body.pose_amount = maxf(0.0, body.pose_amount - delta * 2.0)
 			if _state_time >= float(_attack.get("recover", 0.8)):
 				_set_state(State.CHASE)
 		State.DAZED:
+			body.position.y = 0.0
 			# Errou a investida: fica tonto, cabeça baixa balançando (a janela do jogador)
 			body.pose = &"head_low"
 			body.pose_amount = 0.6 + sin(_state_time * 9.0) * 0.3
@@ -464,6 +578,8 @@ func _pick_attack(dist: float, to_player: Vector3) -> Dictionary:
 	for a in config.get("attacks", []):
 		if _cooldowns.has(a.id) or dist < float(a.min) or dist > float(a.max):
 			continue
+		if a.has("needs_part") and _broken.has(a.needs_part):
+			continue
 		if a.has("front") and front < float(a.front):
 			continue
 		if a.kind == &"charge" and front < 0.7:
@@ -493,6 +609,12 @@ func _release_attack(player: Player) -> void:
 	if horn_broken and _attack.kind != &"area":
 		dmg *= 0.6 # sem o chifre, chifrada e investida perdem força
 	hitbox.knockback_mult = float(_attack.get("knock", 1.0))
+	var dtype: int = _attack.type
+	var radius_mult := 1.0
+	if charged_time > 0.0 and _attack.kind == &"area":
+		# Carregada: o Martelo vira um anel de raio maior
+		dtype = DamageType.Type.LIGHTNING
+		radius_mult = CHARGED_RADIUS
 	match _attack.kind:
 		&"melee":
 			var box := BoxShape3D.new()
@@ -502,11 +624,16 @@ func _release_attack(player: Player) -> void:
 			hitbox.activate_with_params(float(_attack.active), dmg, _attack.type, float(_attack.poise), 1.0)
 		&"area":
 			var ball := SphereShape3D.new()
-			ball.radius = float(_attack.radius)
+			ball.radius = float(_attack.radius) * radius_mult
 			_hit_shape.shape = ball
 			hitbox.position = Vector3(0, 0.6, -_body_size.z * 0.2)
-			hitbox.activate_with_params(float(_attack.active), dmg, _attack.type, float(_attack.poise), 1.0)
-			_spawn_dust(float(_attack.radius))
+			hitbox.activate_with_params(float(_attack.active), dmg, dtype, float(_attack.poise), 1.0)
+			_spawn_dust(ball.radius)
+			for pid in config.get("parts", {}):
+				var part: Dictionary = config.parts[pid]
+				if part.get("exposed_after", &"") == _attack.id and not _broken.has(pid):
+					_exposed[pid] = float(part.get("exposed_time", 3.0))
+					_hurtbox(pid).set_deferred(&"monitorable", true)
 		&"charge":
 			var cbox := BoxShape3D.new()
 			cbox.size = Vector3(_body_size.x * 1.3, 2.4, 1.8)
@@ -556,6 +683,43 @@ func _spawn_dust(radius: float) -> void:
 	p.global_position = hitbox.global_position
 	p.emitting = true
 	p.finished.connect(p.queue_free)
+
+# ---------------------------------------------------------------- para-raios (Sentinela)
+
+## Carregada: golpes saem nesta fração do tempo de preparo e o Martelo cresce este tanto
+const CHARGED_WINDUP: float = 0.7
+const CHARGED_RADIUS: float = 1.5
+const CHARGED_TIME: float = 15.0
+
+## A tempestade (SkyIslandHazards) procura a Sentinela acordada e de núcleo inteiro?
+func is_lightning_rod() -> bool:
+	return config.get("lightning_rod", false) and not _broken.has(&"core") and not state in [State.IDLE, State.DEAD]
+
+## O raio caiu nela: o núcleo carrega (devolve false se não é para-raios agora)
+func take_lightning() -> bool:
+	if not is_lightning_rod():
+		return false
+	if charged_time <= 0.0:
+		_say("⚡ A %s está Carregada! Golpes mais rápidos" % config.get("name", ""))
+	charged_time = CHARGED_TIME
+	return true
+
+func _tick_charge_and_exposed(delta: float) -> void:
+	if charged_time > 0.0:
+		charged_time = maxf(0.0, charged_time - delta)
+	if body:
+		body.core_glow = 1.0 if charged_time > 0.0 else 0.4
+	for pid in _exposed.keys():
+		_exposed[pid] -= delta
+		if _exposed[pid] <= 0.0:
+			_exposed.erase(pid)
+			var hb := _hurtbox(pid)
+			if hb:
+				hb.set_deferred(&"monitorable", false)
+
+## A parte está à mostra para levar golpe? (sem `exposed_after`, sempre)
+func is_part_exposed(part: StringName) -> bool:
+	return not config.get("parts", {}).get(part, {}).has("exposed_after") or _exposed.has(part)
 
 # ---------------------------------------------------------------- dano recebido
 
@@ -621,7 +785,13 @@ func _on_part_broken(part_id: StringName) -> void:
 	var part: Dictionary = config.get("parts", {}).get(part_id, {})
 	if part.is_empty():
 		return
+	_broken[part_id] = true
 	match part_id:
+		&"core":
+			charged_time = 0.0
+			_exposed.erase(&"core")
+			if body.core_node:
+				body.core_node.visible = false
 		&"horn":
 			horn_broken = true
 			if body.horn_node:
@@ -676,7 +846,10 @@ func _on_health_depleted() -> void:
 			mats = h.broken_materials
 		harvest_queue.append({"label": h.label, "materials": mats})
 	corpse_time_left = float(config.get("corpse", 300.0))
+	charged_time = 0.0
+	body.position.y = 0.0
 	add_to_group("harvestable")
+	defeated.emit()
 	_say(("🏆 %s derrotado! Esfole o corpo [E]" if config.get("boss", false) else "%s abatido · segure [E] para esfolar") % config.get("name", ""))
 
 func _process_dead(delta: float) -> void:
@@ -695,6 +868,7 @@ func _corpse_gone() -> void:
 	remove_from_group("harvestable")
 	body.visible = false
 	name_label.visible = false
+	# respawn negativo: não volta (chefe das ilhas, um por surgimento)
 	respawn_timer = float(config.get("respawn", 600.0))
 
 func is_harvestable() -> bool:
@@ -730,6 +904,14 @@ func respawn() -> void:
 	horn_broken = false
 	carapace_broken = false
 	enraged = false
+	charged_time = 0.0
+	_exposed.clear()
+	_broken.clear()
+	if body.core_node:
+		body.core_node.visible = true
+	for pid in config.get("parts", {}):
+		if config.parts[pid].has("exposed_after") and _hurtbox(pid):
+			_hurtbox(pid).set_deferred(&"monitorable", false)
 	body.rotation = Vector3.ZERO
 	body.visible = true
 	if body.horn_node:

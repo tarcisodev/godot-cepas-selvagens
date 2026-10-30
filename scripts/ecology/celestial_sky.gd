@@ -128,6 +128,10 @@ func _process(delta: float) -> void:
 		0.74,
 		sin(_orbit_angle * 0.5 + 0.85) * 0.64
 	).normalized()
+	# Eclipse (GDD-18 §7.4): o planeta anda até ficar na frente do sol durante o evento da mítica
+	var ecl: float = float(sun.get("eclipse")) if sun and "eclipse" in sun else 0.0
+	if ecl > 0.0 and sun_sky.y > -0.2:
+		planet_dir = planet_dir.slerp(sun_sky, ecl).normalized()
 	if planet_root:
 		planet_root.position = planet_dir * PLANET_DISTANCE
 		planet_body.rotation.y += delta * 0.03

@@ -58,10 +58,23 @@ func _process(_delta: float) -> bool:
 			_close_up(_first(SkyIslandSchedule.Rarity.LENDARIA), 0.8, 16.0)
 		6:
 			_shot("6_ilha_ruina")
+			_boss_close_up(_first(SkyIslandSchedule.Rarity.LENDARIA))
+		7:
+			_shot("6b_sentinela_de_pedra")
 			_set_day(_find_day(SkyIslandSchedule.Rarity.MITICA, &"firme"))
 			_close_up(_first(SkyIslandSchedule.Rarity.MITICA), 0.7, 18.0)
-		7:
+		8:
 			_shot("7_arquipelago_do_eclipse")
+			_boss_close_up(_first(SkyIslandSchedule.Rarity.MITICA))
+		9:
+			_shot("7b_matriarca_do_eclipse")
+			var sat: SkyIsland
+			for isl in _field.list():
+				if isl.is_link() and isl.data.nest:
+					sat = isl
+			_close_up(sat, 1.4, 6.0)
+		10:
+			_shot("7c_ilhota_do_eclipse")
 			_set_day(_find_day(SkyIslandSchedule.Rarity.MITICA, &"anunciada"))
 			_put_player(null)
 			_cam.global_position = Vector3(0, 15, 100)
@@ -69,7 +82,7 @@ func _process(_delta: float) -> bool:
 			if myth:
 				_cam.look_at(Vector3(myth.global_position.x, 60, myth.global_position.z))
 			_next(60)
-		8:
+		11:
 			_shot("8_mitica_anunciada")
 			quit(0)
 	return false
@@ -84,6 +97,17 @@ func _close_up(isl: SkyIsland, dist: float, height: float) -> void:
 	_cam.global_position = isl.global_position + Vector3(r * dist, height, r * dist * 0.5)
 	_cam.look_at(isl.global_position + Vector3(0, 0.5, 0))
 	_next(90)
+
+## Câmera de perto no chefe da ilha (o conteúdo já nasceu com o jogador em cima)
+func _boss_close_up(isl: SkyIsland) -> void:
+	var g: BeastFighter = isl.content.guardian if isl and isl.content else null
+	if g == null:
+		_next(1)
+		return
+	var size := 9.0 if isl.rarity() == SkyIslandSchedule.Rarity.LENDARIA else 22.0
+	_cam.global_position = g.global_position + Vector3(size * 0.7, size * 0.45, -size)
+	_cam.look_at(g.global_position + Vector3(0, size * 0.18, 0))
+	_next(40)
 
 func _put_player(isl: SkyIsland) -> void:
 	if _player == null:

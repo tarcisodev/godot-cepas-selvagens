@@ -28,6 +28,11 @@ var _pose_now: float = 0.0
 ## Peças que podem quebrar e sumir na luta (cada uma num pivô próprio)
 var horn_node: Node3D
 var plates_node: Node3D
+## Núcleo que brilha no peito da Sentinela (quebrável); `core_glow` 0–1 é o quanto ele brilha
+var core_node: Node3D
+var core_glow: float = 0.4
+var _core_mat: StandardMaterial3D
+var _arms: Array[Node3D] = []
 var _phase: float = 0.0
 var _flap: float = 0.0
 var _batches: Dictionary = {}  # pivô -> MeshBatch
@@ -44,6 +49,7 @@ func build() -> void:
 	_legs.clear()
 	_wings.clear()
 	_fins.clear()
+	_arms.clear()
 	_batches.clear()
 	_torso = Node3D.new()
 	_torso.name = "Torso"
@@ -55,7 +61,11 @@ func build() -> void:
 			_build_bird()
 		CreatureDNA.Plan.FISH:
 			_build_fish()
+		CreatureDNA.Plan.GOLEM:
+			_build_golem()
 	_flush()
+	if dna.is_eclipse() and dna.plan() == CreatureDNA.Plan.BIRD:
+		_eclipse_rim()
 	saddle = Marker3D.new()
 	saddle.name = "Saddle"
 	saddle.position = Vector3(0, back_height, 0.05)
@@ -93,6 +103,7 @@ func animate(delta: float, speed: float, climb: float = 0.0, airborne: bool = fa
 			if _tail:
 				_tail.rotation.y = sin(t * 2.3) * 0.35
 		CreatureDNA.Plan.BIRD:
+			_pose_now = move_toward(_pose_now, pose_amount if pose != &"" else 0.0, delta * 5.0)
 			var flap_speed := 9.0 if (climb > 0.1 or not airborne) else 4.0
 			_flap += delta * flap_speed
 			var amp := 0.9 if climb > 0.1 else (0.45 if airborne and fmod(t, 4.0) < 2.5 else 0.08)
@@ -106,6 +117,24 @@ func animate(delta: float, speed: float, climb: float = 0.0, airborne: bool = fa
 			if _tail:
 				_tail.rotation.x = sin(t * 1.3) * 0.08
 			_torso.position.y = sin(_flap) * amp * 0.05
+			# Poses de luta no chão (Matriarca do Eclipse): bicada puxa a cabeça para trás, rajada
+			# abre as asas e bate forte, mergulho agacha antes do salto
+			if not airborne and _pose_now > 0.01:
+				match pose:
+					&"head_low":
+						if _head:
+							_head.rotation.x = 0.7 * _pose_now
+					&"rear":
+						for i in _wings.size():
+							var side := -1.0 if i == 0 else 1.0
+							_wings[i].rotation.y = lerpf(_wings[i].rotation.y, 0.0, _pose_now)
+							_wings[i].rotation.z = side * (0.3 + sin(t * 16.0) * 0.6) * _pose_now
+					&"paw":
+						_torso.position.y -= 0.25 * _pose_now * dna.size_factor()
+			elif _head:
+				_head.rotation.x = lerpf(_head.rotation.x, 0.0, minf(1.0, delta * 6.0))
+		CreatureDNA.Plan.GOLEM:
+			_animate_golem(delta, speed, t)
 		CreatureDNA.Plan.FISH:
 			var wave := 1.5 + speed * 1.2
 			for i in _fins.size():
@@ -272,6 +301,114 @@ func _build_fish() -> void:
 	else:
 		_ellipsoid(_tail, Vector3(0.03 * f, body.y * 1.1, tail * 0.6), Vector3(0, 0, tail * 0.3), info.get("fin", dna.coat_color().darkened(0.1)))
 
+## Sentinela (GDD-18 §7.1): blocos de pedra empilhados em duas pernas, braços até o chão, núcleo
+## no peito e blocos de couraça nos ombros e nas costas
+func _build_golem() -> void:
+	var info := dna.info()
+	var f := dna.size_factor()
+	var body: Vector3 = info["body"] * f
+	var leg: float = float(info["leg"]) * f
+	var arm: float = float(info.get("arm", 1.5)) * f
+	var stone := dna.coat_color()
+	var dark := dna.belly_color
+	back_height = leg + body.y
+	var center := Vector3(0, leg + body.y * 0.5, 0)
+	_box(_torso, body, center, stone)
+	_box(_torso, Vector3(body.x * 0.7, body.y * 0.35, body.z * 0.85), center - Vector3(0, body.y * 0.55, 0), dark)
+	for side in [-1.0, 1.0]:
+		var hip := Node3D.new()
+		hip.position = Vector3(side * body.x * 0.25, leg, 0)
+		_torso.add_child(hip)
+		_box(hip, Vector3(body.x * 0.32, leg * 0.95, body.z * 0.55), Vector3(0, -leg * 0.5, 0), stone.darkened(0.08))
+		_box(hip, Vector3(body.x * 0.38, leg * 0.18, body.z * 0.75), Vector3(0, -leg + leg * 0.09, -body.z * 0.08), dark)
+		_legs.append(hip)
+		var shoulder := Node3D.new()
+		shoulder.position = center + Vector3(side * (body.x * 0.5 + body.x * 0.16), body.y * 0.3, 0)
+		_torso.add_child(shoulder)
+		_box(shoulder, Vector3(body.x * 0.3, arm * 0.55, body.z * 0.5), Vector3(0, -arm * 0.25, 0), stone.darkened(0.04))
+		_box(shoulder, Vector3(body.x * 0.36, arm * 0.5, body.z * 0.6), Vector3(0, -arm * 0.72, -body.z * 0.05), stone.darkened(0.12))
+		_arms.append(shoulder)
+	_head = Node3D.new()
+	_head.position = center + Vector3(0, body.y * 0.5, -body.z * 0.1)
+	_torso.add_child(_head)
+	var hs := body.x * 0.32
+	_box(_head, Vector3(hs, hs * 0.85, hs * 0.9), Vector3(0, hs * 0.45, 0), stone.lightened(0.05))
+	for side in [-1.0, 1.0]:
+		_ellipsoid(_head, Vector3.ONE * hs * 0.16, Vector3(side * hs * 0.22, hs * 0.5, -hs * 0.46), info["core"])
+	if info.has("plates"):
+		plates_node = Node3D.new()
+		plates_node.name = "Plates"
+		_torso.add_child(plates_node)
+		for side in [-1.0, 1.0]:
+			_box(plates_node, Vector3(body.x * 0.42, body.y * 0.28, body.z * 0.8), center + Vector3(side * body.x * 0.62, body.y * 0.55, 0), stone.darkened(0.25))
+		for i in maxi(0, int(info["plates"]) - 2):
+			_box(plates_node, Vector3(body.x * 0.8, body.y * 0.25, body.z * 0.3), center + Vector3(0, body.y * (0.3 - i * 0.35), body.z * 0.6), stone.darkened(0.2))
+	# Núcleo: malha própria com brilho (não vai para o lote do resto do corpo)
+	core_node = Node3D.new()
+	core_node.name = "Core"
+	core_node.position = center + Vector3(0, body.y * 0.1, -body.z * 0.5)
+	_torso.add_child(core_node)
+	var gem := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = body.x * 0.16
+	sm.height = body.x * 0.32
+	gem.mesh = sm
+	_core_mat = StandardMaterial3D.new()
+	_core_mat.albedo_color = info["core"]
+	_core_mat.emission_enabled = true
+	_core_mat.emission = info["core"]
+	gem.material_override = _core_mat
+	core_node.add_child(gem)
+
+func _animate_golem(delta: float, speed: float, t: float) -> void:
+	var swing := clampf(speed / 4.0, 0.0, 1.0) * 0.45
+	_pose_now = move_toward(_pose_now, pose_amount if pose != &"" else 0.0, delta * 4.0)
+	var sit := _pose_now if pose == &"sit" else 0.0
+	for i in _legs.size():
+		_legs[i].rotation.x = sin(_phase + (0.0 if i == 0 else PI)) * swing - 1.2 * sit
+	for i in _arms.size():
+		var rest := -sin(_phase + (PI if i == 0 else 0.0)) * swing * 0.8
+		match pose:
+			&"head_low":
+				# Punho: puxa o braço direito para trás
+				rest += (0.9 if i == 1 else -0.2) * _pose_now
+			&"rear":
+				# Martelo: os dois braços sobem acima da cabeça
+				rest -= 2.7 * _pose_now
+			&"paw":
+				# Avanço de ombro: braços para a frente
+				rest -= 0.8 * _pose_now
+		_arms[i].rotation.x = rest
+	var leg: float = float(dna.info()["leg"]) * dna.size_factor()
+	_torso.rotation.x = -0.35 * _pose_now if pose == &"paw" else 0.0
+	_torso.position.y = -leg * 0.55 * sit + sin(t * 1.1) * 0.01
+	if _core_mat:
+		var pulse := core_glow * (0.85 + sin(t * 3.0) * 0.15)
+		_core_mat.emission_energy_multiplier = 0.4 + pulse * 5.0
+
+## Borda das asas que brilha (Planador do Eclipse): malha própria, por cima das asas
+func _eclipse_rim() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = CreatureDNA.ECLIPSE_GLOW
+	mat.emission_enabled = true
+	mat.emission = CreatureDNA.ECLIPSE_GLOW
+	mat.emission_energy_multiplier = 2.5
+	var info := dna.info()
+	var f := dna.size_factor()
+	var body: Vector3 = info["body"] * f
+	var span: float = float(info["wing"]) * f * 0.5
+	for i in _wings.size():
+		var side := -1.0 if i == 0 else 1.0
+		var rim := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.5
+		sm.height = 1.0
+		rim.mesh = sm
+		rim.material_override = mat
+		rim.scale = Vector3(span * 0.95, 0.03 * f, body.z * 0.12)
+		rim.position = Vector3(side * span * 0.55, 0.03, body.z * 0.3)
+		_wings[i].add_child(rim)
+
 ## Listras (gene P_) e pintas (mutação)
 func _pattern(body: Vector3, center: Vector3) -> void:
 	var dark := dna.coat_color().darkened(0.35)
@@ -330,6 +467,10 @@ func _ellipsoid(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> vo
 	sm.radial_segments = 12
 	sm.rings = 6
 	_append(parent, sm, "creature_sphere", Transform3D(Basis.IDENTITY.scaled(size), pos), color)
+
+func _box(parent: Node3D, size: Vector3, pos: Vector3, color: Color) -> void:
+	var bm := BoxMesh.new()
+	_append(parent, bm, "creature_box", Transform3D(Basis.IDENTITY.scaled(size), pos), color)
 
 func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, color: Color, rot: Basis = Basis.IDENTITY) -> void:
 	var cm := CapsuleMesh.new()
