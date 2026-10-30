@@ -4,13 +4,16 @@ extends Node
 const _FeatLedger = preload("res://scripts/data/feat_ledger.gd")
 const _ForgedItem = preload("res://scripts/data/forged_item.gd")
 const _HitEvent = preload("res://scripts/data/hit_event.gd")
+const _MilestoneDef = preload("res://scripts/data/milestone_def.gd")
+const _MilestoneTable = preload("res://scripts/data/milestone_table.gd")
 
-## Diário do Caçador (GDD-19 §3 a §5, B40 fases 1 e 2).
+## Diário do Caçador (GDD-19 §3 a §8, B40 fases 1 a 3).
 ## Escuta o EventBus (ADR-0003) e escreve no FeatLedger do dono: abates, assistências e
-## quedas, os ofícios (activity_done), as andanças e os recordes. Só quem tem autoridade
-## escreve (ADR-0002); o cliente só lê.
+## quedas, os ofícios (activity_done), as andanças, os recordes e os Marcos com as suas
+## recompensas sem poder. Só quem tem autoridade escreve (ADR-0002); o cliente só lê.
 
 signal page_written(page: Dictionary)
+signal milestone_reached(def: _MilestoneDef)
 
 ## Acertou o alvo nesse intervalo antes da queda dele e outro deu o golpe final: assistência
 const ASSIST_WINDOW: float = 15.0
@@ -18,6 +21,14 @@ const ASSIST_WINDOW: float = 15.0
 const PLACE_CELL: float = 128.0
 ## Pulo maior que isso num quadro é teleporte (renascer, apito), não andança
 const MAX_STEP: float = 30.0
+## Golpe forte: tira pelo menos esta fração da Vida máxima do dono (Marco de Lenda da Caça)
+const STRONG_HIT_FRACTION: float = 0.2
+## Anti-farm (GDD-19 §8): a mesma vítima só é abate digno de novo depois de 6 h reais
+const WORTHY_REPEAT_SECONDS: float = 6.0 * 3600.0
+## ...e precisa carregar pelo menos metade do valor do equipamento de quem abateu
+const WORTHY_GEAR_RATIO: float = 0.5
+## Teto de recursos que contam por lugar (célula) por dia de jogo
+const GATHER_DAILY_CAP: int = 200
 
 var ledger: _FeatLedger = _FeatLedger.new()
 
@@ -27,6 +38,8 @@ var _hits_dealt: Dictionary = {}
 var _other_hitters: Dictionary = {}
 ## Último golpe que o dono levou: {damage, damage_type, part, who, weapon}
 var _last_taken: Dictionary = {}
+## Quem deu golpe forte no dono nesta luta: id da instância -> true
+var _strong_from: Dictionary = {}
 ## Andanças: última posição e metros ainda não contados
 var _last_pos: Variant = null
 var _walk_m: float = 0.0
@@ -62,6 +75,9 @@ func _on_hit_resolved(hit: _HitEvent, final_damage: float, is_part_broken: bool)
 	if hit == null or hit.target == null or me == null or not _is_authority():
 		return
 	if hit.target == me:
+		var my_stats: StatsComponent = me.get_node_or_null("StatsComponent") as StatsComponent
+		if hit.attacker and my_stats and final_damage >= STRONG_HIT_FRACTION * my_stats.get_stat(&"max_health"):
+			_strong_from[hit.attacker.get_instance_id()] = true
 		_last_taken = {
 			"damage": final_damage,
 			"damage_type": String(DamageType.to_string_name(hit.damage_type)),
@@ -79,7 +95,7 @@ func _on_hit_resolved(hit: _HitEvent, final_damage: float, is_part_broken: bool)
 		entry["weapon"] = weapon_of(me)
 		if is_part_broken and not entry["parts"].has(String(hit.part_id)):
 			entry["parts"].append(String(hit.part_id))
-			if not is_player(hit.target):
+			if not is_player(hit.target) and not is_bred(hit.target):
 				ledger.add(&"caca", "partes_quebradas")
 	elif is_player(hit.attacker):
 		# Outro jogador acertou o alvo: se o dono der o golpe final, entra como ajuda na Página
@@ -98,6 +114,7 @@ func _on_entity_defeated(entity: Node, killer: Node) -> void:
 		if float(_last_taken.get("damage", 0.0)) > 0.0:
 			_write_fall(killer)
 		_last_taken = {}
+		_strong_from.clear()
 		return
 	var id := entity.get_instance_id()
 	var entry: Dictionary = _hits_dealt.get(id, {})
@@ -107,12 +124,15 @@ func _on_entity_defeated(entity: Node, killer: Node) -> void:
 	_hits_dealt.erase(id)
 	entry["helpers"] = _other_hitters.get(id, {})
 	_other_hitters.erase(id)
+	var flawless := not _strong_from.has(id)
+	_strong_from.erase(id)
 	if killer == me:
-		_write_kill(entity, entry, "abate")
+		_write_kill(entity, entry, "abate", flawless)
 	elif _now() - float(entry.get("t", -INF)) <= ASSIST_WINDOW:
 		_write_kill(entity, entry, "assistencia")
+	_check_milestones()
 
-func _write_kill(entity: Node, entry: Dictionary, kind: String) -> void:
+func _write_kill(entity: Node, entry: Dictionary, kind: String, flawless: bool = false) -> void:
 	var who := describe(entity)
 	var helpers: Array[String] = []
 	for h in entry.get("helpers", {}):
@@ -126,13 +146,31 @@ func _write_kill(entity: Node, entry: Dictionary, kind: String) -> void:
 	page["keep"] = who.get("boss", false)
 	var player_target: bool = who["kind"] == "jogador"
 	var chapter: StringName = &"sangue" if player_target else &"caca"
+	# Bicho de cercado ou montaria de alguém vira Página, mas não conta (GDD-19 §8)
+	if not player_target and is_bred(entity):
+		page["criado"] = true
+		_commit(page)
+		return
+	if player_target and kind == "abate":
+		page["digno"] = is_worthy_kill(entity)
+		ledger.recent_kills[who["name"]] = Time.get_unix_time_from_system()
+		if page["digno"]:
+			ledger.add(&"sangue", "abates_dignos")
+			var victim_diary := entity.get_node_or_null("DiaryComponent")
+			if victim_diary and victim_diary.has_lenda():
+				ledger.add(&"sangue", "lendas_abatidas")
 	if kind == "abate":
 		ledger.add(chapter, "abates")
 		ledger.add(&"capa", "abates")
 		if not player_target:
 			ledger.add(&"caca", "especie:" + who["name"])
+			if page["parts"].size() >= 2:
+				ledger.add(&"caca", "duas_partes")
 			if who.get("boss", false):
 				ledger.add(&"caca", "chefes")
+				if flawless:
+					ledger.add(&"caca", "chefes_ilesos")
+				engrave("Derrubou %s, dia %d" % [who["name"], page["day"]])
 			var stats: StatsComponent = entity.get_node_or_null("StatsComponent") as StatsComponent
 			if stats:
 				ledger.try_record(&"caca", "maior_caca", stats.get_stat(&"max_health"), _stamp(who["name"]))
@@ -159,11 +197,21 @@ func _write_fall(killer: Node) -> void:
 func _on_activity_done(actor: Node, activity: StringName, info: Dictionary) -> void:
 	if actor != get_parent() or not _is_authority():
 		return
+	_apply_activity(activity, info)
+	_check_milestones()
+
+func _apply_activity(activity: StringName, info: Dictionary) -> void:
 	var q := float(info.get("quality", 0))
 	match activity:
 		&"coleta":
-			ledger.add(&"coleta", "recursos", int(info.get("amount", 1)))
-			ledger.add(&"coleta", "material:" + str(info.get("material", "")), int(info.get("amount", 1)))
+			# Teto por lugar e por dia de jogo: ficar no mesmo canto não enche o Diário (GDD-19 §8)
+			var cell := _cell_of(get_parent())
+			var n := ledger.take_daily("coleta:" + cell, int(info.get("amount", 1)), GATHER_DAILY_CAP, int(_page("", null)["day"]))
+			if n <= 0:
+				return
+			ledger.add(&"coleta", "recursos", n)
+			ledger.add(&"coleta", "material:" + str(info.get("material", "")), n)
+			ledger.add(&"coleta", "lugar:" + cell, n)
 			ledger.try_record(&"coleta", "melhor_coleta", q, _stamp(str(info.get("material", ""))))
 		&"pesca":
 			ledger.add(&"coleta", "peixes")
@@ -231,10 +279,101 @@ func track_movement() -> void:
 	if _ride_m >= 1.0:
 		ledger.add(&"andancas", "metros_montado", floori(_ride_m))
 		_ride_m -= floorf(_ride_m)
-	var cell := "%d,%d" % [floori(pos.x / PLACE_CELL), floori(pos.z / PLACE_CELL)]
+	var cell := _cell_of(me)
 	if not ledger.places.has(cell):
 		ledger.places[cell] = int(_page("", null)["day"])
 		ledger.add(&"andancas", "lugares")
+		_check_milestones()
+
+func _cell_of(n: Node) -> String:
+	var pos: Vector3 = (n as Node3D).global_position if n is Node3D and n.is_inside_tree() else Vector3.ZERO
+	return "%d,%d" % [floori(pos.x / PLACE_CELL), floori(pos.z / PLACE_CELL)]
+
+# ---------------------------------------------------------------- Marcos (GDD-19 §6)
+
+## Confere a tabela inteira; é barato (poucas dezenas de linhas) e pega Marcos de qualquer capítulo
+func _check_milestones() -> void:
+	for def in _MilestoneTable.all():
+		if not ledger.has_milestone(def.id) and def.reached(ledger):
+			_grant(def)
+
+## Crava o Marco e dá as recompensas: título, carta, adorno, acesso no Quadro e, na Lenda, memória na arma
+func _grant(def: _MilestoneDef) -> void:
+	var day := int(_page("", null)["day"])
+	ledger.milestones[String(def.id)] = day
+	if def.title != "" and not ledger.titles.has(def.title):
+		ledger.titles.append(def.title)
+	if def.adorno != &"" and not ledger.adornos.has(String(def.adorno)):
+		ledger.adornos.append(String(def.adorno))
+	if def.board_access and not ledger.board_access.has(String(def.chapter)):
+		ledger.board_access.append(String(def.chapter))
+	var cards = get_parent().get("card_collection") if get_parent() else null
+	if def.card_id != &"" and cards:
+		cards.unlock_card(def.card_id)
+	if def.tier == _MilestoneDef.Tier.LENDA:
+		engrave("Marco de Lenda: %s, dia %d" % [def.title, day])
+	var page := _page("marco", get_parent())
+	page["who"] = {"kind": "marco", "name": def.title, "id": String(def.id), "tier": _MilestoneDef.TIER_NAMES[def.tier]}
+	page["keep"] = true
+	_commit(page)
+	milestone_reached.emit(def)
+
+func has_lenda() -> bool:
+	for id in ledger.milestones:
+		var def := _MilestoneTable.get_def(StringName(id))
+		if def and def.tier == _MilestoneDef.Tier.LENDA:
+			return true
+	return false
+
+## Contratos de Mestre do Quadro (B28) liberados por Marco de Trilha
+func has_board_access(chapter: StringName) -> bool:
+	return ledger.board_access.has(String(chapter))
+
+## Memória na arma (GDD-19 §5): só texto na peça da mão principal, nenhum poder
+func engrave(text: String) -> void:
+	var me := get_parent()
+	var inv = me.get("inventory") if me else null
+	if inv == null or not inv.has_method("equipped_in"):
+		return
+	var item: _ForgedItem = inv.equipped_in(_ForgedItem.Slot.MAIN_HAND)
+	if item == null:
+		return
+	var feats: Array = item.memory.get_or_add("feitos", [])
+	if not feats.has(text):
+		feats.append(text)
+
+# ---------------------------------------------------------------- anti-farm (GDD-19 §8)
+
+## Abate digno: vítima de outra guilda, não abatida por você nas últimas 6 h reais e com
+## equipamento de pelo menos metade do valor do seu
+func is_worthy_kill(victim: Node) -> bool:
+	var me := get_parent()
+	var my_guild = me.get("guild") if me else null
+	var their_guild = victim.get("guild")
+	if my_guild and their_guild and String(my_guild.guild_id) != "" and my_guild.guild_id == their_guild.guild_id:
+		return false
+	var last := float(ledger.recent_kills.get(describe(victim)["name"], -INF))
+	if Time.get_unix_time_from_system() - last < WORTHY_REPEAT_SECONDS:
+		return false
+	return gear_value(victim) >= WORTHY_GEAR_RATIO * gear_value(me)
+
+## Valor do equipamento: soma da qualidade das peças vestidas (o servidor decide; ADR-0002)
+static func gear_value(n: Node) -> float:
+	var inv = n.get("inventory") if n else null
+	if inv == null or not ("equipped_items" in inv):
+		return 0.0
+	var total := 0.0
+	for slot in inv.equipped_items:
+		var item = inv.equipped_items[slot]
+		if item:
+			total += float(item.quality)
+	return total
+
+## Montaria de alguém ou bicho nascido em cercado
+static func is_bred(n: Node) -> bool:
+	return n != null and (n.get("bond") != null or n.has_meta("criado"))
+
+# ---------------------------------------------------------------- utilidades
 
 ## Dia e lugar de um recorde
 func _stamp(label: String) -> Dictionary:

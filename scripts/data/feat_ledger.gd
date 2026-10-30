@@ -17,6 +17,18 @@ var pages: Array[Dictionary] = []
 var records: Dictionary = {}
 ## Lugares por onde andou (Andanças): "x,z" da célula -> dia da primeira visita
 var places: Dictionary = {}
+## Marcos cravados (GDD-19 §6): id -> dia
+var milestones: Dictionary = {}
+## Recompensas sem poder: títulos, adornos e capítulos com Contratos de Mestre no Quadro
+var titles: Array[String] = []
+var adornos: Array[String] = []
+var board_access: Array[String] = []
+## Título que aparece embaixo do nome ("" = nenhum)
+var active_title: String = ""
+## Anti-farm (GDD-19 §8): vítima -> hora real (Unix) do último abate dela
+var recent_kills: Dictionary = {}
+## Teto diário: {"day": dia de jogo, "counts": {chave -> int}}
+var daily: Dictionary = {"day": -1, "counts": {}}
 
 func add(chapter: StringName, key: String, amount: int = 1) -> void:
 	if not CHAPTERS.has(chapter):
@@ -27,6 +39,32 @@ func add(chapter: StringName, key: String, amount: int = 1) -> void:
 
 func count(chapter: StringName, key: String) -> int:
 	return int(counters.get(String(chapter), {}).get(key, 0))
+
+## Quantas chaves diferentes com o prefixo têm contagem (ex.: "receita:" = receitas diferentes)
+func distinct(chapter: StringName, prefix: String) -> int:
+	var n := 0
+	for key in counters.get(String(chapter), {}):
+		if String(key).begins_with(prefix) and int(counters[String(chapter)][key]) > 0:
+			n += 1
+	return n
+
+## Quanto ainda cabe no teto do dia para a chave; já conta o que entrou
+func take_daily(key: String, amount: int, cap: int, day: int) -> int:
+	if int(daily.get("day", -1)) != day:
+		daily = {"day": day, "counts": {}}
+	var used: int = int(daily["counts"].get(key, 0))
+	var allowed := clampi(cap - used, 0, amount)
+	daily["counts"][key] = used + allowed
+	return allowed
+
+func has_milestone(id: StringName) -> bool:
+	return milestones.has(String(id))
+
+func set_title(t: String) -> bool:
+	if t != "" and not titles.has(t):
+		return false
+	active_title = t
+	return true
 
 ## Guarda o recorde se bater o anterior; devolve true se bateu
 func try_record(chapter: StringName, key: String, value: float, entry: Dictionary = {}) -> bool:
@@ -64,7 +102,9 @@ func pages_of(kind: String) -> Array[Dictionary]:
 	return out
 
 func to_dict() -> Dictionary:
-	return {"counters": counters.duplicate(true), "pages": pages.duplicate(true), "records": records.duplicate(true), "places": places.duplicate()}
+	return {"counters": counters.duplicate(true), "pages": pages.duplicate(true), "records": records.duplicate(true), "places": places.duplicate(),
+		"milestones": milestones.duplicate(), "titles": titles.duplicate(), "adornos": adornos.duplicate(), "board_access": board_access.duplicate(),
+		"active_title": active_title, "recent_kills": recent_kills.duplicate(), "daily": daily.duplicate(true)}
 
 func from_dict(data: Dictionary) -> void:
 	counters = {}
@@ -78,6 +118,17 @@ func from_dict(data: Dictionary) -> void:
 	places = {}
 	for cell in data.get("places", {}):
 		places[String(cell)] = int(data["places"][cell])
+	milestones = {}
+	for id in data.get("milestones", {}):
+		milestones[String(id)] = int(data["milestones"][id])
+	titles.assign(Array(data.get("titles", [])).map(func(t): return String(t)))
+	adornos.assign(Array(data.get("adornos", [])).map(func(t): return String(t)))
+	board_access.assign(Array(data.get("board_access", [])).map(func(t): return String(t)))
+	active_title = String(data.get("active_title", ""))
+	recent_kills = {}
+	for v in data.get("recent_kills", {}):
+		recent_kills[String(v)] = float(data["recent_kills"][v])
+	daily = (data.get("daily", {"day": -1, "counts": {}}) as Dictionary).duplicate(true)
 	pages.clear()
 	for p in data.get("pages", []):
 		if p is Dictionary:
