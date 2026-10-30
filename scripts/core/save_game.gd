@@ -3,7 +3,7 @@ extends Node
 ## Salvamento do progresso do jogador (MVP) em user://savegame.json.
 # Guarda: nome, posição, hora e dia, aparência (DNA), materiais, peças forjadas e equipadas, maestrias, cartas, objetivos
 # construções (totens e peças), obras da vila com a Reputação, montarias e a natureza
-# (plantas, bichos, solo, clima e cheia do rio).
+# (plantas, bichos, solo, clima e cheia do rio), e o que foi pego nas ilhas voadoras.
 # O jogo é só online: o personagem entra pelo login (`enter_online_world`) e o estado dele
 # vive no ServerPersistence. Este arquivo local ainda é gravado a cada AUTOSAVE_SECONDS,
 # mas não é mais carregado ao entrar (o mundo do host ainda não persiste no servidor).
@@ -174,6 +174,10 @@ func collect(player: Node) -> Dictionary:
 		var costelaria := player.get_tree().get_first_node_in_group("costelaria")
 		if costelaria:
 			data["costelaria"] = costelaria.get_state()
+		# Ilhas voadoras: só o que foi pego (veios, baús, ninhos); o resto sai da seed e do relógio
+		var sky := player.get_tree().get_first_node_in_group("sky_islands")
+		if sky:
+			data["sky_islands"] = sky.get_state()
 		var eco := player.get_tree().get_first_node_in_group("ecosystem")
 		if eco:
 			data["mounts"] = eco.owned_state()
@@ -318,6 +322,10 @@ func apply_save(player: Node, data: Dictionary = {}) -> void:
 	var costelaria := player.get_tree().get_first_node_in_group("costelaria") if player.is_inside_tree() else null
 	if costelaria and data.has("costelaria"):
 		costelaria.apply_state(data["costelaria"])
+	# Ilhas voadoras (B39): depois do relógio, para a agenda já estar no dia salvo
+	var sky := player.get_tree().get_first_node_in_group("sky_islands") if player.is_inside_tree() else null
+	if sky and data.has("sky_islands"):
+		sky.apply_state(data["sky_islands"])
 	# Montarias capturadas (GDD-03 §9.3)
 	var eco := player.get_tree().get_first_node_in_group("ecosystem") if player.is_inside_tree() else null
 	if eco and data.has("mounts"):

@@ -10,6 +10,8 @@ enum Rarity { COMUM, INCOMUM, RARA, LENDARIA, MITICA }
 
 const NAMES: Array[String] = ["Ilhota", "Ilha de Musgo", "Ilha da Ventania", "Ilha-Ruína", "Arquipélago do Eclipse"]
 const RARITY_NAMES: Array[String] = ["Comum", "Incomum", "Rara", "Lendária", "Mítica"]
+## Artigo do nome (o Arquipélago é masculino)
+const ARTICLES: Array[String] = ["A", "A", "A", "A", "O"]
 
 ## Por raridade: quantas ao mesmo tempo, diâmetro (m), altura do chão da ilha acima do vale (m)
 ## e relevo do topo (m). As faixas de altura não se encostam: o topo mais alto de uma raridade
@@ -51,6 +53,9 @@ const ANNOUNCE_DAYS: float = 1.0 / 24.0
 ## Surgir e afundar levam 10 min de jogo e percorrem SINK_DEPTH metros
 const RISE_DAYS: float = 10.0 / 1440.0
 const SINK_DEPTH: float = 40.0
+## Antes de afundar, a ilha treme e racha por 1 h de jogo (~50 s reais com o dia de 20 min):
+## tempo de quem está em cima ir embora (GDD-18 §5)
+const WARN_DAYS: float = 1.0 / 24.0
 
 ## Dia de jogo corrido, com fração (0 sem sol no mundo)
 static func game_day() -> float:
@@ -61,7 +66,8 @@ static func game_day() -> float:
 
 ## Ilhas ativas no dia `day`: lista de dicionários com
 ## id, rarity, slot, epoch, center (x, topo, z), radius, depth, relief, shape_seed, current_angle,
-## phase (&"anunciada", &"surgindo", &"firme", &"afundando"), ends_at (dia) e solid.
+## phase (&"anunciada", &"surgindo", &"firme", &"afundando"), warning (treme antes de afundar),
+## sinks_at e ends_at (dias), solid e nest.
 static func islands_at(world_seed: int, day: float) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var commons := _commons(world_seed)
@@ -199,7 +205,7 @@ static func _base(world_seed: int, rarity: int, slot: int, epoch: int, rng: Rand
 		"relief": spec.relief,
 		"shape_seed": hash([world_seed, rarity, slot, epoch, "forma"]),
 		"current_angle": 0.0,
-		"phase": &"firme", "ends_at": INF, "solid": true, "nest": false,
+		"phase": &"firme", "ends_at": INF, "sinks_at": INF, "warning": false, "solid": true, "nest": false,
 	}
 
 ## Ponto do vale (x, z) longe da vila; `extra` é o que a ilha anda além do raio
@@ -241,6 +247,8 @@ static func _current_angle(isl: Dictionary, commons: Array) -> float:
 ## nuvens e, no fim, desce os mesmos metros e some. Quem estiver em cima cai junto.
 static func _apply_life(isl: Dictionary, day: float, start: float, end: float) -> void:
 	isl.ends_at = end
+	isl.sinks_at = end - RISE_DAYS
+	isl.warning = day >= isl.sinks_at - WARN_DAYS
 	if day < start + RISE_DAYS:
 		isl.phase = &"surgindo"
 		isl.center.y -= (1.0 - clampf((day - start) / RISE_DAYS, 0.0, 1.0)) * SINK_DEPTH

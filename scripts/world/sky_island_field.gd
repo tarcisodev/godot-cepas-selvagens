@@ -29,6 +29,8 @@ static var instance: SkyIslandField
 var islands: Dictionary = {}
 ## O que já foi pego em cada ilha, pela chave ilha@época (SkyIslandContent.capture_state)
 var content_state: Dictionary = {}
+## Avisos de afundamento já dados: "id do jogador|ilha|etapa" → true
+var _told: Dictionary = {}
 var _timer: float = 0.0
 
 func _enter_tree() -> void:
@@ -72,9 +74,67 @@ func refresh(at_day: float = -1.0) -> void:
 	for id in islands.keys():
 		if not seen.has(id):
 			_drop_state(islands[id])
+			for k in _told.keys():
+				if ("|%s|" % id) in k:
+					_told.erase(k)
 			islands[id].queue_free()
 			islands.erase(id)
 	_update_content()
+	_warn_players()
+
+# ---------------------------------------------------------------- save (GDD-18 §5)
+
+## Só o que muda vai para o save: forma, posição e hora saem da seed e do relógio
+func get_state() -> Dictionary:
+	for isl: SkyIsland in islands.values():
+		store_content(isl)
+	return {"content": content_state.duplicate(true)}
+
+func apply_state(d: Dictionary) -> void:
+	content_state = (d.get("content", {}) as Dictionary).duplicate(true)
+	# O que está no mundo agora nasceu sem o save: refaz com o estado salvo
+	for isl: SkyIsland in islands.values():
+		if isl.content:
+			isl.content.queue_free()
+			isl.content = null
+	refresh()
+	# Ilhas que já saíram do céu (a rara trocou de lugar enquanto o jogo estava fechado)
+	for k in content_state.keys():
+		var id := StringName(String(k).get_slice("@", 0))
+		if not islands.has(id):
+			content_state.erase(k)
+
+# ---------------------------------------------------------------- aviso de afundamento
+
+## Quem está em cima de uma ilha que vai afundar recebe o aviso uma vez por etapa: quando ela
+## começa a tremer (com o tempo que falta) e quando começa a descer
+func _warn_players() -> void:
+	for isl: SkyIsland in islands.values():
+		var stage := &"afundando" if isl.data.phase == &"afundando" else (&"tremendo" if isl.data.warning else &"")
+		if stage.is_empty():
+			continue
+		for p in get_tree().get_nodes_in_group("player"):
+			if not (p is Node3D) or not on_island(isl, (p as Node3D).global_position):
+				continue
+			var key := "%d|%s|%s" % [p.get_instance_id(), isl.data.id, stage]
+			if _told.has(key):
+				continue
+			_told[key] = true
+			if p.has_signal("posture_changed"):
+				p.posture_changed.emit(warning_text(isl, day()))
+
+## Texto do aviso para quem está na ilha
+static func warning_text(isl: SkyIsland, at_day: float) -> String:
+	var name := "%s %s" % [SkyIslandSchedule.ARTICLES[isl.rarity()], SkyIslandSchedule.NAMES[isl.rarity()]]
+	if isl.data.phase == &"afundando":
+		return "⚠️ %s está afundando! Saia agora ou caia junto." % name
+	var secs := maxf(0.0, (float(isl.data.sinks_at) - at_day) * DayNightCycle.seconds_per_day())
+	return "⚠️ %s está tremendo e rachando: afunda em ~%d s." % [name, roundi(secs)]
+
+## (x, y, z) está em cima da ilha (no topo ou até 6 m acima dele, a pé ou montado)?
+static func on_island(isl: SkyIsland, p: Vector3) -> bool:
+	var t := isl.top_at(p.x, p.z)
+	return t > -INF and p.y >= t - STEP_UP and p.y <= t + 6.0
 
 ## Cria o conteúdo das ilhas com gente perto, guarda e tira o das que ficaram sozinhas, e troca o
 ## das que viraram de época (a incomum se renova a cada 4 dias de jogo)
