@@ -149,7 +149,7 @@ static func _sort_key(s: Dictionary, mode: SortMode) -> float:
 			return -(data.color.h if data.color.s > 0.18 else 1.0 + data.color.v)
 
 static func stack_key(s: Dictionary) -> String:
-	return "%s|%d|%s" % [s.id, s.quality, ",".join(s.traits)]
+	return "%s|%d|%s|%s" % [s.id, s.quality, ",".join(s.traits), MaterialData.memory_text(s.get("memory", {}))]
 
 func refresh() -> void:
 	if _grid == null:
@@ -613,6 +613,9 @@ func _make_slot(s: Dictionary) -> Button:
 	btn.tooltip_text = "%s · %s · %d un. (%.1f kg)\n[Clique Esq.] Selecionar / Arrastar\n[Clique Dir.] Menu de ações · [Shift+Dir.] Jogar tudo no chão" % [
 		data.display_name, MaterialData.rarity_name(s.quality), s.amount, data.unit_weight * s.amount
 	]
+	var memory := MaterialData.memory_text(s.get("memory", {}))
+	if not memory.is_empty():
+		btn.tooltip_text = memory + "\n" + btn.tooltip_text
 	for st in ["normal", "pressed", "focus"]:
 		btn.add_theme_stylebox_override(st, _slot_box(accent, selected, false))
 	btn.add_theme_stylebox_override("hover", _slot_box(accent, selected, true))
@@ -744,6 +747,8 @@ func _show_detail(s: Dictionary) -> void:
 	_detail.add_child(_stat_row("Peso da pilha", "%.1f kg" % (data.unit_weight * s.amount)))
 	if not s.traits.is_empty():
 		_detail.add_child(_stat_row("Traits", ", ".join(s.traits.map(func(t): return MaterialData.trait_name(t)))))
+	if s.has("memory"):
+		_detail.add_child(_stat_row("Memória", MaterialData.memory_text(s.memory)))
 
 	# Pinhão-Lume: escolhe qual genoma a roda rápida planta com [G] (GDD-10 §9)
 	if data.tool_action == &"plantar" and player:

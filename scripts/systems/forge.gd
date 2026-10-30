@@ -22,7 +22,7 @@ const RECIPES: Dictionary = {
 		"name": "Elmo Chifre-de-Pedra", "slot": ForgedItem.Slot.HEAD, "family": &"ferro", "icon": "⛑️",
 		"core": [{"id": &"chifre_rinolito", "n": 1}],
 		"coat": [{"id": &"placa_carapaca", "n": 2, "family": &"ferro"}, {"id": &"barra_ferro", "n": 2, "family": &"ferro"}, {"id": &"couro_trotador", "n": 2, "family": &"couro"}],
-		"temper": [{"id": &"fibra", "n": 1, "trait": &"leve"}],
+		"temper": [{"id": &"fibra", "n": 1, "trait": &"leve"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"resist_slash": 0.10, &"resist_impact": 0.12, &"poise_resist": 0.15},
 		"load": 14.0,
 		# Parte de criatura no núcleo: o chifre de Rinolito dá a Investida no lugar do Brado
@@ -32,7 +32,7 @@ const RECIPES: Dictionary = {
 		"name": "Capuz de Penacho", "slot": ForgedItem.Slot.HEAD, "family": &"pano", "icon": "🧢",
 		"core": [{"id": &"pena_penacho", "n": 3}],
 		"coat": [{"id": &"fibra", "n": 4, "family": &"pano"}, {"id": &"pele_saltarelo", "n": 1, "family": &"couro"}],
-		"temper": [{"id": &"mel", "n": 1, "trait": &"doce_foco"}],
+		"temper": [{"id": &"mel", "n": 1, "trait": &"doce_foco"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"ether_regen": 1.5, &"dodge_cost": -1.0},
 		"load": 2.0,
 	},
@@ -41,7 +41,7 @@ const RECIPES: Dictionary = {
 		"name": "Gibão do Andarilho", "slot": ForgedItem.Slot.BODY, "family": &"couro", "icon": "🦺",
 		"core": [{"id": &"couro_trotador", "n": 3}, {"id": &"couro_lobo", "n": 3, "durability": 1.1}],
 		"coat": [{"id": &"tendao_elastico", "n": 1, "family": &"couro"}, {"id": &"fibra", "n": 4, "family": &"pano"}],
-		"temper": [{"id": &"erva", "n": 2, "trait": &"calma_fria"}],
+		"temper": [{"id": &"erva", "n": 2, "trait": &"calma_fria"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"resist_slash": 0.08, &"dodge_cost": -3.0},
 		"load": 5.0,
 	},
@@ -49,7 +49,7 @@ const RECIPES: Dictionary = {
 		"name": "Couraça de Galhada", "slot": ForgedItem.Slot.BODY, "family": &"couro", "icon": "🧥",
 		"core": [{"id": &"chifre_galhado", "n": 1}],
 		"coat": [{"id": &"couro_trotador", "n": 1, "family": &"couro"}, {"id": &"barra_ferro", "n": 2, "family": &"ferro"}],
-		"temper": [{"id": &"ossos", "n": 2, "trait": &"ossudo"}],
+		"temper": [{"id": &"ossos", "n": 2, "trait": &"ossudo"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"resist_impact": 0.10, &"poise_resist": 0.08},
 		"load": 7.0,
 	},
@@ -57,7 +57,7 @@ const RECIPES: Dictionary = {
 		"name": "Cota de Ferro", "slot": ForgedItem.Slot.BODY, "family": &"ferro", "icon": "🛡️",
 		"core": [{"id": &"barra_ferro", "n": 3}],
 		"coat": [{"id": &"placa_carapaca", "n": 2, "family": &"ferro"}, {"id": &"couro_trotador", "n": 2, "family": &"couro"}],
-		"temper": [{"id": &"ossos", "n": 2, "trait": &"ossudo"}],
+		"temper": [{"id": &"ossos", "n": 2, "trait": &"ossudo"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"resist_slash": 0.14, &"resist_impact": 0.08, &"resist_pierce": 0.06, &"poise_resist": 0.08},
 		"load": 18.0,
 	},
@@ -66,7 +66,7 @@ const RECIPES: Dictionary = {
 		"name": "Botas de Saltarelo", "slot": ForgedItem.Slot.FEET, "family": &"couro", "icon": "🥾",
 		"core": [{"id": &"pele_saltarelo", "n": 2}],
 		"coat": [{"id": &"fibra", "n": 3, "family": &"pano"}, {"id": &"couro_trotador", "n": 1, "family": &"couro"}, {"id": &"placa_carapaca", "n": 1, "family": &"ferro"}, {"id": &"barra_ferro", "n": 1, "family": &"ferro"}],
-		"temper": [{"id": &"fibra", "n": 1, "trait": &"leve"}, {"id": &"garra_tatu", "n": 1, "trait": &"cravado"}],
+		"temper": [{"id": &"fibra", "n": 1, "trait": &"leve"}, {"id": &"garra_tatu", "n": 1, "trait": &"cravado"}, {"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {&"resist_slash": 0.03, &"dodge_cost": -2.0},
 		"load": 3.0,
 	},
@@ -75,7 +75,7 @@ const RECIPES: Dictionary = {
 		"name": "Capa de Penas", "slot": ForgedItem.Slot.CAPE, "family": &"pano", "icon": "🪶",
 		"core": [{"id": &"pena_penacho", "n": 4}],
 		"coat": [{"id": &"fibra", "n": 2, "family": &"pano"}, {"id": &"tendao_elastico", "n": 1, "family": &"couro"}],
-		"temper": [],
+		"temper": [{"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {},
 		"load": 1.0,
 		"passive": &"queda_lenta",
@@ -84,7 +84,7 @@ const RECIPES: Dictionary = {
 		"name": "Capa de Couro", "slot": ForgedItem.Slot.CAPE, "family": &"couro", "icon": "🧣",
 		"core": [{"id": &"couro_trotador", "n": 2}, {"id": &"couro_lobo", "n": 2}],
 		"coat": [{"id": &"fibra", "n": 2, "family": &"pano"}, {"id": &"tendao_elastico", "n": 1, "family": &"couro"}],
-		"temper": [],
+		"temper": [{"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"mods": {},
 		"load": 1.5,
 		"passive": &"abrigo",
@@ -94,7 +94,7 @@ const RECIPES: Dictionary = {
 		"name": "Mochila", "slot": ForgedItem.Slot.BAG, "family": &"couro", "icon": "🎒",
 		"core": [{"id": &"couro_trotador", "n": 2}, {"id": &"couro_lobo", "n": 2}, {"id": &"fibra", "n": 6}],
 		"coat": [{"id": &"tendao_elastico", "n": 1, "family": &"couro"}, {"id": &"fibra", "n": 3, "family": &"pano"}],
-		"temper": [],
+		"temper": [{"id": &"lembranca", "n": 1, "trait": &"saudade"}],
 		"by_family": {&"couro": {&"carry_capacity": 40.0}, &"pano": {&"carry_capacity": 20.0}},
 		"load": 0.0,
 	},
@@ -149,6 +149,7 @@ const TRAIT_NAMES: Dictionary = {
 	&"integro": "Íntegro", &"cicatrizado": "Cicatrizado", &"iridescente": "Iridescente",
 	&"leve": "Leve (−10% peso)", &"calma_fria": "Calma Fria", &"doce_foco": "Doce Foco", &"ossudo": "Ossudo",
 	&"treino": "Treino", &"serrilhado": "Serrilhado (+6% dano)", &"cravado": "Cravado",
+	&"saudade": "Saudade (+5% resistências)",
 }
 const PASSIVE_NAMES: Dictionary = {
 	&"queda_lenta": "Queda lenta", &"abrigo": "Abrigo (+2 regen. de Vigor à noite ou na chuva)",
@@ -160,6 +161,8 @@ const TRAIT_BONUS: Dictionary = {
 	&"doce_foco": {&"ether_regen": 1.0},
 	&"ossudo": {&"resist_impact": 0.05},
 	&"cravado": {&"poise_resist": 0.06},
+	# Lembrança de uma montaria que morreu (GDD-16 §7): só sai daí
+	&"saudade": {&"resist_slash": 0.05, &"resist_impact": 0.05, &"resist_pierce": 0.05},
 }
 ## Arma com este trait bate mais (multiplica a força da arma)
 const WEAPON_TRAIT_POWER: Dictionary = {&"serrilhado": 1.06}
@@ -213,6 +216,11 @@ static func forge(inv: InventoryComponent, recipe_id: StringName, core: Dictiona
 	item.traits.assign(p.traits)
 	var other_family: bool = item.family != r.get("family", item.family)
 	item.display_name = r.name + (" de %s" % item.family_name() if other_family else "") + (" (Íntegro)" if item.traits.has(&"integro") else "")
+	# A Lembrança no tempero leva o nome da montaria para a peça
+	if not temper.is_empty() and temper.get("memory", {}) is Dictionary and not temper.get("memory", {}).is_empty():
+		item.memory = temper.memory.duplicate(true)
+		if item.memory.has("name"):
+			item.display_name += " · Saudade de %s" % item.memory.name
 	var dur := 100.0 * (1.15 if item.traits.has(&"integro") or item.traits.has(&"cicatrizado") else 1.0)
 	dur *= float(_option(r.core, core).get("durability", 1.0)) # couro de lobo dura mais
 	item.max_durability = dur

@@ -19,6 +19,9 @@ const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, Cr
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 ## Cuidar (escovar e tratar) só vale com a montaria perto do estábulo (GDD-16 §2)
 const CARE_RADIUS: float = 12.0
+## Ninhos de Planador (Prova do Ninho, GDD-16 §4): nos morros mais altos, longe uns dos outros
+const NEST_COUNT: int = 2
+const NEST_GAP: float = 60.0
 
 @export var landscape: Node3D
 @export var world_seed: int = 2026
@@ -79,6 +82,7 @@ func _ready() -> void:
 		_spawn_plants()
 		_spawn_fauna()
 	_build_stable()
+	_spawn_nests()
 
 # ---------------------------------------------------------------- flora
 
@@ -351,7 +355,27 @@ func _spawn_owned(d: CreatureDNA, slot: int) -> void:
 	m.owned = true
 	m.set_bond(bonds[slot])
 	m.care_requested.connect(_on_care_requested)
+	m.died.connect(_on_owned_died)
 	_owned_nodes.append(m)
+
+## Morte permanente (GDD-16 §7): sai do estábulo e do save; no corpo fica a Lembrança (3★, Saudade)
+func _on_owned_died(m: Mount) -> void:
+	var i := _owned_nodes.find(m)
+	if i < 0:
+		return
+	_owned_nodes.remove_at(i)
+	owned.remove_at(i)
+	bonds.remove_at(i)
+	if _care_mount == m:
+		_care_dialog.close()
+		_care_mount = null
+	var spot := m.global_position
+	spot.y = _ground(spot.x, spot.z) + 0.2
+	# A Lembrança guarda quem ela foi (nome, espécie, Elo e o dia em que morreu)
+	var memory := {"kind": "lembranca", "name": m.display_name, "species": m.dna.species_name(), "elo": floori(m.bond.elo), "day": today()}
+	DroppedLoot.spawn_for_stack(self, m.global_position + Vector3.UP, spot, {"id": &"lembranca", "quality": 3, "traits": [&"saudade"], "amount": 1, "memory": memory})
+	_tell(get_tree().get_first_node_in_group("player"), "💔 %s morreu. Ficou a Lembrança dela no chão." % m.display_name)
+	m.queue_free()
 
 static func today() -> int:
 	return MountBond.today()
@@ -380,6 +404,33 @@ func restore_owned(list: Array) -> void:
 			var bond: MountBond = MountBond.from_dict(e["bond"], d) if e.get("bond") is Dictionary else null
 			add_owned_mount(d, bond)
 
+## Ninhos no alto: os pontos mais altos do relevo, fora da vila, do rio e do estábulo
+func _spawn_nests() -> void:
+	if landscape == null or not landscape.has_method("get_height_at"):
+		return
+	var spots: Array = []
+	var half := WorldBounds.HALF * 0.9
+	var x := -half
+	while x <= half:
+		var z := -half
+		while z <= half:
+			if not CityHub.in_village(x, z, 20.0) and Vector2(x, z).distance_to(STABLE_POS) > 30.0 					and RiverSystem.get_distance_to_river(x, z) > RiverSystem.get_water_half_width(z) + 6.0:
+				spots.append(Vector3(x, _ground(x, z), z))
+			z += 8.0
+		x += 8.0
+	spots.sort_custom(func(a, b): return a.y > b.y)
+	var placed: Array[Vector3] = []
+	for spot in spots:
+		if placed.size() >= NEST_COUNT:
+			break
+		if placed.any(func(q): return Vector2(q.x, q.z).distance_to(Vector2(spot.x, spot.z)) < NEST_GAP):
+			continue
+		var nest := PlanadorNest.new()
+		nest.name = "NinhoPlanador%d" % placed.size()
+		nest.position = spot
+		add_child(nest)
+		placed.append(spot)
+
 # ---------------------------------------------------------------- Elo e Companheira (GDD-16)
 
 ## Passa a fome dos dias de jogo que correram
@@ -404,6 +455,59 @@ func set_companion(m: Mount) -> bool:
 			b.jealous()
 	m.bond.companion = true
 	return true
+
+## Apito de Osso ([H], GDD-16 §5): a Companheira ouve dentro do alcance da faixa e vem pelo mundo.
+## Caindo, é a pegada no ar (só a Companheira plena voadora; ver catch_check).
+## Devolve o motivo: &"ok", &"sem_apito", &"montado", &"sem_companheira", &"longe", &"a_caminho",
+## &"pegando" ou o motivo de catch_check
+func whistle(player: Player) -> StringName:
+	if player == null or player.inventory == null or player.inventory.get_material_count(&"apito_osso") <= 0:
+		_tell(player, "Você precisa de um Apito de Osso (faça no [Tab]: 3 Restos Ósseos + 1 Fibra)")
+		return &"sem_apito"
+	if player.mounted_on != null:
+		_tell(player, "🎶 Você já está montado")
+		return &"montado"
+	var m := companion_mount()
+	if m == null or m.kind == Mount.Kind.WATER:
+		_tell(player, "🎶 Nenhuma Companheira atende o apito (escolha uma no estábulo)")
+		return &"sem_companheira"
+	if player.is_skydiving or (not player.is_on_floor() and player.velocity.y < -3.0):
+		var why := catch_check(m, player)
+		if why == &"ok":
+			m.catch_falling(player)
+			_tell(player, "🪶 %s mergulhou atrás de você!" % m.display_name)
+		return why
+	if m.is_catching():
+		return &"pegando"
+	if m.is_coming():
+		_tell(player, "🎶 %s já está a caminho" % m.display_name)
+		return &"a_caminho"
+	var dist := Vector2(m.global_position.x, m.global_position.z).distance_to(Vector2(player.global_position.x, player.global_position.z))
+	if dist > m.bond.whistle_range():
+		_tell(player, "🎶 %s está longe demais para ouvir (%d m; alcance %d m)" % [m.display_name, roundi(dist), roundi(m.bond.whistle_range())])
+		return &"longe"
+	m.call_to(player)
+	_tell(player, "🎶 %s ouviu o apito e está vindo (%d m)" % [m.display_name, roundi(dist)])
+	return &"ok"
+
+## Pode pegar o dono em queda? Companheira plena (Elo 75), voadora, a até 60 m e com fôlego
+func catch_check(m: Mount, player: Player) -> StringName:
+	if m.is_catching():
+		return &"pegando"
+	if m.kind != Mount.Kind.AIR:
+		_tell(player, "🎶 %s não voa: não te pega no ar" % m.display_name)
+		return &"nao_voa"
+	if m.bond.band() < MountBond.BAND_MIN.size() - 1:
+		_tell(player, "🎶 Só a Companheira plena (Elo 75) te pega no ar")
+		return &"elo_baixo"
+	var dist := m.global_position.distance_to(player.global_position)
+	if dist > Mount.CATCH_RANGE:
+		_tell(player, "🎶 %s está longe demais para te pegar (%d m; máx. %d m)" % [m.display_name, roundi(dist), roundi(Mount.CATCH_RANGE)])
+		return &"longe"
+	if m.stamina < Mount.CATCH_STAMINA:
+		_tell(player, "🎶 %s está cansada demais para mergulhar" % m.display_name)
+		return &"cansada"
+	return &"ok"
 
 func _on_care_requested(m: Mount, player: Player) -> void:
 	_care_mount = m
