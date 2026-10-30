@@ -112,8 +112,11 @@ func _setup() -> void:
 	_cam.far = 800.0
 	_cam.current = true
 
-## Primeiro dia (a cada 0,01) em que há uma ilha da raridade naquela fase
+## Primeiro dia em que há uma ilha da raridade naquela fase (lendária e mítica: pela agenda)
 func _find_day(rarity: int, phase: StringName) -> float:
+	if rarity >= SkyIslandSchedule.Rarity.LENDARIA:
+		var w := SkyIslandSchedule.next_event(_field.world_seed, rarity, 0.0)
+		return (w.x + w.y) * 0.5 if phase == &"anunciada" else (w.y + w.z) * 0.5
 	var d := 0.0
 	while d < 30.0:
 		for isl in SkyIslandSchedule.islands_at(_field.world_seed, d):

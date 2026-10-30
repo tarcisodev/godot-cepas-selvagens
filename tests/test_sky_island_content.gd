@@ -50,13 +50,8 @@ func _visit(isl: SkyIsland) -> void:
 	await process_frame
 
 func _first_day(rarity: int) -> float:
-	var d := 0.0
-	while d < 30.0:
-		for isl in SkyIslandSchedule.islands_at(SEED, d):
-			if isl.rarity == rarity and isl.phase == &"firme":
-				return d
-		d += 0.01
-	return -1.0
+	var w := SkyIslandSchedule.next_event(SEED, rarity, 0.0)
+	return (w.y + w.z) * 0.5 if w != Vector3.INF else -1.0
 
 func test_materials() -> void:
 	print("\n[1/5] Minérios novos das ilhas...")

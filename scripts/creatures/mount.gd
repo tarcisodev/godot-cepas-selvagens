@@ -416,6 +416,8 @@ func _move_air(step: Vector3, delta: float, menus_open: bool) -> void:
 		elif Input.is_action_pressed("crouch"):
 			climb = -7.0
 	# Corrente de vento (GDD-18 §4): dentro dela o teto some e a voadora sobe sozinha
+	# Rajada da rara (GDD-18 §4): empurra de lado e tira da coluna quem não corrige no WASD
+	step += SkyIslandHazards.current_push(global_position) * delta
 	var lift := SkyIslandField.current_at(global_position + step)
 	if lift and climb == 0.0:
 		climb = SkyIslandField.CURRENT_LIFT

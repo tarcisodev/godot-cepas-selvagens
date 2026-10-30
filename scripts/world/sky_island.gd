@@ -25,6 +25,11 @@ var _beacon: Node3D
 var _label: Label3D
 var _debris: CPUParticles3D
 var _crumble: AudioStreamPlayer3D
+## Tempestade própria da Ilha-Ruína (nuvem escura e chuva)
+var _storm: Node3D
+## Folhas e som da rajada (rara)
+var _gust_leaves: CPUParticles3D
+var _gust_sound: AudioStreamPlayer3D
 ## Etapa do afundamento já mostrada (&"", &"tremendo", &"afundando")
 var _stage: StringName = &""
 
@@ -60,6 +65,8 @@ func setup(island: Dictionary) -> void:
 	_label.visibility_range_end = 70.0
 	_label.text = "%s · %s" % [SkyIslandSchedule.NAMES[rarity()], SkyIslandSchedule.RARITY_NAMES[rarity()]]
 	add_child(_label)
+	if rarity() == SkyIslandSchedule.Rarity.LENDARIA:
+		_build_storm()
 	apply(island)
 
 ## Novo estado da agenda (mesma ilha): posição, fase, sólida ou não
@@ -73,7 +80,7 @@ func apply(island: Dictionary) -> void:
 		if c is CollisionShape3D:
 			c.disabled = not solid
 	_label.visible = solid
-	_current.visible = solid
+	_current.visible = solid and SkyIslandHazards.current_on(island, SkyIslandHazards.now())
 	_current.position = current_offset()
 	_update_beacon(island.phase == &"anunciada")
 	_update_sinking(&"afundando" if island.phase == &"afundando" else (&"tremendo" if island.warning else &""))
@@ -150,7 +157,7 @@ func current_offset() -> Vector3:
 
 ## (x, y, z) está dentro da Corrente desta ilha?
 func in_current(p: Vector3) -> bool:
-	if not is_solid():
+	if not is_solid() or not SkyIslandHazards.current_on(data, SkyIslandHazards.now()):
 		return false
 	var c := global_position + current_offset()
 	return Vector2(p.x - c.x, p.z - c.z).length() <= SkyIslandField.CURRENT_RADIUS and p.y <= top_y() + SkyIslandField.CURRENT_OVERSHOOT
@@ -198,6 +205,80 @@ func _build_current() -> void:
 	wisps.mesh = quad
 	wisps.position.y = -h + 10.0
 	_current.add_child(wisps)
+
+## Rajada chegando (rara): som de vento e folhas varrendo o topo na direção dela, 1 s antes
+func telegraph_gust(dir: Vector3) -> void:
+	if _gust_leaves == null:
+		_gust_leaves = CPUParticles3D.new()
+		_gust_leaves.name = "FolhasDaRajada"
+		_gust_leaves.one_shot = true
+		_gust_leaves.amount = 70
+		_gust_leaves.lifetime = 2.0
+		_gust_leaves.explosiveness = 0.3
+		_gust_leaves.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		_gust_leaves.emission_box_extents = Vector3(shape.radius * 0.7, 0.8, shape.radius * 0.7)
+		_gust_leaves.spread = 12.0
+		_gust_leaves.gravity = Vector3(0, -1.0, 0)
+		_gust_leaves.initial_velocity_min = 10.0
+		_gust_leaves.initial_velocity_max = 16.0
+		var leaf := QuadMesh.new()
+		leaf.size = Vector2(0.25, 0.15)
+		var lmat := StandardMaterial3D.new()
+		lmat.albedo_color = SkyIslandShape.TOP_COLORS[rarity()].lightened(0.2)
+		lmat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		leaf.material = lmat
+		_gust_leaves.mesh = leaf
+		_gust_leaves.position.y = 1.5
+		add_child(_gust_leaves)
+		_gust_sound = AudioStreamPlayer3D.new()
+		_gust_sound.stream = SkyIslandHazards.wind_sound()
+		_gust_sound.unit_size = 30.0
+		_gust_sound.max_distance = 200.0
+		add_child(_gust_sound)
+	_gust_leaves.direction = dir
+	_gust_leaves.restart()
+	if is_inside_tree():
+		_gust_sound.play()
+
+## Nuvem escura e chuva acima da Ilha-Ruína: a tempestade dos raios (GDD-18 §8)
+func _build_storm() -> void:
+	_storm = Node3D.new()
+	_storm.name = "Tempestade"
+	var cloud := MeshInstance3D.new()
+	var sphere := SphereMesh.new()
+	sphere.radius = shape.radius * 1.1
+	sphere.height = 10.0
+	cloud.mesh = sphere
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(0.22, 0.24, 0.3, 0.8)
+	mat.roughness = 1.0
+	cloud.material_override = mat
+	cloud.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	cloud.position.y = 32.0
+	_storm.add_child(cloud)
+	var rain := CPUParticles3D.new()
+	rain.amount = 400
+	rain.lifetime = 1.6
+	rain.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	rain.emission_box_extents = Vector3(shape.radius, 0.5, shape.radius)
+	rain.direction = Vector3.DOWN
+	rain.spread = 3.0
+	rain.gravity = Vector3(0, -10, 0)
+	rain.initial_velocity_min = 18.0
+	rain.initial_velocity_max = 22.0
+	var drop := QuadMesh.new()
+	drop.size = Vector2(0.04, 0.7)
+	var dmat := StandardMaterial3D.new()
+	dmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	dmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dmat.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	dmat.albedo_color = Color(0.75, 0.8, 0.9, 0.4)
+	drop.material = dmat
+	rain.mesh = drop
+	rain.position.y = 28.0
+	_storm.add_child(rain)
+	body.add_child(_storm)
 
 ## Mítica anunciada (GDD-18 §7): coluna de luz no ponto onde ela vai subir
 func _update_beacon(on: bool) -> void:
