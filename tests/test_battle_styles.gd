@@ -212,7 +212,7 @@ func test_trainer_swaps_style() -> void:
 	root.add_child(trainer)
 	assert(trainer.is_in_group("talkable"), "Armeiro atende com [E]")
 	player.pools.take_damage(40.0)
-	trainer.talk_to(player)
+	trainer.serve(player)
 	assert(trainer.is_open and trainer.is_in_group("open_menus"), "Menu abre e trava o combate")
 	assert(is_equal_approx(player.pools.current_health, player.stats.get_stat(&"max_health")), "Conversar cura")
 	assert(trainer._list.get_child_count() == 4, "Quatro estilos no menu (incluindo Berrante de Caça)")

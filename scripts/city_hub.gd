@@ -7,6 +7,8 @@ extends Node3D
 ## Cais e Moinho, Colina da Capela e Horta), os portais, as lanternas que acendem à noite, as obras
 ## (TownProject), o Quadro de Obras e os NPCs. Guarda a Reputação da Vila e o estado das obras no save.
 
+const _NpcProfile = preload("res://scripts/npc/npc_profile.gd")
+const _NpcAction = preload("res://scripts/npc/npc_action.gd")
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
 const _VillageLayout = preload("res://scripts/town/village_layout.gd")
 const COBBLE_SHADER = preload("res://materials/village_cobble.gdshader")
@@ -826,14 +828,30 @@ func _build_board() -> void:
 # ---------------------------------------------------------------- NPCs
 
 func _spawn_city_npcs() -> void:
-	var builder := _npc("MestreConstrutor", "Mestre Construtor", "🔨", &"Idle_FoldArms", Vector2(3.4, 0.3), Vector2(0.0, 0.0), BUILDER_DNA, "[E] Quadro de Obras")
-	builder.talked.connect(open_board)
+	# Ficha do NPC (GDD-17 §8): o [E] abre o NPC em 3D com papel e ações; a Vila atende 24 h
+	var builder := _npc("MestreConstrutor", "Mestre Construtor", "🔨", &"Idle_FoldArms", Vector2(3.4, 0.3), Vector2(0.0, 0.0), BUILDER_DNA)
+	builder.profile = _NpcProfile.make(&"mestre_construtor", "Mestre Construtor", "Obras da Vila", "🔨", "Praça da Cepa-Mãe") \
+		.greet("sempre", "Cada tábua doada vira parede. Cada parede vira vila.") \
+		.add(_NpcAction.make(&"obras", _NpcAction.Kind.SERVICE, "Quadro de Obras e Contratos", open_board, "📋")) \
+		.topic("Como a vila cresce?", "Com doação. Você traz o material, a obra sobe por etapas e a vila te dá Reputação.") \
+		.topic("O que são os Contratos?", "Pedidos de material que pagam em Dólares de Sucata. Entregou, chega outro no lugar.")
 
-	var alchemist := _npc("Alquimista", "Alquimista Botânica", "⚗️", &"Idle_Talking", Vector2(-5.5, -1.5), Vector2(0.0, 2.0), ALCHEMIST_DNA, "[E] Loja de Poções")
-	alchemist.talked.connect(open_shop)
+	var alchemist := _npc("Alquimista", "Alquimista Botânica", "⚗️", &"Idle_Talking", Vector2(-5.5, -1.5), Vector2(0.0, 2.0), ALCHEMIST_DNA)
+	alchemist.profile = _NpcProfile.make(&"alquimista", "Alquimista Botânica", "Boticária", "⚗️", "Ateliê da Alquimista") \
+		.greet("manha", "Ervas colhidas com orvalho curam melhor. Quer alguma coisa?") \
+		.greet("tarde", "Poção fresca, saída do caldeirão agora mesmo.") \
+		.greet("noite", "De noite as ervas dormem, mas as poções não.") \
+		.add(_NpcAction.make(&"loja", _NpcAction.Kind.BUY, "Comprar poções e consumíveis", open_shop)) \
+		.topic("Por que você não compra de volta?", "Se eu comprasse tudo, dinheiro nasceria do nada. Para vender, use o Mercado.") \
+		.topic("Desconto?", "Quem ajuda a vila paga menos: 1% a cada 25 de Reputação, até 10%.")
 
-	var merchant := _npc("Mercadora", "Mercadora", "💰", &"Idle_Talking", Vector2(6.9, 16.3), Vector2(5.0, 12.0), null, "[E] Mercado: Encomendas e Vendas")
-	merchant.talked.connect(open_market)
+	var merchant := _npc("Mercadora", "Mercadora", "💰", &"Idle_Talking", Vector2(6.9, 16.3), Vector2(5.0, 12.0), null)
+	merchant.profile = _NpcProfile.make(&"mercadora", "Mercadora", "Mercado da Vila", "💰", "Feira") \
+		.greet("sempre", "A caravana passa às 8h e às 17h. Deixe sua ordem que eu cuido do resto.") \
+		.add(_NpcAction.make(&"mercado", _NpcAction.Kind.SELL, "Encomendas e vendas", open_market, "⚖️") \
+			.with_check(func(_p): return "" if market_open() else "As bancas ainda estão em obras (Quadro de Obras)")) \
+		.topic("Como funciona uma ordem?", "Você diz o material, a quantidade e o preço. Se a caravana aceitar, a ordem fecha e fica a receber aqui.") \
+		.topic("Quais são as taxas?", "2% para listar, perdidos se cancelar, e 4% sobre cada venda.")
 
 	# Mesa do Duelo de Cepas na varanda da Taverna (GDD-07 §7)
 	var cards := TavernTable.new()
@@ -852,15 +870,22 @@ func _spawn_city_npcs() -> void:
 	couturier_dna.shirt_color = Color("#c85a7c")
 	couturier_dna.cosmetic_hat = "coroa_flores"
 	couturier_dna.cosmetic_cape = "manto_rosa_real"
-	var couturier := _npc("EstilistaAstral", "Estilista Astral", "✨", &"Idle_Talking", Vector2(9.2, 13.4), Vector2(5.0, 12.0), couturier_dna, "[E] Loja de Cosméticos [F9]")
-	couturier.talked.connect(open_cosmetics_shop)
+	var couturier := _npc("EstilistaAstral", "Estilista Astral", "✨", &"Idle_Talking", Vector2(9.2, 13.4), Vector2(5.0, 12.0), couturier_dna)
+	couturier.profile = _NpcProfile.make(&"estilista_astral", "Estilista Astral", "Cosméticos", "✨", "Feira") \
+		.greet("sempre", "Coroa de flores, capa real, aura de estrela... o que combina com você hoje?") \
+		.add(_NpcAction.make(&"cosmeticos", _NpcAction.Kind.BUY, "Loja de Cosméticos [F9]", open_cosmetics_shop)) \
+		.topic("Cosmético muda alguma coisa na luta?", "Nada. É só estilo; a força vem do equipamento e do uso.")
 
 	# Guardião do Mural: Feedback dos Jogadores & Guia de Exploração, sob a Cepa-Mãe
 	var chronicler_dna := CharacterDNA.randomized(888)
 	chronicler_dna.cosmetic_hat = "chapeu_cacador"
 	chronicler_dna.cosmetic_cape = "manto_andarilho"
-	var chronicler := _npc("CronistaDoMural", "Mural de Feedback & Guia", "📜", &"Idle_FoldArms", Vector2(-6.6, 6.4), Vector2(0.0, 6.0), chronicler_dna, "[E] Deixar Feedback [F8] / Guia [J]")
-	chronicler.talked.connect(open_feedback_modal)
+	var chronicler := _npc("CronistaDoMural", "Cronista do Mural", "📜", &"Idle_FoldArms", Vector2(-6.6, 6.4), Vector2(0.0, 6.0), chronicler_dna)
+	chronicler.profile = _NpcProfile.make(&"cronista_mural", "Cronista do Mural", "Feedback e Guia", "📜", "Praça da Cepa-Mãe") \
+		.greet("sempre", "Tudo o que acontece no vale acaba escrito neste mural.") \
+		.add(_NpcAction.make(&"feedback", _NpcAction.Kind.SERVICE, "Deixar feedback [F8]", open_feedback_modal, "✍️")) \
+		.add(_NpcAction.make(&"guia", _NpcAction.Kind.LEARN, "Guia do Explorador [J]", open_explorer_guide)) \
+		.topic("Onde fica a Costelária?", "A oeste, depois da Arena da Paliçada. Siga a estrada do portão oeste até ver as costelas do Colosso no horizonte.")
 	_prop(FANTASY + "BookStand", Vector2(-7.4, 5.6), 60.0, 1.0)
 
 	# Moradores: não abrem tela, só contam alguma coisa da vila
@@ -878,10 +903,20 @@ func _spawn_city_npcs() -> void:
 		["Sentinela", "Guarda Tião", "🛡️", &"Idle_FoldArms", Vector2(2.4, -8.6), Vector2(-1.0, -14.0), 606,
 			"Do portão norte se ouve a Besta de Sucata rangendo no morro. Vá preparado — ou vá rápido."],
 	]
+	const FOLK_TITLES := {"Pescador": "Pescador", "Moleira": "Moleira", "Taverneiro": "Taverneiro", "Hortela": "Horteloa", "Contadora": "Contadora de Histórias", "Sentinela": "Guarda do Portão Norte"}
 	for f in folk:
-		var npc := _npc(f[0], f[1], f[2], f[3], f[4], f[5], CharacterDNA.randomized(f[6]), "[E] Conversar", f[7], f[0] != "Pescador")
+		var npc := _npc(f[0], f[1], f[2], f[3], f[4], f[5], CharacterDNA.randomized(f[6]), "", f[7], f[0] != "Pescador")
+		npc.profile = _NpcProfile.make(StringName(f[0].to_lower()), f[1], FOLK_TITLES.get(f[0], "Morador"), f[2], "Vila da Esperança") \
+			.topic("O que tem de novo?", f[7])
 		if not npc.snap_to_ground:
 			npc.position.y = get_node("CaisDoRio").position.y + 0.05
+
+func open_explorer_guide(_player: Node) -> void:
+	if not is_inside_tree() or get_tree().current_scene == null:
+		return
+	var guide := get_tree().current_scene.find_child("ExplorerGuide", true, false)
+	if guide and guide.has_method("open_guide"):
+		guide.open_guide()
 
 ## NPC da vila virado para `face` (ponto x, z); prompt e assentamento valem no _ready do TownNPC
 func _npc(node_name: String, display: String, icon: String, anim: StringName, pos: Vector2, face: Vector2, dna: CharacterDNA = null, prompt: String = "", line: String = "", snap: bool = true) -> TownNPC:

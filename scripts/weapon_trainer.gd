@@ -2,6 +2,9 @@ class_name WeaponTrainer
 extends Node3D
 
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const _NpcProfile = preload("res://scripts/npc/npc_profile.gd")
+const _NpcAction = preload("res://scripts/npc/npc_action.gd")
+const _NpcDialog = preload("res://scripts/ui/npc_dialog.gd")
 
 ## Mestre de Armas do acampamento (B10, GDD-12 §7): [E] abre o menu e dá, de graça, as armas
 ## de treino (Q1) do estilo escolhido, já equipadas. As armas de verdade saem da bigorna.
@@ -18,6 +21,8 @@ var _panel: PanelContainer
 var _list: VBoxContainer
 var _info: Label
 var is_open: bool = false
+## Ficha do NPC (GDD-17 §8): o [E] abre a Ficha; "Armas de treino" abre o menu de estilos
+var profile: _NpcProfile
 
 func _ready() -> void:
 	add_to_group("talkable")
@@ -27,6 +32,11 @@ func _ready() -> void:
 	prompt_label = _WorldLabel.replace($PromptLabel, _WorldLabel.Kind.PROMPT)
 	_snap_to_ground.call_deferred()
 	_build_menu()
+	profile = _NpcProfile.make(&"mestre_de_armas", "Mestre de Armas", "Treinador de Combate", "⚔️", "Pátio de Armas") \
+		.greet("sempre", "Pegue uma arma de treino e vá bater nos bonecos. Na Costelária tem mestre para cada lâmina.") \
+		.add(_NpcAction.make(&"estilos", _NpcAction.Kind.TRAIN, "Armas de treino (cura e repõe)", serve, "🗡️")) \
+		.topic("Onde consigo arma de verdade?", "Na bigorna. Arma boa se forja com o material da caça; aqui é só treino.") \
+		.topic("Como fico mais forte?", "Usando. Cada golpe que acerta ensina a arma que você segura. Não existe atalho.")
 
 func _snap_to_ground() -> void:
 	var landscape := get_tree().current_scene.get_node_or_null("Landscape") if get_tree().current_scene else null
@@ -43,6 +53,10 @@ func _process(_delta: float) -> void:
 
 ## Chamado pelo player ao apertar [E] perto do NPC.
 func talk_to(player: Player) -> void:
+	_NpcDialog.open_for(self, player)
+
+## Atende de fato: cura, repõe os recursos e abre o menu de estilos
+func serve(player: Player) -> void:
 	_player = player
 	if player.pools:
 		player.pools.reset_all()
