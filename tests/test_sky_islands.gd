@@ -44,6 +44,7 @@ func test_schedule() -> void:
 		assert(a[i].id == b[i].id and a[i].center.is_equal_approx(b[i].center), "Mesma ilha no mesmo lugar: %s" % a[i].id)
 	var other := SkyIslandSchedule.islands_at(SEED + 1, 1.3)
 	assert(not other[0].center.is_equal_approx(a[0].center), "Outra seed, outro céu")
+	assert(_by_rarity(a, R.COMUM).filter(func(i): return i.nest).size() == SkyIslandSchedule.NEST_COMMONS, "Ilhotas com ninho")
 	assert(_by_rarity(a, R.COMUM).size() == 6 and _by_rarity(a, R.INCOMUM).size() == 3 and _by_rarity(a, R.RARA).size() == 2, "6 comuns, 3 incomuns, 2 raras")
 	# Alturas e tamanhos pela raridade; nada dentro da vila
 	for isl in a:

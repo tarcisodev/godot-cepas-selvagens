@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Prints de revisão do B39 (GDD-18): o céu de ilhas visto do vale, uma Ilhota com a Corrente de
-## vento, a Ilha-Ruína de perto e a coluna de luz da mítica anunciada.
+## vento, cada raridade de perto com o seu conteúdo (fase 3) e a coluna de luz da mítica anunciada.
 # Uso: godot --path . -s res://tools/sky_island_shots.gd -- <pasta_saida>
 
 const WORLD_SCENE := "res://scenes/world.tscn"
@@ -46,23 +46,57 @@ func _process(_delta: float) -> bool:
 			_next(60)
 		2:
 			_shot("2_ilhota_e_corrente")
-			var isl := _first(SkyIslandSchedule.Rarity.LENDARIA)
-			if isl:
-				_cam.global_position = isl.global_position + Vector3(isl.shape.radius * 1.4, 18, isl.shape.radius * 0.6)
-				_cam.look_at(isl.global_position)
-			_next(60)
+			_close_up(_nest_island(), 1.1, 9.0)
 		3:
-			_shot("3_ilha_ruina")
+			_shot("3_ilhota_com_ninho")
+			_close_up(_first(SkyIslandSchedule.Rarity.INCOMUM), 1.0, 12.0)
+		4:
+			_shot("4_ilha_de_musgo")
+			_close_up(_first(SkyIslandSchedule.Rarity.RARA), 0.9, 14.0)
+		5:
+			_shot("5_ilha_da_ventania")
+			_close_up(_first(SkyIslandSchedule.Rarity.LENDARIA), 0.8, 16.0)
+		6:
+			_shot("6_ilha_ruina")
+			_set_day(_find_day(SkyIslandSchedule.Rarity.MITICA, &"firme"))
+			_close_up(_first(SkyIslandSchedule.Rarity.MITICA), 0.7, 18.0)
+		7:
+			_shot("7_arquipelago_do_eclipse")
 			_set_day(_find_day(SkyIslandSchedule.Rarity.MITICA, &"anunciada"))
+			_put_player(null)
 			_cam.global_position = Vector3(0, 15, 100)
 			var myth := _first(SkyIslandSchedule.Rarity.MITICA)
 			if myth:
 				_cam.look_at(Vector3(myth.global_position.x, 60, myth.global_position.z))
 			_next(60)
-		4:
-			_shot("4_mitica_anunciada")
+		8:
+			_shot("8_mitica_anunciada")
 			quit(0)
 	return false
+
+## Jogador em cima da ilha (para o conteúdo nascer) e câmera olhando o topo de lado e do alto
+func _close_up(isl: SkyIsland, dist: float, height: float) -> void:
+	if isl == null:
+		_next(1)
+		return
+	_put_player(isl)
+	var r := isl.shape.radius
+	_cam.global_position = isl.global_position + Vector3(r * dist, height, r * dist * 0.5)
+	_cam.look_at(isl.global_position + Vector3(0, 0.5, 0))
+	_next(90)
+
+func _put_player(isl: SkyIsland) -> void:
+	if _player == null:
+		return
+	_player.global_position = isl.global_position + Vector3(isl.shape.radius * 0.5, 1.0, 0) if isl else Vector3(0, 2, 0)
+	_player.velocity = Vector3.ZERO
+	_field.refresh()
+
+func _nest_island() -> SkyIsland:
+	for isl in _field.list():
+		if isl.data.get("nest", false):
+			return isl
+	return _first(SkyIslandSchedule.Rarity.COMUM)
 
 func _setup() -> void:
 	var sun := current_scene.get_node_or_null("Sun")

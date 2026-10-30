@@ -242,6 +242,10 @@ func test_boss() -> void:
 	assert(is_equal_approx(boss.pools.current_health, 900.0) and is_equal_approx(boss.pools.current_poise, 220.0), "Vida 900, Postura 220")
 	assert(boss.body.horn_node != null and boss.body.plates_node != null, "Corpo com chifre e placas")
 	assert(boss.find_children("*", "Label3D", false, false).all(func(l): return l.text != "!"), "Sem aviso na tela")
+	# Quem está numa ilha voadora bem acima da clareira não é alvo (B39)
+	p.global_position = boss.global_position + Vector3(0, 130.0, -3.0)
+	boss._physics_process(0.3)
+	assert(boss.state == BeastFighter.State.IDLE and not boss.boss_bar_info().engaged, "Jogador 130 m acima não puxa o boss")
 	# Persegue quem entra na clareira
 	p.global_position = boss.global_position + Vector3(0, 0, -3.0)
 	boss._physics_process(0.016)

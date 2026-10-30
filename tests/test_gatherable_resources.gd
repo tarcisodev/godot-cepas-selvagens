@@ -35,7 +35,9 @@ func test_all_ten_resource_types_config() -> void:
 		&"madeira", &"galho", &"folha", &"fibra", &"pedra",
 		&"frutinha", &"besouro", &"ossos", &"erva", &"mel",
 		# Veios de minério (GDD-12 §8)
-		&"minerio_ferro", &"quartzo_lume"
+		&"minerio_ferro", &"quartzo_lume",
+		# Veios das ilhas voadoras (GDD-18 §9)
+		&"cristal_vento", &"ferro_celeste", &"ambar_estelar"
 	]
 	
 	for i in range(GatherableClass.Type.size()):

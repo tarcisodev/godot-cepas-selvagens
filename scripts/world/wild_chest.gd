@@ -20,6 +20,14 @@ signal chest_opened(chest: WildChest, player: Node, rewards: Dictionary)
 @export var chest_id: StringName = &"wild_chest_1"
 @export var reward_money: int = 35
 @export var guaranteed_card_id: StringName = &"trenchcoat_mushrooms"
+## Nome no aviso ao abrir (as ilhas voadoras têm baús próprios, GDD-18 §9)
+@export var chest_title: String = "Baú do Ermo"
+## Material raro que vem junto (quantidade e qualidade)
+@export var reward_material: StringName = &"oleo_peixe"
+@export var reward_material_qty: int = 2
+@export var reward_material_quality: int = 3
+## Assenta no terreno do vale ao nascer; desligado nas ilhas voadoras
+@export var snap_to_ground: bool = true
 
 var is_opened: bool = false
 var _lid: Node3D
@@ -30,7 +38,8 @@ func _ready() -> void:
 	add_to_group("talkable")
 	add_to_group("wild_chests")
 	_build_visuals()
-	_snap_to_ground.call_deferred()
+	if snap_to_ground:
+		_snap_to_ground.call_deferred()
 
 func _snap_to_ground() -> void:
 	var landscape := get_tree().current_scene.get_node_or_null("Landscape") if (is_inside_tree() and get_tree().current_scene) else null
@@ -94,7 +103,7 @@ func _build_visuals() -> void:
 
 	# Prompt flutuante
 	_prompt = Label3D.new()
-	_prompt.text = "📦 [E] Abrir Baú do Ermo"
+	_prompt.text = "📦 [E] Abrir %s" % chest_title
 	_prompt.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_prompt.font_size = 14
 	_prompt.outline_size = 4
@@ -112,7 +121,7 @@ func _process(_delta: float) -> void:
 func talk_to(player: Node) -> void:
 	if is_opened:
 		if player and player.has_signal("posture_changed"):
-			player.posture_changed.emit("📦 Baú do Ermo: Este baú já foi saqueado.")
+			player.posture_changed.emit("📦 %s: Este baú já foi saqueado." % chest_title)
 		return
 	
 	open_chest(player)
@@ -139,8 +148,8 @@ func open_chest(player: Node) -> Dictionary:
 	var rewards := {
 		"gear": null,
 		"money": reward_money,
-		"material": &"oleo_peixe",
-		"material_qty": 2,
+		"material": reward_material,
+		"material_qty": reward_material_qty,
 		"card_unlocked": false
 	}
 
@@ -168,7 +177,7 @@ func open_chest(player: Node) -> Dictionary:
 
 	# 3. Materiais raros de caça
 	if inv:
-		inv.add_material(rewards.material, rewards.material_qty, 3, [&"puro"])
+		inv.add_material(rewards.material, rewards.material_qty, reward_material_quality, [&"puro"])
 
 	# 4. Carta Colecionável 3D (GDD-07)
 	if card_col and not guaranteed_card_id.is_empty():
@@ -177,7 +186,7 @@ func open_chest(player: Node) -> Dictionary:
 	# Feedback ao jogador
 	if player and player.has_signal("posture_changed"):
 		var gear_name: String = gear.display_name if gear else "Equipamento"
-		player.posture_changed.emit("✨ Baú do Ermo aberto! Encontrado: %s + %d $S!" % [gear_name, reward_money])
+		player.posture_changed.emit("✨ %s aberto! Encontrado: %s + %d $S!" % [chest_title, gear_name, reward_money])
 
 	chest_opened.emit(self, player, rewards)
 	return rewards
