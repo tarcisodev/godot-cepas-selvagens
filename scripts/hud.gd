@@ -2,6 +2,8 @@ extends CanvasLayer
 class_name WorldHUD
 
 const _CustomCursor = preload("res://scripts/ui/custom_cursor.gd")
+const _DiaryScreen = preload("res://scripts/ui/diary_screen.gd")
+const _MilestoneDefNames = preload("res://scripts/data/milestone_def.gd")
 
 @export var day_night: Node3D
 @export var player: CharacterBody3D
@@ -25,6 +27,7 @@ const ACTION_SHORTCUTS: Array[Dictionary] = [
 	{"id": &"inventory", "key": "(I)", "tooltip": "[I] Mochila", "hover": "🎒 Mochila & Equipamentos (I)", "color": Color(0.88, 0.66, 0.42)},
 	{"id": &"build", "key": "(B)", "tooltip": "[B] Construir", "hover": "🏗️ Modo Construção (B)", "color": Color(0.92, 0.56, 0.34)},
 	{"id": &"cards", "key": "(K)", "tooltip": "[K] Cartas", "hover": "🃏 Álbum de Cartas (K)", "color": Color(0.76, 0.58, 0.96)},
+	{"id": &"diary", "key": "(L)", "tooltip": "[L] Diário", "hover": "📖 Diário do Caçador (L)", "color": Color(0.86, 0.62, 0.38)},
 	{"id": &"guide", "key": "(J)", "tooltip": "[J] Guia", "hover": "🧭 Guia & Tutorial (J)", "color": Color(0.46, 0.82, 0.96)},
 	{"id": &"cosmetics", "key": "(F9)", "tooltip": "[F9] Cosméticos", "hover": "✨ Cosméticos (F9)", "color": Color(0.98, 0.64, 0.84)},
 	{"id": &"feedback", "key": "(F8)", "tooltip": "[F8] Feedback", "hover": "💬 Mural de Feedback (F8)", "color": Color(0.64, 0.92, 0.54)},
@@ -63,6 +66,7 @@ func _ready() -> void:
 		player.posture_changed.connect(_on_posture_changed)
 	if player and player.has_signal("aim_changed"):
 		player.aim_changed.connect(_on_aim_changed)
+	_setup_diary.call_deferred()
 
 	if player and "pools" in player and player.pools != null:
 		player.pools.health_changed.connect(_on_health_changed)
@@ -469,6 +473,14 @@ func _trigger_shortcut(action_id: StringName) -> void:
 				elif album.has_method("open_album"):
 					_close_other_hud_menus(album)
 					album.open_album()
+		&"diary":
+			var ds := get_node_or_null("DiaryScreen")
+			if ds:
+				if ds.visible:
+					ds.close()
+				else:
+					_close_other_hud_menus(ds)
+					ds.open()
 		&"guide":
 			var g := get_node_or_null("ExplorerGuide")
 			if g:
@@ -580,6 +592,16 @@ static func _draw_glyph(img: Image, icon_id: StringName, fg: Color) -> void:
 				for x: int in range(11, 17):
 					if absi(x - 13) + absi(y - 12) <= 2:
 						img.set_pixel(x, y, fg)
+		&"diary":
+			# Livro aberto: duas folhas com a lombada no meio
+			for y: int in range(7, 19):
+				for x: int in range(6, 22):
+					if x == 6 or x == 21 or x == 14 or y == 18 or (y == 7 and x != 14):
+						img.set_pixel(x, y, fg)
+			for y: int in [10, 13, 16]:
+				for x: int in range(8, 13):
+					img.set_pixel(x, y, fg.darkened(0.2))
+					img.set_pixel(x + 8, y, fg.darkened(0.2))
 		&"guide":
 			for y: int in range(5, 21):
 				for x: int in range(6, 22):
@@ -866,6 +888,19 @@ func _set_tips_visible(show: bool) -> void:
 func _on_camera_mode_changed(is_first_person: bool) -> void:
 	current_view = "👁 1ªP" if is_first_person else "🌄 3ªP"
 	_update_hud_status()
+
+## Diário do Caçador (GDD-19): a tela [L] e os avisos de Marco e de mostra recebida
+func _setup_diary() -> void:
+	if not is_inside_tree() or get_node_or_null("DiaryScreen"):
+		return
+	var ds := _DiaryScreen.new()
+	ds.name = "DiaryScreen"
+	ds.player = player
+	add_child(ds)
+	var diary := player.get_node_or_null("DiaryComponent") if player else null
+	if diary:
+		diary.milestone_reached.connect(func(def): _on_posture_changed("🏅 Marco de %s: %s" % [_MilestoneDefNames.TIER_NAMES[def.tier], def.title]))
+		diary.showcase_received.connect(func(s): _on_posture_changed("🤝 " + _DiaryScreen.showcase_text(s)))
 
 func _on_posture_changed(posture: String) -> void:
 	current_posture = posture

@@ -29,7 +29,7 @@ Implementar o [[03-Projects/Cepa-Selvagem/notas/GDD-19-Diario-do-cacador|GDD-19]
 1. **Contadores e Páginas:** `FeatLedger` (dados) e `DiaryComponent` no jogador escutando o EventBus (`hit_resolved` + `entity_defeated`), abate/assistência/queda, ajuda na Página, 50 Páginas (chefes para sempre), save `"diary"` local e do servidor. ✅ 2026-10-30, Issue #28.
 2. **Capítulos restantes:** `EventBus.activity_done` (atalho `EventBusAutoload.report`) emitido na coleta, pesca, forja, fundição, cozinha (caldeirão e espeto), captura, crias, Elo ao montar, Companheira perdida (Página "perda", para sempre), mercado (venda e compra), Mercado Negro, missões e caravanas; Andanças por metros a pé e montado e lugares (células de 128 m); recordes (maior caça, melhor coleta/peixe/peça/prato, maior geração, maior Elo, maior venda). ✅ 2026-10-30.
 3. **Marcos:** `MilestoneDef` + `MilestoneTable` (24 Marcos, uma linha cada), conferidos a cada feito; títulos (`set_title`), cartas, adornos, Contrato de Mestre no Quadro (última vaga, dobro do pedido, 2,5× a paga, exige o Marco de Trilha do capítulo), memória na arma (chefe e Lenda, em `memory["feitos"]`); anti-farm: abate digno (outra guilda, 6 h reais, equipamento ≥ metade), bicho de cercado/montaria não conta, teto de 200 recursos por lugar por dia de jogo. ✅ 2026-10-30.
-4. **Tela do Diário [L]:** capa, capítulos, Páginas, Marcos, mostrar para outro jogador.
+4. **Tela do Diário [L]:** `DiaryScreen` criada pelo HUD (atalho na barra e ícone de livro): capa (tempo jogado, totais, Marcos por grau, escolher título, adornos, Contratos de Mestre), um separador por capítulo (feitos, recordes, maestria só para ver, Marcos com barra), Páginas com filtro, todos os Marcos e Mostras recebidas; "Mostrar a" quem está a 10 m (título, capítulo ou Página escolhida). Online: `NetworkManager` repassa a mostra pelo servidor, que carimba o remetente; `push_diary`/`rpc_receive_diary` mandam a cópia ao dono (o cliente já recebe o Diário salvo ao entrar no mundo). Avisos no HUD de Marco e de mostra. ✅ 2026-10-30.
 5. **Livro do Totem e Placar das Guildas:** `GuildLedger` por membro e semana, Feitos da Guilda, placar no Quadro da Vila.
 
 ## Critérios de pronto
@@ -37,11 +37,12 @@ Implementar o [[03-Projects/Cepa-Selvagem/notas/GDD-19-Diario-do-cacador|GDD-19]
 - [x] Fase 1 (contadores e Páginas) — `tests/test_hunter_diary.gd`.
 - [x] Fase 2 (ofícios, andanças e recordes) — mesmo teste, casos 7 a 9.
 - [x] Fase 3 (Marcos, recompensas, memória na arma, anti-farm) — `tests/test_hunter_diary_milestones.gd`.
-- [ ] Fases 4 e 5 implementadas em `feature/b40-diario-do-cacador`, com Issue ligada ao PR.
+- [x] Fase 4 (tela [L], título, mostrar, cópia do cliente) — `tests/test_diary_screen.gd`; prints com `tools/diary_shots.gd`.
+- [ ] Fase 5 implementada em `feature/b40-diario-do-cacador`, com Issue ligada ao PR.
 - [ ] Testes em `tests/` e `tests/run_all.gd` verde a cada fase.
 
 ## Próximo passo (uma frase)
-Revisar e juntar o PR #29 (fases 1 a 3); depois, Fase 4 (tela do Diário [L] e cópia para o cliente).
+Revisar e juntar o PR #29 (fases 1 a 4); depois, Fase 5 (Livro do Totem e Placar das Guildas).
 
 ## Notas da Fase 1
 - Escrever só com autoridade: `NetworkManager.is_server_authoritative()`; o cliente ainda não recebe cópia (vem com a tela, Fase 4).
@@ -61,3 +62,8 @@ Revisar e juntar o PR #29 (fases 1 a 3); depois, Fase 4 (tela do Diário [L] e c
 - Valor do equipamento no abate digno = soma da qualidade das peças vestidas; troca para o valor de mercado quando o servidor tiver tabela de preços.
 - Doação na guilda fica para a Fase 5 (Livro do Totem).
 - Cartas usadas: beast_horn (Caça Lenda), beehive (Coleta Trilha), polinization (Criadouro Trilha), fireball (Sangue Lenda), mimic (Andanças Trilha).
+
+## Notas da Fase 4
+- O título escolhido ainda não aparece embaixo do nome no mundo (o rótulo do avatar é de outro sistema); fica no cabeçalho do Diário e nas mostras.
+- Os adornos são só nomes por enquanto; o visual no personagem entra com arte própria.
+- O servidor ainda não chama `push_diary` sozinho (os avatares remotos não têm Diário); o cliente recebe a cópia salva ao entrar no mundo.

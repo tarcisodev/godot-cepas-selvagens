@@ -694,3 +694,56 @@ func rpc_request_enter_world(character_name: String) -> void:
 @rpc("authority", "call_remote", "reliable")
 func rpc_response_enter_world(success: bool, world_data: Dictionary) -> void:
 	entered_world.emit(success, world_data)
+
+# ---------------------------------------------------------------- Diário do Caçador (GDD-19 §7)
+
+## Peer dono de um avatar remoto (0 se não for avatar de rede)
+func peer_of(avatar: Node) -> int:
+	for id in remote_avatars:
+		if remote_avatars[id] == avatar:
+			return int(id)
+	return 0
+
+## Mostrar o Diário a outro jogador: o cliente pede ao servidor, que repassa só para o alvo
+func send_diary_showcase(target: Node, payload: Dictionary) -> bool:
+	var target_peer := peer_of(target)
+	var mp := _get_mp()
+	if target_peer == 0 or mp == null or not mp.has_multiplayer_peer():
+		return false
+	if is_server_authoritative():
+		var me: Dictionary = players_info.get(mp.get_unique_id(), {})
+		payload["from"] = me.get("name", _local_player_name())
+		rpc_id(target_peer, "rpc_receive_diary_showcase", payload)
+	else:
+		rpc_id(1, "rpc_request_diary_showcase", target_peer, payload)
+	return true
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_diary_showcase(target_peer: int, payload: Dictionary) -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if not players_info.has(sender_id) or not players_info.has(target_peer):
+		return
+	# Quem mostra é quem o servidor diz que é, não o que o cliente escreveu
+	payload["from"] = players_info[sender_id].get("name", "?")
+	rpc_id(target_peer, "rpc_receive_diary_showcase", payload)
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_diary_showcase(payload: Dictionary) -> void:
+	var p := _local_player()
+	var diary := p.get_node_or_null("DiaryComponent") if p else null
+	if diary:
+		diary.receive_showcase(payload)
+
+## Servidor manda a cópia atualizada do Diário para o dono (o cliente só lê; ADR-0002)
+func push_diary(peer_id: int, data: Dictionary) -> void:
+	if is_server_authoritative() and peer_id != 0:
+		rpc_id(peer_id, "rpc_receive_diary", data)
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_diary(data: Dictionary) -> void:
+	var p := _local_player()
+	var diary := p.get_node_or_null("DiaryComponent") if p else null
+	if diary:
+		diary.apply_snapshot(data)

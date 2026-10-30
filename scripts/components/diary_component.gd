@@ -14,6 +14,10 @@ const _MilestoneTable = preload("res://scripts/data/milestone_table.gd")
 
 signal page_written(page: Dictionary)
 signal milestone_reached(def: _MilestoneDef)
+## Outro jogador mostrou um pedaço do Diário dele (GDD-19 §7)
+signal showcase_received(payload: Dictionary)
+## A cópia do cliente foi trocada pela do servidor
+signal snapshot_applied()
 
 ## Acertou o alvo nesse intervalo antes da queda dele e outro deu o golpe final: assistência
 const ASSIST_WINDOW: float = 15.0
@@ -29,6 +33,15 @@ const WORTHY_REPEAT_SECONDS: float = 6.0 * 3600.0
 const WORTHY_GEAR_RATIO: float = 0.5
 ## Teto de recursos que contam por lugar (célula) por dia de jogo
 const GATHER_DAILY_CAP: int = 200
+## Alcance para mostrar o Diário a alguém (m)
+const SHOW_RANGE: float = 10.0
+## O que se pode mostrar (GDD-19 §7): título, um capítulo ou uma Página
+const SHOW_KINDS: Array[String] = ["titulo", "capitulo", "pagina"]
+## Mostras recebidas guardadas na sessão
+const MAX_SHOWCASES: int = 10
+
+## Mostras que outros jogadores fizeram para o dono, da mais nova para a mais antiga
+var showcases: Array[Dictionary] = []
 
 var ledger: _FeatLedger = _FeatLedger.new()
 
@@ -447,6 +460,82 @@ static func weapon_of(n: Node) -> Dictionary:
 		if item:
 			return {"weapon": item.display_name, "family": String(item.family)}
 	return {}
+
+# ---------------------------------------------------------------- mostrar o Diário (GDD-19 §7)
+
+## Monta o pedaço que o dono escolheu mostrar; o Diário inteiro nunca sai daqui
+func build_showcase(kind: String, arg: Variant = null) -> Dictionary:
+	var payload := {"kind": kind, "from": describe(get_parent())["name"], "title": ledger.active_title}
+	match kind:
+		"titulo":
+			payload["marcos"] = ledger.milestones.size()
+			payload["lenda"] = has_lenda()
+		"capitulo":
+			var chapter := String(arg)
+			if not _FeatLedger.CHAPTERS.has(StringName(chapter)):
+				return {}
+			payload["chapter"] = chapter
+			payload["counters"] = ledger.counters.get(chapter, {}).duplicate()
+			payload["records"] = ledger.records.get(chapter, {}).duplicate(true)
+			payload["milestones"] = ledger.milestones.keys().filter(func(id): return String(id).begins_with(chapter + "_"))
+		"pagina":
+			var i := int(arg) if arg != null else -1
+			if i < 0 or i >= ledger.pages.size():
+				return {}
+			payload["page"] = ledger.pages[i].duplicate(true)
+		_:
+			return {}
+	return payload
+
+## Mostra para alguém perto: no mesmo processo entrega direto; online vai pelo servidor
+func show_to(target: Node, kind: String, arg: Variant = null) -> bool:
+	var me := get_parent() as Node3D
+	if target == null or me == null or target == me or not is_player(target):
+		return false
+	if target is Node3D and me.global_position.distance_to((target as Node3D).global_position) > SHOW_RANGE:
+		return false
+	var payload := build_showcase(kind, arg)
+	if payload.is_empty():
+		return false
+	var other := target.get_node_or_null("DiaryComponent")
+	if other:
+		other.receive_showcase(payload)
+		return true
+	var net := get_node_or_null("/root/NetworkManager")
+	if net and net.has_method("send_diary_showcase"):
+		return net.send_diary_showcase(target, payload)
+	return false
+
+## Recebe uma mostra; só os campos conhecidos passam (vem de outro jogador)
+func receive_showcase(payload: Dictionary) -> void:
+	var kind := str(payload.get("kind", ""))
+	if not SHOW_KINDS.has(kind):
+		return
+	var clean := {"kind": kind, "from": str(payload.get("from", "?")).left(32), "title": str(payload.get("title", "")).left(48)}
+	for key in ["marcos", "lenda", "chapter", "counters", "records", "milestones", "page"]:
+		if payload.has(key):
+			clean[key] = payload[key]
+	showcases.push_front(clean)
+	if showcases.size() > MAX_SHOWCASES:
+		showcases.resize(MAX_SHOWCASES)
+	showcase_received.emit(clean)
+
+## Jogadores perto o bastante para receber uma mostra
+func nearby_players() -> Array[Node]:
+	var out: Array[Node] = []
+	var me := get_parent() as Node3D
+	if me == null or not me.is_inside_tree():
+		return out
+	for group in ["player", "remote_players"]:
+		for n in me.get_tree().get_nodes_in_group(group):
+			if n != me and n is Node3D and me.global_position.distance_to(n.global_position) <= SHOW_RANGE:
+				out.append(n)
+	return out
+
+## Cópia que o cliente recebe do servidor (ADR-0002): troca tudo, sem conferir Marcos
+func apply_snapshot(data: Dictionary) -> void:
+	ledger.from_dict(data)
+	snapshot_applied.emit()
 
 func to_dict() -> Dictionary:
 	return ledger.to_dict()
