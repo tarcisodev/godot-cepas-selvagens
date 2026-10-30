@@ -7,6 +7,11 @@ extends Node3D
 
 ## Tubo da Corrente: quase transparente, some nas pontas e "escorre" para cima
 const CURRENT_SHADER: Shader = preload("res://materials/sky_current.gdshader")
+## Som de pedra rachando e caindo, quando a ilha começa a tremer e quando começa a descer
+const CRUMBLE_SOUND: AudioStream = preload("res://assets/audio/Small_Sound_Kit/Small Sound Kit/Ambience/Amb_Drop_Debris_01.wav")
+## Tremor da malha (m) antes de afundar e afundando
+const SHAKE_WARN: float = 0.06
+const SHAKE_SINK: float = 0.18
 
 var data: Dictionary
 var shape: SkyIslandShape
@@ -18,6 +23,10 @@ var _current: Node3D
 var _current_mesh: MeshInstance3D
 var _beacon: Node3D
 var _label: Label3D
+var _debris: CPUParticles3D
+var _crumble: AudioStreamPlayer3D
+## Etapa do afundamento já mostrada (&"", &"tremendo", &"afundando")
+var _stage: StringName = &""
 
 func setup(island: Dictionary) -> void:
 	data = island
@@ -67,6 +76,51 @@ func apply(island: Dictionary) -> void:
 	_current.visible = solid
 	_current.position = current_offset()
 	_update_beacon(island.phase == &"anunciada")
+	_update_sinking(&"afundando" if island.phase == &"afundando" else (&"tremendo" if island.warning else &""))
+
+func _process(_delta: float) -> void:
+	if _stage.is_empty():
+		return
+	var amp := SHAKE_SINK if _stage == &"afundando" else SHAKE_WARN
+	_mesh.position = Vector3(randf_range(-amp, amp), randf_range(-amp, amp) * 0.5, randf_range(-amp, amp))
+
+## Antes de afundar (GDD-18 §5): a malha treme, pedras caem da base e a rocha range. Só o desenho
+## treme; o chão onde se pisa (colisão) fica firme, para ninguém escorregar por causa do efeito.
+func _update_sinking(stage: StringName) -> void:
+	if stage == _stage:
+		return
+	_stage = stage
+	if stage.is_empty():
+		_mesh.position = Vector3.ZERO
+		if _debris:
+			_debris.emitting = false
+		return
+	if _debris == null:
+		_debris = CPUParticles3D.new()
+		_debris.name = "PedrasCaindo"
+		var rock := BoxMesh.new()
+		rock.size = Vector3.ONE * 0.35
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = SkyIslandShape.ROCK_COLORS[rarity()]
+		rock.material = mat
+		_debris.mesh = rock
+		_debris.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+		_debris.emission_sphere_radius = shape.radius * 0.6
+		_debris.position.y = -shape.depth * 0.6
+		_debris.gravity = Vector3(0, -18, 0)
+		_debris.lifetime = 4.0
+		_debris.scale_amount_min = 0.5
+		_debris.scale_amount_max = 2.0
+		add_child(_debris)
+		_crumble = AudioStreamPlayer3D.new()
+		_crumble.stream = CRUMBLE_SOUND
+		_crumble.unit_size = 40.0
+		_crumble.max_distance = 250.0
+		add_child(_crumble)
+	_debris.amount = 80 if stage == &"afundando" else 24
+	_debris.emitting = true
+	if is_inside_tree():
+		_crumble.play()
 
 func rarity() -> int:
 	return int(data.rarity)
