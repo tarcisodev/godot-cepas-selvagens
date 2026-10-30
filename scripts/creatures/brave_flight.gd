@@ -30,23 +30,35 @@ var answered: int = 0
 var _window: float = 0.0
 var _gap: float = 0.0
 var _rng := RandomNumberGenerator.new()
+## Duração, janela de resposta e folga entre trancos deste voo (o do Planador do Eclipse é mais
+## duro: GDD-18 §7.2)
+var duration: float = DURATION
+var window: float = WINDOW
+var gap_scale: float = 1.0
 
 func _init(seed: int = 0) -> void:
 	_rng.seed = seed
 	_gap = _rng.randf_range(GAP_MIN, GAP_MAX)
+
+## Voo mais difícil: mais longo, janela menor e trancos mais seguidos
+func make_hard(p_duration: float, p_window: float, p_gap_scale: float) -> void:
+	duration = p_duration
+	window = p_window
+	gap_scale = p_gap_scale
+	_gap *= gap_scale
 
 ## Avança o voo; devolve &"voando", &"caiu" ou &"domado"
 func step(delta: float, input: Vector2) -> StringName:
 	if fall >= 1.0:
 		return &"caiu"
 	time += delta
-	if time >= DURATION:
+	if time >= duration:
 		return &"domado"
 	if jolt == Vector2.ZERO:
 		_gap -= delta
 		if _gap <= 0.0:
 			jolt = JOLTS[_rng.randi() % JOLTS.size()]
-			_window = WINDOW
+			_window = window
 			jolts += 1
 		return &"voando"
 	_window -= delta
@@ -71,7 +83,7 @@ func hurt() -> void:
 ## Texto do HUD: tranco, tecla e barra
 func hud_text() -> String:
 	var bar := "▓".repeat(roundi(clampf(fall, 0.0, 1.0) * 10.0)) + "░".repeat(10 - roundi(clampf(fall, 0.0, 1.0) * 10.0))
-	var left := maxi(0, ceili(DURATION - time))
+	var left := maxi(0, ceili(duration - time))
 	if jolt == Vector2.ZERO:
 		return "🌀 Voo bravio · aguente %d s · Queda %s" % [left, bar]
 	return "🌀 Tranco %s! segure %s [%s] · Queda %s" % [ARROWS[jolt], ARROWS[-jolt], KEYS[-jolt], bar]

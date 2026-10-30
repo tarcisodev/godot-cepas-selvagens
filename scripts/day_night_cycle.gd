@@ -32,6 +32,10 @@ const MOON_PHASE_ICONS: Array[String] = ["🌑", "🌒", "🌓", "🌔", "🌕",
 
 ## Céu fechado (0–1), escrito pelo WeatherSystem: nuvens tiram luz e sombra do sol (GDD-10 §2)
 var overcast: float = 0.0
+## Eclipse (0–1) do Arquipélago do Eclipse (GDD-18 §7.4), escrito pelo SkyIslandField: o planeta
+## com anéis passa na frente do sol e a luz cai até ECLIPSE_DIM
+var eclipse: float = 0.0
+const ECLIPSE_DIM: float = 0.3
 
 ## Relógio único do mundo (ADR-0006): todo sistema de natureza lê a duração do dia daqui.
 ## Nenhuma ação de jogador escreve na hora; só este relógio anda e o load do save restaura.
@@ -109,6 +113,8 @@ func _update_sun_position_and_lighting() -> void:
 		light_energy = night_energy * (0.2 + 0.8 * illum)
 
 	# Nuvens: luz mais fraca e acinzentada, sombras mais suaves
+	if eclipse > 0.0:
+		light_energy *= 1.0 - eclipse * ECLIPSE_DIM
 	if overcast > 0.0:
 		light_energy *= 1.0 - overcast * 0.6
 		light_color = light_color.lerp(Color(0.72, 0.76, 0.82), overcast * 0.6)

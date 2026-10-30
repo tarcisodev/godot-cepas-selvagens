@@ -417,9 +417,11 @@ func _move_air(step: Vector3, delta: float, menus_open: bool) -> void:
 			climb = -7.0
 	# Corrente de vento (GDD-18 §4): dentro dela o teto some e a voadora sobe sozinha
 	# Rajada da rara (GDD-18 §4): empurra de lado e tira da coluna quem não corrige no WASD
-	step += SkyIslandHazards.current_push(global_position) * delta
+	# Tranco da mítica: segurar o lado oposto (o próprio passo) anula. Corrente lateral das ilhotas:
+	# leva adiante e segura a altura, sem subir
+	step += SkyIslandHazards.current_push(global_position, step) * delta
 	var lift := SkyIslandField.current_at(global_position + step)
-	if lift and climb == 0.0:
+	if lift and climb == 0.0 and not lift.is_link():
 		climb = SkyIslandField.CURRENT_LIFT
 	_vertical = move_toward(_vertical, climb, delta * 12.0)
 	var next := global_position + step + Vector3(0, _vertical * delta, 0)

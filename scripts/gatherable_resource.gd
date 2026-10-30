@@ -451,8 +451,11 @@ func _process(delta: float) -> void:
 			respawn()
 
 ## Interface 'harvestable' duck typing para o Player:
+## Selado (veio do Âmbar-Estelar enquanto a Matriarca vive): o motivo; vazio = livre
+var sealed: String = ""
+
 func is_harvestable() -> bool:
-	return not is_collected
+	return not is_collected and sealed.is_empty()
 
 func next_harvest_label() -> String:
 	return display_name

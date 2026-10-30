@@ -118,7 +118,14 @@ func _process(_delta: float) -> void:
 	var p := get_tree().get_first_node_in_group("player") as Node3D
 	_prompt.visible = p != null and p.global_position.distance_to(global_position) < 3.2 and not is_opened
 
+## Selado (Relicário enquanto a Matriarca vive): o motivo; vazio = abre
+var sealed: String = ""
+
 func talk_to(player: Node) -> void:
+	if not sealed.is_empty():
+		if player and player.has_signal("posture_changed"):
+			player.posture_changed.emit("📦 %s: %s" % [chest_title, sealed])
+		return
 	if is_opened:
 		if player and player.has_signal("posture_changed"):
 			player.posture_changed.emit("📦 %s: Este baú já foi saqueado." % chest_title)
@@ -127,7 +134,7 @@ func talk_to(player: Node) -> void:
 	open_chest(player)
 
 func open_chest(player: Node) -> Dictionary:
-	if is_opened:
+	if is_opened or not sealed.is_empty():
 		return {}
 
 	is_opened = true

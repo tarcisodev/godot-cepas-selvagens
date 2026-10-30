@@ -36,6 +36,15 @@ const STRIKE_DAMAGE: float = 45.0
 const STRIKE_POISE: float = 1000.0
 ## Céu aberto: nada acima até esta altura
 const OPEN_SKY: float = 30.0
+## Corrente mítica turbulenta (GDD-18 §4): um tranco a cada 3–5 s, avisado 0,6 s antes, que empurra
+## de lado por 0,6 s; segurar o lado oposto anula. Sem barra de queda: errar só tira da coluna.
+const JOLT_SLOT: float = 4.0
+const JOLT_JITTER: float = 1.0
+const JOLT_WARN: float = 0.6
+const JOLT_PUSH: float = 0.6
+const JOLT_SPEED: float = 8.0
+## Corrente lateral das ilhotas: leva a voadora na direção em que ela já vai (m/s)
+const LINK_SPEED: float = 7.0
 
 ## Rajadas já sopradas em cada jogador: "jogador|ilha|k" → true
 var _gusted: Dictionary = {}
@@ -84,13 +93,42 @@ static func strike_mark_at(isl: Dictionary, k: int) -> float:
 	var rng := _rand(isl, "raio", k)
 	return (float(k) + 0.5) * STRIKE_SLOT + rng.randf_range(-STRIKE_JITTER, STRIKE_JITTER)
 
-## Empurrão de lado da rajada em quem está na Corrente (velocidade, m/s), para a montaria
-static func current_push(p: Vector3) -> Vector3:
+## Tranco da Corrente do núcleo da mítica em `t`: {k, at, dir, pushing} ou {}
+static func jolt(isl: Dictionary, t: float) -> Dictionary:
+	if int(isl.rarity) != SkyIslandSchedule.Rarity.MITICA or isl.get("satellite", false) or not bool(isl.solid):
+		return {}
+	var k0 := floori(t / JOLT_SLOT)
+	for k in [k0, k0 + 1]:
+		var rng := _rand(isl, "tranco", k)
+		var at := (float(k) + 0.5) * JOLT_SLOT + rng.randf_range(-JOLT_JITTER, JOLT_JITTER)
+		if t >= at - JOLT_WARN and t < at + JOLT_PUSH:
+			var a := rng.randf() * TAU
+			return {"k": k, "at": at, "dir": Vector3(cos(a), 0.0, sin(a)), "pushing": t >= at}
+	return {}
+
+## Empurrão da Corrente em quem voa nela (velocidade, m/s), para a montaria: a rajada da rara de
+## lado, o tranco da mítica (anulado por quem segura o lado oposto, `move`) e a Corrente lateral
+## das ilhotas, que leva na direção em que a montaria já vai
+static func current_push(p: Vector3, move: Vector3 = Vector3.ZERO) -> Vector3:
 	var isl := SkyIslandField.current_at(p)
 	if isl == null:
 		return Vector3.ZERO
-	var g := gust(isl.data, now())
-	return g.dir * CURRENT_GUST_SPEED if not g.is_empty() and g.blowing else Vector3.ZERO
+	if isl.is_link():
+		var ends := isl.link_ends()
+		var dir := (ends[1] - ends[0]).normalized()
+		var flat := Vector3(move.x, 0.0, move.z)
+		var sign := -1.0 if flat.length() > 0.01 and flat.dot(dir) < 0.0 else 1.0
+		return dir * sign * LINK_SPEED
+	var t := now()
+	var g := gust(isl.data, t)
+	if not g.is_empty() and g.blowing:
+		return g.dir * CURRENT_GUST_SPEED
+	var j := jolt(isl.data, t)
+	if not j.is_empty() and j.pushing:
+		if move.length() > 0.01 and Vector3(move.x, 0.0, move.z).normalized().dot(-j.dir) > 0.5:
+			return Vector3.ZERO
+		return j.dir * JOLT_SPEED
+	return Vector3.ZERO
 
 # ---------------------------------------------------------------- quem é atingido
 
@@ -141,6 +179,8 @@ func _physics_process(_delta: float) -> void:
 				_update_gust(isl, t, players)
 			SkyIslandSchedule.Rarity.LENDARIA:
 				_update_storm(isl, t, players)
+			SkyIslandSchedule.Rarity.MITICA:
+				_update_jolt(isl, t)
 	_update_wild(field, players)
 	_forget_old(t)
 
@@ -179,7 +219,7 @@ func _update_storm(isl: SkyIsland, t: float, players: Array) -> void:
 		if t < mark_at or t > mark_at + STRIKE_MARK + 1.0:
 			continue
 		if not strikes.has(key):
-			var target := _pick_target(isl, players)
+			var target := _pick_target(isl, players, k)
 			strikes[key] = {"t": t, "done": false, "pos": Vector3.INF, "mark": null}
 			if target:
 				var pos := target.global_position
@@ -194,12 +234,20 @@ func _update_storm(isl: SkyIsland, t: float, players: Array) -> void:
 		s.done = true
 		if s.pos == Vector3.INF:
 			continue
+		var rod := guardian_of(isl)
+		if rod and rod.global_position.distance_to(s.pos) < STRIKE_RADIUS + 2.0:
+			_spawn_bolt(rod.global_position)
+			rod.take_lightning()
 		_strike(s.pos, players)
 		if is_instance_valid(s.mark):
 			s.mark.queue_free()
 
-## Quem o raio procura: o mais exposto que veste ferro em cima da ilha (o primeiro da lista)
-func _pick_target(isl: SkyIsland, players: Array) -> Node3D:
+## Quem o raio procura: a Sentinela acordada (para-raios, um raio sim e outro não) ou o mais
+## exposto que veste ferro em cima da ilha (o primeiro da lista)
+func _pick_target(isl: SkyIsland, players: Array, k: int = 0) -> Node3D:
+	var rod := guardian_of(isl)
+	if rod and (k % 2 == 1 or not players.any(func(p): return p is Node3D and attracts_lightning(p))):
+		return rod
 	for p in players:
 		if not (p is Node3D) or bool(p.get("is_downed")):
 			continue
@@ -222,6 +270,38 @@ func _strike(pos: Vector3, players: Array) -> void:
 			p.on_hit_feedback(hit, result)
 		if p.has_signal("posture_changed"):
 			p.posture_changed.emit("⚡ Atingido pelo raio! Postura quebrada.")
+
+## Sentinela acordada na ilha, que puxa o raio (null se não há ou se não puxa agora)
+static func guardian_of(isl: SkyIsland) -> BeastFighter:
+	var c := isl.content
+	if c == null or not is_instance_valid(c) or c.guardian == null or not is_instance_valid(c.guardian):
+		return null
+	return c.guardian if c.guardian.is_lightning_rod() else null
+
+## Tranco chegando na Corrente do núcleo da mítica: seta no HUD de quem voa nela
+func _update_jolt(isl: SkyIsland, t: float) -> void:
+	var j := jolt(isl.data, t)
+	if j.is_empty() or j.pushing:
+		return
+	for m in get_tree().get_nodes_in_group("mounts"):
+		var mount := m as Mount
+		if mount == null or mount.rider == null or not isl.in_current(mount.global_position):
+			continue
+		var key := "%d|%s|%d" % [mount.get_instance_id(), isl.data.id, j.k]
+		if _gust_told.has(key):
+			continue
+		_gust_told[key] = t
+		mount.rider.posture_changed.emit(jolt_text(mount, j.dir))
+
+## "🌀 Tranco ➡! segure ⬅ [A]", pelo lado da montaria
+static func jolt_text(mount: Node3D, dir: Vector3) -> String:
+	var local := mount.global_basis.inverse() * dir
+	var push := Vector2(local.x, local.z)
+	var right := push.x > 0.0
+	if absf(push.y) > absf(push.x):
+		# Para a frente ou para trás (a frente da montaria é -Z)
+		return "🌀 Tranco %s! segure %s" % (["⬆", "⬇ [S]"] if push.y < 0.0 else ["⬇", "⬆ [W]"])
+	return "🌀 Tranco %s! segure %s" % (["➡", "⬅ [A]"] if right else ["⬅", "➡ [D]"])
 
 # ---------------------------------------------------------------- Zona Selvagem (aviso)
 

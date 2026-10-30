@@ -5,8 +5,8 @@ extends Resource
 ## pequeno e serializável (mesmo bicho no cliente e no servidor, ADR-0002).
 ## O corpo é montado por CreatureBody a partir deste DNA.
 
-enum Plan { QUADRUPED, BIRD, FISH }
-enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO, RINOLITO, LOBO, TATU }
+enum Plan { QUADRUPED, BIRD, FISH, GOLEM }
+enum Species { TROTADOR, PLANADOR, RAIA, SALTARELO, LAMBARI, TRAIRA, DOURADO, RINOLITO, LOBO, TATU, SENTINELA }
 enum Gender { MALE, FEMALE }
 enum LifeStage { BABY, JUVENILE, ADULT, ELDER }
 
@@ -70,7 +70,24 @@ const SPECIES: Dictionary = {
 		"leg": 0.26, "neck": 0.1, "body": Vector3(0.82, 0.42, 1.4), "tail": 0.5, "ears": 0.12,
 		"plates": 6,
 	},
+	# Guardião da Ilha-Ruína (GDD-18 §7.1): gigante de blocos de pedra, de pé, com núcleo no peito.
+	# "body" é o tronco (largura, altura, fundura); "leg" a altura das pernas; "arm" o comprimento
+	# dos braços. A couraça (plates) são os blocos dos ombros e das costas.
+	Species.SENTINELA: {
+		"name": "Sentinela de Pedra", "plan": Plan.GOLEM, "size": 4.2,
+		"color": Color(0.6, 0.58, 0.53), "belly": Color(0.45, 0.43, 0.4),
+		"leg": 1.5, "neck": 0.2, "body": Vector3(2.0, 1.7, 1.2), "tail": 0.0, "arm": 1.9,
+		"plates": 4, "core": Color(0.4, 0.7, 1.0),
+	},
 }
+
+## Gene mítico do Planador do Eclipse (GDD-18 §7.2): só nasce no Arquipélago. "eclipse" EE deixa as
+## asas escuras com borda que brilha e o bicho 1,4× maior; "matriarca" MM é a mãe gigante (chefe).
+const ECLIPSE_SCALE: float = 1.4
+const MATRIARCH_SCALE: float = 4.0
+const ECLIPSE_COLOR: Color = Color(0.1, 0.09, 0.16)
+const ECLIPSE_BELLY: Color = Color(0.2, 0.18, 0.28)
+const ECLIPSE_GLOW: Color = Color(1.0, 0.82, 0.45)
 
 @export var species: Species = Species.TROTADOR
 @export var dna_seed: int = 0
@@ -84,6 +101,9 @@ const SPECIES: Dictionary = {
 @export var stage: LifeStage = LifeStage.ADULT
 
 func stage_scale() -> float:
+	return _stage_base() * (ECLIPSE_SCALE if is_eclipse() else 1.0) * (MATRIARCH_SCALE if is_matriarch() else 1.0)
+
+func _stage_base() -> float:
 	match stage:
 		LifeStage.BABY: return 0.45
 		LifeStage.JUVENILE: return 0.75
@@ -180,7 +200,9 @@ func plan() -> Plan:
 	return info()["plan"]
 
 func species_name() -> String:
-	return info()["name"]
+	if is_matriarch():
+		return "Matriarca do Eclipse"
+	return "Planador do Eclipse" if is_eclipse() else info()["name"]
 
 ## Fração do tamanho máximo: TT 100% · Tt 75% · tt 50% (dominância incompleta)
 func size_factor() -> float:
@@ -194,6 +216,25 @@ func size_factor() -> float:
 func body_size() -> float:
 	var dimorphism := 1.05 if gender == Gender.MALE else 0.98
 	return float(info()["size"]) * size_factor() * stage_scale() * dimorphism
+
+## Planador do Eclipse (gene mítico; não passa de pai para filho fora do Arquipélago)
+func is_eclipse() -> bool:
+	return _dominant("eclipse", "E")
+
+func is_matriarch() -> bool:
+	return _dominant("matriarca", "M")
+
+## Um Planador do Eclipse com a seed: escuro, borda de luz, 1,4× (a Matriarca, 4× mais)
+static func eclipse(p_seed: int, matriarch: bool = false) -> CreatureDNA:
+	var d := randomized(Species.PLANADOR, p_seed)
+	d.alleles["porte"] = ["T", "T"]
+	d.alleles["eclipse"] = ["E", "E"]
+	if matriarch:
+		d.alleles["matriarca"] = ["M", "M"]
+		d.gender = Gender.FEMALE
+	d.base_color = ECLIPSE_COLOR
+	d.belly_color = ECLIPSE_BELLY
+	return d
 
 func has_horns() -> bool:
 	return _dominant("chifre", "C")

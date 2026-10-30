@@ -17,7 +17,7 @@ const UNLOCKS: Array[String] = ["montaria comum", "pode ser Companheira; ouve o 
 ## Alcance do apito por faixa (m); Arisca não ouve
 const WHISTLE_RANGE: Array[float] = [0.0, 60.0, 150.0, 300.0]
 ## Elo de partida por caminho (GDD-16 §4)
-const START_ELO: Dictionary = {&"laco": 10.0, &"cria": 40.0, &"ninho": 50.0}
+const START_ELO: Dictionary = {&"laco": 10.0, &"cria": 40.0, &"ninho": 50.0, &"eclipse": 30.0}
 ## Andar montado: +1 a cada 2 min reais, até +6 por dia de jogo
 const RIDE_SECONDS_PER_POINT: float = 120.0
 const RIDE_DAY_CAP: float = 6.0

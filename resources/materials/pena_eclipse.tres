@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="MaterialData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/data/material_data.gd" id="1_mat"]
+
+[resource]
+script = ExtResource("1_mat")
+id = &"pena_eclipse"
+display_name = "Pena do Eclipse"
+description = "Pena escura de borda dourada, do Planador do Eclipse. Só existe no Arquipélago."
+category = 3
+icon = "🪶"
+color = Color(0.15, 0.13, 0.22, 1)
+unit_weight = 0.1
+max_gather_quality = 2
+base_value = 140

@@ -12,6 +12,9 @@ const CRUMBLE_SOUND: AudioStream = preload("res://assets/audio/Small_Sound_Kit/S
 ## Tremor da malha (m) antes de afundar e afundando
 const SHAKE_WARN: float = 0.06
 const SHAKE_SINK: float = 0.18
+## Corrente lateral das ilhotas do Eclipse: raio do tubo e altura acima do topo (m)
+const LINK_RADIUS: float = 5.0
+const LINK_HEIGHT: float = 3.0
 
 var data: Dictionary
 var shape: SkyIslandShape
@@ -60,10 +63,11 @@ func setup(island: Dictionary) -> void:
 	_label.font_size = 48
 	_label.outline_size = 10
 	_label.modulate = Color(0.95, 0.92, 0.8)
-	_label.position.y = 4.0
+	# Acima do chefe que fica no meio da lendária e do núcleo da mítica
+	_label.position.y = 14.0 if rarity() >= SkyIslandSchedule.Rarity.LENDARIA and not is_link() else 4.0
 	_label.visibility_range_begin = 6.0
 	_label.visibility_range_end = 70.0
-	_label.text = "%s · %s" % [SkyIslandSchedule.NAMES[rarity()], SkyIslandSchedule.RARITY_NAMES[rarity()]]
+	_label.text = "%s · %s" % ["Ilhota do Eclipse" if is_link() else SkyIslandSchedule.NAMES[rarity()], SkyIslandSchedule.RARITY_NAMES[rarity()]]
 	add_child(_label)
 	if rarity() == SkyIslandSchedule.Rarity.LENDARIA:
 		_build_storm()
@@ -149,8 +153,26 @@ func bottom_at(x: float, z: float) -> float:
 	var b := shape.bottom_at(x - global_position.x, z - global_position.z)
 	return b + global_position.y if b < INF else INF
 
+## Ilhota do Arquipélago, ligada ao núcleo por uma Corrente lateral
+func is_link() -> bool:
+	return bool(data.get("satellite", false))
+
+## Corrente lateral da ilhota: [ponta na borda dela, ponta na borda do núcleo] (mundo), na altura
+## de voo logo acima do topo
+func link_ends() -> Array[Vector3]:
+	var core: Vector3 = data.core_center
+	var c := global_position
+	var dir := Vector3(core.x - c.x, 0.0, core.z - c.z).normalized()
+	var y := top_y() + LINK_HEIGHT
+	var a := c + dir * (shape.edge_radius(float(data.current_angle)) - SkyIslandField.CURRENT_OVERLAP)
+	var b := Vector3(core.x, 0.0, core.z) - dir * (float(data.core_radius) - SkyIslandField.CURRENT_OVERLAP)
+	return [Vector3(a.x, y, a.z), Vector3(b.x, y, b.z)]
+
 ## Centro da Corrente, relativo à ilha (encosta na borda, por fora)
 func current_offset() -> Vector3:
+	if is_link():
+		var ends := link_ends()
+		return (ends[0] + ends[1]) * 0.5 - global_position
 	var a: float = data.current_angle
 	var d := shape.edge_radius(a) + SkyIslandField.CURRENT_RADIUS - SkyIslandField.CURRENT_OVERLAP
 	return Vector3(cos(a) * d, 0.0, sin(a) * d)
@@ -159,6 +181,11 @@ func current_offset() -> Vector3:
 func in_current(p: Vector3) -> bool:
 	if not is_solid() or not SkyIslandHazards.current_on(data, SkyIslandHazards.now()):
 		return false
+	if is_link():
+		var ends := link_ends()
+		var seg := ends[1] - ends[0]
+		var k := clampf((p - ends[0]).dot(seg) / maxf(seg.length_squared(), 0.001), 0.0, 1.0)
+		return p.distance_to(ends[0] + seg * k) <= LINK_RADIUS
 	var c := global_position + current_offset()
 	return Vector2(p.x - c.x, p.z - c.z).length() <= SkyIslandField.CURRENT_RADIUS and p.y <= top_y() + SkyIslandField.CURRENT_OVERSHOOT
 
@@ -167,6 +194,9 @@ func _build_current() -> void:
 	_current = Node3D.new()
 	_current.name = "Corrente"
 	add_child(_current)
+	if is_link():
+		_build_link_current()
+		return
 	var h: float = float(data.center.y) + 10.0
 	_current_mesh = MeshInstance3D.new()
 	var tube := CylinderMesh.new()
@@ -205,6 +235,27 @@ func _build_current() -> void:
 	wisps.mesh = quad
 	wisps.position.y = -h + 10.0
 	_current.add_child(wisps)
+
+## Tubo deitado entre a ilhota e o núcleo, com fiapos correndo pelo meio
+func _build_link_current() -> void:
+	var ends := link_ends()
+	var length := ends[0].distance_to(ends[1])
+	_current_mesh = MeshInstance3D.new()
+	var tube := CylinderMesh.new()
+	tube.top_radius = LINK_RADIUS
+	tube.bottom_radius = LINK_RADIUS
+	tube.height = length
+	tube.cap_top = false
+	tube.cap_bottom = false
+	_current_mesh.mesh = tube
+	var mat := ShaderMaterial.new()
+	mat.shader = CURRENT_SHADER
+	_current_mesh.material_override = mat
+	_current_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Cilindro em pé deitado na direção do núcleo
+	var dir := (ends[1] - ends[0]).normalized()
+	_current_mesh.basis = Basis(Quaternion(Vector3.UP, dir))
+	_current.add_child(_current_mesh)
 
 ## Rajada chegando (rara): som de vento e folhas varrendo o topo na direção dela, 1 s antes
 func telegraph_gust(dir: Vector3) -> void:
