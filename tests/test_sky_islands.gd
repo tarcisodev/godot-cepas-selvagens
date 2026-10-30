@@ -81,42 +81,45 @@ func test_schedule() -> void:
 	print("  ✓ %d ilhas no dia 1,3; comuns fixas; incomum gira; rara troca de lugar" % a.size())
 
 func test_events() -> void:
-	print("\n[2/4] Lendária e mítica surgem, duram e afundam pelo relógio...")
-	var legend_time := 0.0
-	var myth_windows := 0
-	var was_myth := false
-	var saw_announce_before_rise := false
-	var saw_sink := false
-	var step := 0.002
-	var d := 0.0
-	var last_phase := &""
-	while d < 42.0:
-		var list := SkyIslandSchedule.islands_at(SEED, d)
-		var legends := _by_rarity(list, R.LENDARIA)
-		var myths := _by_rarity(list, R.MITICA)
-		assert(legends.size() <= 1 and myths.size() <= 1, "No máximo uma de cada")
-		if not legends.is_empty():
-			legend_time += step
-		if not myths.is_empty():
-			var m: Dictionary = myths[0]
-			if not was_myth:
-				myth_windows += 1
-				assert(m.phase == &"anunciada" and not m.solid, "Mítica começa só anunciada (coluna de luz)")
-			if last_phase == &"anunciada" and m.phase == &"surgindo":
-				saw_announce_before_rise = true
-			if m.phase == &"afundando":
-				saw_sink = true
-				assert(m.center.y < SkyIslandSchedule.SPECS[R.MITICA].height.y, "Afundando desce")
-			last_phase = m.phase
-		was_myth = not myths.is_empty()
-		d += step
-	assert(myth_windows == 6, "Uma mítica a cada 7 dias: %d em 42" % myth_windows)
-	assert(saw_announce_before_rise and saw_sink, "Anúncio → subida → afundamento")
-	var expected := 42.0 / SkyIslandSchedule.LEGEND_CYCLE * SkyIslandSchedule.LEGEND_DAYS
-	assert(absf(legend_time - expected) < 0.1, "Lendária fica 6 h de jogo por ciclo (%.2f de %.2f dias)" % [legend_time, expected])
-	var next := SkyIslandSchedule.next_myth(SEED, 0.0)
-	assert(next.y - next.x > SkyIslandSchedule.ANNOUNCE_DAYS - 0.001 and next.z > next.y, "Próxima mítica: anúncio, subida, fim")
-	print("  ✓ %d míticas em 42 dias; lendária %.2f dias no céu" % [myth_windows, legend_time])
+	print("
+[2/4] Lendária e mítica surgem, duram e afundam em tempo real...")
+	var S := SkyIslandSchedule
+	# Em tempo real (P7): durações e ciclos em segundos, convertidos pelo dia do relógio
+	assert(is_equal_approx(S.days(S.MYTH_S) * DayNightCycle.seconds_per_day(), 1200.0), "Mítica 20 min reais")
+	assert(is_equal_approx(S.days(S.LEGEND_S) * DayNightCycle.seconds_per_day(), 2700.0), "Lendária 45 min reais")
+	for rarity in [R.LENDARIA, R.MITICA]:
+		var dur := S.days(S.MYTH_S if rarity == R.MITICA else S.LEGEND_S)
+		var cycle := S.days(S.MYTH_CYCLE_S if rarity == R.MITICA else S.LEGEND_CYCLE_S)
+		var d := 0.0
+		var prev_end := -INF
+		for n in 3:
+			var w := S.next_event(SEED, rarity, d)
+			assert(w != Vector3.INF and is_equal_approx(w.z - w.y, dur), "Dura o tempo certo")
+			assert(w.x > prev_end, "Uma de cada vez, nunca encostadas")
+			var at := func(t: float) -> Array: return _by_rarity(S.islands_at(SEED, t), rarity)
+			assert(at.call(w.x - 0.01).is_empty(), "Antes: nada no céu")
+			if rarity == R.MITICA:
+				assert(is_equal_approx(w.y - w.x, S.days(S.ANNOUNCE_S)), "Anunciada 5 min antes")
+				var ann: Dictionary = at.call((w.x + w.y) * 0.5)[0]
+				assert(ann.phase == &"anunciada" and not ann.solid, "Mítica começa só anunciada (coluna de luz)")
+			assert(at.call(w.y + S.days(S.RISE_S) * 0.5)[0].phase == &"surgindo", "Surge")
+			assert(at.call((w.y + w.z) * 0.5)[0].phase == &"firme", "Firme")
+			var sink: Dictionary = at.call(w.z - S.days(S.RISE_S) * 0.5)[0]
+			assert(sink.phase == &"afundando" and sink.center.y < S.SPECS[rarity].height.y, "Afundando desce")
+			assert(at.call(w.z + 0.001).is_empty(), "E some")
+			prev_end = w.z
+			d = w.z + 0.001
+		# Em 10 ciclos, cada ciclo tem exatamente uma
+		var count := 0
+		var t := 0.0
+		while t < cycle * 10.0:
+			var w := S.next_event(SEED, rarity, t)
+			if w.y >= cycle * 10.0:
+				break
+			count += 1
+			t = w.z + 0.001
+		assert(count >= 9 and count <= 10, "Uma por ciclo: %d em 10" % count)
+	print("  ✓ Lendária 45 min a cada ~4 h; mítica 20 min (anúncio 5 min antes) a cada ~12 h")
 
 func test_shape_and_field() -> SkyIslandField:
 	print("\n[3/4] Forma procedural e ilhas no mundo...")

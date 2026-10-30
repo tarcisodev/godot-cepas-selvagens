@@ -43,19 +43,25 @@ const RENEW_DAYS: float = 4.0
 ## volta atrás e fica na outra metade do vale (x > 0), para as duas nunca se encostarem
 const RARE_DAYS: float = 2.0
 const RARE_DRIFT: float = 40.0
-## Lendária: uma a cada LEGEND_CYCLE dias, por LEGEND_DAYS (6 h de jogo)
-const LEGEND_CYCLE: float = 3.0
-const LEGEND_DAYS: float = 0.25
-## Mítica: uma a cada MYTH_CYCLE dias, por MYTH_DAYS (2 h de jogo), anunciada 1 h antes
-const MYTH_CYCLE: float = 7.0
-const MYTH_DAYS: float = 1.0 / 12.0
-const ANNOUNCE_DAYS: float = 1.0 / 24.0
-## Surgir e afundar levam 10 min de jogo e percorrem SINK_DEPTH metros
-const RISE_DAYS: float = 10.0 / 1440.0
+## Lendária e mítica contam em tempo real (P7 do GDD-18): com o dia de jogo curto, horas de jogo
+## virariam minutos e não dariam tempo de subir, lutar e minerar. Viram dias de jogo pela duração
+## do dia do relógio único (DayNightCycle.seconds_per_day), igual em todo cliente.
+## Lendária: uma a cada ~4 h reais, por 45 min
+const LEGEND_CYCLE_S: float = 4.0 * 3600.0
+const LEGEND_S: float = 45.0 * 60.0
+## Mítica: uma a cada ~12 h reais, por 20 min, anunciada 5 min antes
+const MYTH_CYCLE_S: float = 12.0 * 3600.0
+const MYTH_S: float = 20.0 * 60.0
+const ANNOUNCE_S: float = 5.0 * 60.0
+## Surgir e afundar levam 1 min real e percorrem SINK_DEPTH metros
+const RISE_S: float = 60.0
 const SINK_DEPTH: float = 40.0
-## Antes de afundar, a ilha treme e racha por 1 h de jogo (~50 s reais com o dia de 20 min):
-## tempo de quem está em cima ir embora (GDD-18 §5)
-const WARN_DAYS: float = 1.0 / 24.0
+## Antes de afundar, a ilha treme e racha por 2 min reais: tempo de quem está em cima ir embora
+const WARN_S: float = 120.0
+
+## Segundos reais em dias de jogo
+static func days(seconds: float) -> float:
+	return seconds / DayNightCycle.seconds_per_day()
 
 ## Dia de jogo corrido, com fração (0 sem sol no mundo)
 static func game_day() -> float:
@@ -76,21 +82,30 @@ static func islands_at(world_seed: int, day: float) -> Array[Dictionary]:
 		out.append(_uncommon(world_seed, slot, day, commons))
 	for slot in SPECS[Rarity.RARA].count:
 		out.append(_rare(world_seed, slot, day, commons))
-	var legend := _event(world_seed, Rarity.LENDARIA, day, LEGEND_CYCLE, LEGEND_DAYS, 0.0, commons)
+	var legend := _event(world_seed, Rarity.LENDARIA, day, days(LEGEND_CYCLE_S), days(LEGEND_S), 0.0, commons)
 	if not legend.is_empty():
 		out.append(legend)
-	var myth := _event(world_seed, Rarity.MITICA, day, MYTH_CYCLE, MYTH_DAYS, ANNOUNCE_DAYS, commons)
+	var myth := _event(world_seed, Rarity.MITICA, day, days(MYTH_CYCLE_S), days(MYTH_S), days(ANNOUNCE_S), commons)
 	if not myth.is_empty():
 		out.append(myth)
 	return out
 
 ## Próxima ilha mítica a partir de `day`: [início do anúncio, subida, fim] em dias
 static func next_myth(world_seed: int, day: float) -> Vector3:
-	var k := floori(day / MYTH_CYCLE)
+	return next_event(world_seed, Rarity.MITICA, day)
+
+## Próxima lendária ou mítica que ainda não acabou em `day`: [início do anúncio, subida, fim]
+## em dias (sem anúncio, o início é a subida)
+static func next_event(world_seed: int, rarity: int, day: float) -> Vector3:
+	var myth := rarity == Rarity.MITICA
+	var cycle := days(MYTH_CYCLE_S if myth else LEGEND_CYCLE_S)
+	var dur := days(MYTH_S if myth else LEGEND_S)
+	var announce := days(ANNOUNCE_S) if myth else 0.0
+	var k := floori(day / cycle)
 	for i in 3:
-		var w := _event_window(world_seed, Rarity.MITICA, k + i, MYTH_CYCLE, MYTH_DAYS, ANNOUNCE_DAYS)
-		if w.y + MYTH_DAYS > day:
-			return Vector3(w.x, w.y, w.y + MYTH_DAYS)
+		var w := _event_window(world_seed, rarity, k + i, cycle, dur, announce)
+		if w.y + dur > day:
+			return Vector3(w.x, w.y, w.y + dur)
 	return Vector3.INF
 
 # ---------------------------------------------------------------- por raridade
@@ -182,7 +197,7 @@ static func _event(world_seed: int, rarity: int, day: float, cycle: float, durat
 ## [início do anúncio, subida] do ciclo k
 static func _event_window(world_seed: int, rarity: int, k: int, cycle: float, duration: float, announce: float) -> Vector2:
 	var rng := _rng(world_seed, rarity, 99, k)
-	var room := cycle - duration - announce - RISE_DAYS
+	var room := cycle - duration - announce - days(RISE_S)
 	var rise := float(k) * cycle + announce + rng.randf() * room
 	return Vector2(rise - announce, rise)
 
@@ -246,12 +261,13 @@ static func _current_angle(isl: Dictionary, commons: Array) -> float:
 ## Surgir, firme e afundar dentro de [start, end): a ilha sobe SINK_DEPTH metros de um banco de
 ## nuvens e, no fim, desce os mesmos metros e some. Quem estiver em cima cai junto.
 static func _apply_life(isl: Dictionary, day: float, start: float, end: float) -> void:
+	var rise := days(RISE_S)
 	isl.ends_at = end
-	isl.sinks_at = end - RISE_DAYS
-	isl.warning = day >= isl.sinks_at - WARN_DAYS
-	if day < start + RISE_DAYS:
+	isl.sinks_at = end - rise
+	isl.warning = day >= isl.sinks_at - days(WARN_S)
+	if day < start + rise:
 		isl.phase = &"surgindo"
-		isl.center.y -= (1.0 - clampf((day - start) / RISE_DAYS, 0.0, 1.0)) * SINK_DEPTH
-	elif day >= end - RISE_DAYS:
+		isl.center.y -= (1.0 - clampf((day - start) / rise, 0.0, 1.0)) * SINK_DEPTH
+	elif day >= end - rise:
 		isl.phase = &"afundando"
-		isl.center.y -= clampf((day - (end - RISE_DAYS)) / RISE_DAYS, 0.0, 1.0) * SINK_DEPTH
+		isl.center.y -= clampf((day - (end - rise)) / rise, 0.0, 1.0) * SINK_DEPTH

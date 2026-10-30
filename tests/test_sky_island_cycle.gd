@@ -35,13 +35,9 @@ func _run() -> void:
 
 ## Primeira lendária: [subida, começa a afundar, some]
 func _legend_window() -> Vector3:
-	var d := 0.0
-	while d < 30.0:
-		for isl in SkyIslandSchedule.islands_at(SEED, d):
-			if isl.rarity == R.LENDARIA and isl.phase == &"firme":
-				return Vector3(d, isl.sinks_at, isl.ends_at)
-		d += 0.005
-	return Vector3.INF
+	var w := SkyIslandSchedule.next_event(SEED, R.LENDARIA, 0.0)
+	var rise := SkyIslandSchedule.days(SkyIslandSchedule.RISE_S)
+	return Vector3(w.y + rise * 1.5, w.z - rise, w.z)
 
 func _legend_at(day: float) -> Dictionary:
 	for isl in SkyIslandSchedule.islands_at(SEED, day):
@@ -58,7 +54,7 @@ func _island(rarity: int) -> SkyIsland:
 func test_schedule_warning(w: Vector3) -> void:
 	print("\n[1/4] Antes de afundar, 1 h de jogo de tremor...")
 	assert(w != Vector3.INF, "Achou uma lendária")
-	var warn_from := w.y - SkyIslandSchedule.WARN_DAYS
+	var warn_from := w.y - SkyIslandSchedule.days(SkyIslandSchedule.WARN_S)
 	assert(not _legend_at(warn_from - 0.002).warning, "Firme e quieta antes do aviso")
 	var shaking := _legend_at(warn_from + 0.002)
 	assert(shaking.warning and shaking.phase == &"firme", "Treme antes de descer")
@@ -67,8 +63,7 @@ func test_schedule_warning(w: Vector3) -> void:
 	for isl in SkyIslandSchedule.islands_at(SEED, 3.99):
 		if isl.rarity <= R.INCOMUM:
 			assert(not isl.warning, "Comum e incomum nunca afundam")
-	# Na cena do mundo o dia dura 1200 s (20 min reais)
-	print("  ✓ Aviso %.0f s reais antes de descer (dia de 20 min)" % (SkyIslandSchedule.WARN_DAYS * 1200.0))
+	print("  ✓ Treme %.0f s reais e desce em %.0f s" % [SkyIslandSchedule.WARN_S, SkyIslandSchedule.RISE_S])
 
 func test_save_roundtrip() -> void:
 	print("\n[2/4] O que foi pego vai para o save e volta...")
@@ -122,7 +117,7 @@ func test_warning_to_players(w: Vector3) -> void:
 	p.global_position = isl.global_position + Vector3(0, 1.0, 0)
 	_field.refresh()
 	assert(heard.is_empty(), "Firme: nada a avisar")
-	_field.fixed_day = w.y - SkyIslandSchedule.WARN_DAYS + 0.002
+	_field.fixed_day = w.y - SkyIslandSchedule.days(SkyIslandSchedule.WARN_S) + 0.002
 	_field.refresh()
 	p.global_position = Vector3(isl.global_position.x, isl.top_at(isl.global_position.x, isl.global_position.z) + 1.0, isl.global_position.z)
 	_field.refresh()
