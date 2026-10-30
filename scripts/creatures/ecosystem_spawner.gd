@@ -19,6 +19,9 @@ const MOUNTABLE: Dictionary = {CreatureDNA.Species.TROTADOR: Mount.Kind.LAND, Cr
 const STABLE_POS: Vector2 = Vector2(-15.0, -5.0)
 ## Cuidar (escovar e tratar) só vale com a montaria perto do estábulo (GDD-16 §2)
 const CARE_RADIUS: float = 12.0
+## Ninhos de Planador (Prova do Ninho, GDD-16 §4): nos morros mais altos, longe uns dos outros
+const NEST_COUNT: int = 2
+const NEST_GAP: float = 60.0
 
 @export var landscape: Node3D
 @export var world_seed: int = 2026
@@ -79,6 +82,7 @@ func _ready() -> void:
 		_spawn_plants()
 		_spawn_fauna()
 	_build_stable()
+	_spawn_nests()
 
 # ---------------------------------------------------------------- flora
 
@@ -399,6 +403,33 @@ func restore_owned(list: Array) -> void:
 			# Save de antes do GDD-16: entra como capturada no laço
 			var bond: MountBond = MountBond.from_dict(e["bond"], d) if e.get("bond") is Dictionary else null
 			add_owned_mount(d, bond)
+
+## Ninhos no alto: os pontos mais altos do relevo, fora da vila, do rio e do estábulo
+func _spawn_nests() -> void:
+	if landscape == null or not landscape.has_method("get_height_at"):
+		return
+	var spots: Array = []
+	var half := WorldBounds.HALF * 0.9
+	var x := -half
+	while x <= half:
+		var z := -half
+		while z <= half:
+			if not CityHub.in_village(x, z, 20.0) and Vector2(x, z).distance_to(STABLE_POS) > 30.0 					and RiverSystem.get_distance_to_river(x, z) > RiverSystem.get_water_half_width(z) + 6.0:
+				spots.append(Vector3(x, _ground(x, z), z))
+			z += 8.0
+		x += 8.0
+	spots.sort_custom(func(a, b): return a.y > b.y)
+	var placed: Array[Vector3] = []
+	for spot in spots:
+		if placed.size() >= NEST_COUNT:
+			break
+		if placed.any(func(q): return Vector2(q.x, q.z).distance_to(Vector2(spot.x, spot.z)) < NEST_GAP):
+			continue
+		var nest := PlanadorNest.new()
+		nest.name = "NinhoPlanador%d" % placed.size()
+		nest.position = spot
+		add_child(nest)
+		placed.append(spot)
 
 # ---------------------------------------------------------------- Elo e Companheira (GDD-16)
 
