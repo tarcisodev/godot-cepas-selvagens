@@ -84,6 +84,12 @@ func _process(_delta: float) -> bool:
 			_next(60)
 		11:
 			_shot("8_mitica_anunciada")
+			for n in current_scene.find_children("*", "Control", true, false):
+				if n is WorldMapScreen:
+					(n as WorldMapScreen).open_map(_player)
+			_next(30)
+		12:
+			_shot("9_mapa_com_ilhotas")
 			quit(0)
 	return false
 
