@@ -901,6 +901,7 @@ func _setup_diary() -> void:
 	if diary:
 		diary.milestone_reached.connect(func(def): _on_posture_changed("🏅 Marco de %s: %s" % [_MilestoneDefNames.TIER_NAMES[def.tier], def.title]))
 		diary.showcase_received.connect(func(s): _on_posture_changed("🤝 " + _DiaryScreen.showcase_text(s)))
+		diary.guild_feat_reached.connect(func(id): _on_posture_changed("📕 Feito da Guilda: " + _DiaryScreen.guild_feat_name(id)))
 
 func _on_posture_changed(posture: String) -> void:
 	current_posture = posture

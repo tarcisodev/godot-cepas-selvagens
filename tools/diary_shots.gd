@@ -7,7 +7,9 @@ extends SceneTree
 const PlayerScene: PackedScene = preload("res://scenes/player.tscn")
 const _DiaryScreen = preload("res://scripts/ui/diary_screen.gd")
 const _ForgedItem = preload("res://scripts/data/forged_item.gd")
-const SHOTS: Array[StringName] = [&"capa", &"forja", &"paginas", &"marcos"]
+const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const SHOTS: Array[StringName] = [&"capa", &"forja", &"paginas", &"marcos", &"totem"]
 
 var _out: String = "user://"
 var _screen: _DiaryScreen
@@ -25,6 +27,15 @@ func _initialize() -> void:
 	var bruno := _player("Bruno", Vector3(3, 0, 0), 2)
 	_ana = ana
 	_bruno = bruno
+	var lobos = _GuildSystem.get_instance().create_guild(&"lobos", "Lobos do Ermo", "LOB", "Ana")
+	for m in ["Duda", "Ícaro"]:
+		lobos.add_member(m, 1)
+	ana.guild.join_guild(&"lobos")
+	_GuildBook.credit(lobos, "Duda", "doacao", 240)
+	_GuildBook.credit(lobos, "Duda", "chefes", 2)
+	_GuildBook.credit(lobos, "Ícaro", "manutencao", 60)
+	_GuildBook.credit(lobos, "Ícaro", "caravanas", 3)
+	_GuildBook.credit(lobos, "Ícaro", "caravana_valor", 310)
 	var bg := ColorRect.new()
 	bg.color = Color(0.18, 0.24, 0.2)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -76,6 +87,8 @@ func _fill() -> void:
 		EventBusAutoload.report(_ana, &"cozinha", {"result": "ensopado_campeiro", "quality": 3})
 	EventBusAutoload.report(_ana, &"coleta", {"material": "minerio_ferro", "amount": 30, "quality": 2})
 	EventBusAutoload.report(_ana, &"venda", {"money": 120, "item": "Lâmina de Osso"})
+	EventBusAutoload.report(_ana, &"doacao", {"material": "barra_ferro", "amount": 5})
+	EventBusAutoload.report(_ana, &"manutencao", {"money": 50})
 	CombatResolver.resolve_hit(HitEvent.new(_ana, _bruno, 5000.0, DamageType.Type.SLASH, 0.0))
 	_ana.diary.ledger.set_title("Aprendiz de Bigorna")
 	_ana.play_time = 3.0 * 3600.0 + 25.0 * 60.0

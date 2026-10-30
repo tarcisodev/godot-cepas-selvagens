@@ -10,6 +10,11 @@ const _MissionBoardSystem = preload("res://scripts/systems/mission_board_system.
 const _MaterialData = preload("res://scripts/data/material_data.gd")
 const _WalletComponent = preload("res://scripts/components/wallet_component.gd")
 const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const _GuildLedger = preload("res://scripts/data/guild_ledger.gd")
+
+## Filtro especial: em vez de contratos, o Placar das Guildas (GDD-19 §7)
+const FILTER_GUILD_BOARD: int = -2
 
 var player: _Player
 var mission_system: _MissionBoardSystem
@@ -36,6 +41,10 @@ func open(p_player: _Player, p_system: _MissionBoardSystem, p_city: Node = null)
 	visible = true
 	add_to_group("open_menus")
 	Input.set_mouse_mode(Input.MOUSE_MODE_VISIBLE)
+	# Cliente online: o Placar chega do servidor depois de pedido
+	var net := get_node_or_null("/root/NetworkManager")
+	if net and net.has_signal("guild_board_received") and not net.guild_board_received.is_connected(_on_guild_board):
+		net.guild_board_received.connect(_on_guild_board)
 	_refresh()
 
 func close() -> void:
@@ -126,6 +135,12 @@ func _build_ui() -> void:
 		btn.pressed.connect(func(): _set_filter(c_val))
 		_category_tabs.add_child(btn)
 
+	var tab_board := Button.new()
+	tab_board.name = "GuildBoardTab"
+	tab_board.text = "🏆 Placar das Guildas"
+	tab_board.pressed.connect(func(): _set_filter(FILTER_GUILD_BOARD))
+	_category_tabs.add_child(tab_board)
+
 	# Toast / Mensagem de status
 	_status_toast = Label.new()
 	_status_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -149,13 +164,20 @@ func _set_filter(cat: int) -> void:
 	_refresh()
 
 func _refresh() -> void:
-	if mission_system == null:
+	if mission_system == null and _active_filter != FILTER_GUILD_BOARD:
 		return
 
 	# Limpa lista anterior
 	for c in _contracts_list.get_children():
+		_contracts_list.remove_child(c)
 		c.queue_free()
 
+	if _active_filter == FILTER_GUILD_BOARD:
+		_build_guild_board()
+		return
+
+	if mission_system == null:
+		return
 	var contracts := mission_system.active_contracts
 	var filtered: Array = []
 	for contract in contracts:
@@ -284,4 +306,31 @@ func _on_deliver(contract: Dictionary) -> void:
 	if mission_system.deliver_contract(contract, player, city_node):
 		_status_toast.text = "🎉 Contrato cumprido! Recompensa de %s entregue!" % _WalletComponent.format(contract.reward_money)
 		_status_toast.add_theme_color_override("font_color", Color(0.4, 0.95, 0.5))
+		_refresh()
+
+## Placar das Guildas da semana (7 dias reais): só guildas, ninguém vê ranking de jogador
+func _build_guild_board() -> void:
+	var board: Dictionary = _GuildBook.view_for(player).get("board", {})
+	var head := Label.new()
+	head.text = "🏆 Placar das Guildas · semana de %s" % _GuildLedger.week_start_text(int(board.get("week", _GuildLedger.week_of(_GuildLedger.now()))))
+	head.add_theme_font_size_override("font_size", 15)
+	head.add_theme_color_override("font_color", Color(0.95, 0.82, 0.4))
+	_contracts_list.add_child(head)
+	for col in _GuildBook.board_lines(board):
+		var title := Label.new()
+		title.text = col[0]
+		title.add_theme_color_override("font_color", Color(0.85, 0.72, 0.35))
+		_contracts_list.add_child(title)
+		if col[1].is_empty():
+			var none := Label.new()
+			none.text = "   Nenhuma guilda nesta semana ainda."
+			none.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
+			_contracts_list.add_child(none)
+		for line in col[1]:
+			var lbl := Label.new()
+			lbl.text = "   " + line
+			_contracts_list.add_child(lbl)
+
+func _on_guild_board(_data: Dictionary) -> void:
+	if visible and _active_filter == FILTER_GUILD_BOARD:
 		_refresh()

@@ -11,6 +11,8 @@ const _CharacterDNA = preload("res://scripts/data/character_dna.gd")
 const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
 const _WorldBounds = preload("res://scripts/core/world_bounds.gd")
 const _HitEvent = preload("res://scripts/data/hit_event.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
 const _DamageType = preload("res://scripts/data/damage_type.gd")
 const _CombatResolver = preload("res://scripts/systems/combat_resolver.gd")
 const _PoolsComponent = preload("res://scripts/components/pools_component.gd")
@@ -123,6 +125,10 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = MAX_PLAYERS, use_
 			mp.peer_disconnected.connect(_on_peer_disconnected)
 
 	state = NetworkState.HOSTING_SERVER
+	# Guildas e Livros do Totem voltam com o servidor (GDD-19 §7)
+	var sp := get_node_or_null("/root/ServerPersistence")
+	if sp and sp.has_method("load_guilds"):
+		sp.load_guilds()
 	_register_self_profile()
 	network_state_changed.emit(state)
 	players_updated.emit()
@@ -747,3 +753,40 @@ func rpc_receive_diary(data: Dictionary) -> void:
 	var diary := p.get_node_or_null("DiaryComponent") if p else null
 	if diary:
 		diary.apply_snapshot(data)
+
+# ---------------------------------------------------------------- Livro do Totem e Placar (GDD-19 §7)
+
+signal guild_board_received(data: Dictionary)
+
+## Cliente pede o Placar das Guildas e o Livro da própria guilda (no máximo a cada 2 s)
+var _board_asked_msec: int = -100000
+
+func request_guild_board() -> bool:
+	var mp := _get_mp()
+	if is_server_authoritative() or mp == null or not mp.has_multiplayer_peer():
+		return false
+	if Time.get_ticks_msec() - _board_asked_msec < 2000:
+		return false
+	_board_asked_msec = Time.get_ticks_msec()
+	rpc_id(1, "rpc_request_guild_board")
+	return true
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_request_guild_board() -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	if not players_info.has(sender_id):
+		return
+	# Quem lê é quem o servidor diz que é: o Livro só vai para membro da guilda
+	var reader: String = players_info[sender_id].get("name", "")
+	var data := {"board": _GuildBook.scoreboard()}
+	var book := _GuildBook.book_view(_GuildSystem.get_instance().get_player_guild(reader), reader)
+	if not book.is_empty():
+		data["book"] = book
+	rpc_id(sender_id, "rpc_receive_guild_board", data)
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_guild_board(data: Dictionary) -> void:
+	_GuildBook.board_cache = data
+	guild_board_received.emit(data)

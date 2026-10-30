@@ -2,6 +2,7 @@ class_name GuildData
 extends Resource
 
 const _Self = preload("res://scripts/data/guild_data.gd")
+const _GuildLedger = preload("res://scripts/data/guild_ledger.gd")
 
 ## Dados e Heráldica da Guilda (GDD-15).
 ## Armazena identificação, brasão heráldico, membros com cargos, nível da sede (1 a 3),
@@ -42,6 +43,8 @@ const TERRITORY_RADIUS_BY_LEVEL: Dictionary = {
 @export var level: int = 1
 @export var members: Dictionary = {}   # String (username) -> int (Role)
 @export var donations: Dictionary = {} # StringName (material_id) -> int (amount)
+## Livro do Totem: quem deu o quê, por semana (GDD-19 §7)
+var book: _GuildLedger = _GuildLedger.new()
 
 func _init(p_id: StringName = &"", p_name: String = "", p_tag: String = "") -> void:
 	id = p_id
@@ -144,7 +147,8 @@ func to_dict() -> Dictionary:
 		"emblem_id": String(emblem_id),
 		"level": level,
 		"members": members_dict,
-		"donations": donations_dict
+		"donations": donations_dict,
+		"book": book.to_dict()
 	}
 
 static func from_dict(d: Dictionary) -> Resource:
@@ -162,4 +166,5 @@ static func from_dict(d: Dictionary) -> Resource:
 	var d_dict: Dictionary = d.get("donations", {})
 	for m in d_dict:
 		g.donations[StringName(m)] = int(d_dict[m])
+	g.book.from_dict(d.get("book", {}))
 	return g

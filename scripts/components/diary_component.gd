@@ -6,6 +6,8 @@ const _ForgedItem = preload("res://scripts/data/forged_item.gd")
 const _HitEvent = preload("res://scripts/data/hit_event.gd")
 const _MilestoneDef = preload("res://scripts/data/milestone_def.gd")
 const _MilestoneTable = preload("res://scripts/data/milestone_table.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const _GuildData = preload("res://scripts/data/guild_data.gd")
 
 ## Diário do Caçador (GDD-19 §3 a §8, B40 fases 1 a 3).
 ## Escuta o EventBus (ADR-0003) e escreve no FeatLedger do dono: abates, assistências e
@@ -18,6 +20,8 @@ signal milestone_reached(def: _MilestoneDef)
 signal showcase_received(payload: Dictionary)
 ## A cópia do cliente foi trocada pela do servidor
 signal snapshot_applied()
+## A guilda do dono cravou um Feito da Guilda (Livro do Totem, GDD-19 §7)
+signal guild_feat_reached(feat_id: String)
 
 ## Acertou o alvo nesse intervalo antes da queda dele e outro deu o golpe final: assistência
 const ASSIST_WINDOW: float = 15.0
@@ -172,6 +176,8 @@ func _write_kill(entity: Node, entry: Dictionary, kind: String, flawless: bool =
 			var victim_diary := entity.get_node_or_null("DiaryComponent")
 			if victim_diary and victim_diary.has_lenda():
 				ledger.add(&"sangue", "lendas_abatidas")
+		if page["digno"] and is_invader(entity):
+			_credit_guild("invasores", 1)
 	if kind == "abate":
 		ledger.add(chapter, "abates")
 		ledger.add(&"capa", "abates")
@@ -181,6 +187,7 @@ func _write_kill(entity: Node, entry: Dictionary, kind: String, flawless: bool =
 				ledger.add(&"caca", "duas_partes")
 			if who.get("boss", false):
 				ledger.add(&"caca", "chefes")
+				_credit_guild("chefes", 1)
 				if flawless:
 					ledger.add(&"caca", "chefes_ilesos")
 				engrave("Derrubou %s, dia %d" % [who["name"], page["day"]])
@@ -271,6 +278,48 @@ func _apply_activity(activity: StringName, info: Dictionary) -> void:
 		&"caravana":
 			ledger.add(&"balcao", "caravanas")
 			ledger.add(&"balcao", "moedas", int(info.get("money", 0)))
+			_credit_guild("caravanas", 1)
+			_credit_guild("caravana_valor", int(info.get("money", 0)))
+		&"doacao":
+			var value := _GuildBook.donation_value(StringName(str(info.get("material", ""))), int(info.get("amount", 0)))
+			if value > 0:
+				_credit_guild("doacao", value)
+			else:
+				_announce_feats(_GuildBook.check_feats(my_guild()))
+		&"manutencao":
+			_credit_guild("manutencao", int(info.get("money", 0)))
+		&"manutencao_retirada":
+			# Pôr no cofre e tirar no mesmo dia não conta (GDD-19 §8)
+			var guild := my_guild()
+			if guild:
+				_GuildBook.refund(guild, describe(get_parent())["name"], "manutencao", int(info.get("money", 0)))
+
+## Guilda do dono (ou null)
+func my_guild() -> _GuildData:
+	var g = get_parent().get("guild") if get_parent() else null
+	if g and g.has_method("get_guild_data"):
+		return g.get_guild_data()
+	return null
+
+## Livro do Totem: credita o dono na guilda dele
+func _credit_guild(kind: String, amount: int) -> void:
+	var guild := my_guild()
+	if guild:
+		_announce_feats(_GuildBook.credit(guild, describe(get_parent())["name"], kind, amount))
+
+func _announce_feats(ids: Array[String]) -> void:
+	for id in ids:
+		guild_feat_reached.emit(id)
+
+## Invasor: jogador de fora da guilda abatido dentro do território dela
+func is_invader(victim: Node) -> bool:
+	var me := get_parent() as Node3D
+	var mine := my_guild()
+	if mine == null or me == null or not is_player(victim):
+		return false
+	if describe(victim).get("guild", "") == String(mine.id):
+		return false
+	return _GuildBook.in_territory(get_tree(), mine.id, me.global_position)
 
 ## Andanças: metros a pé e montado e lugares novos (células de PLACE_CELL m)
 func track_movement() -> void:

@@ -6,6 +6,8 @@ const _DiaryComponent = preload("res://scripts/components/diary_component.gd")
 const _FeatLedger = preload("res://scripts/data/feat_ledger.gd")
 const _MilestoneDef = preload("res://scripts/data/milestone_def.gd")
 const _MilestoneTable = preload("res://scripts/data/milestone_table.gd")
+const _GuildBook = preload("res://scripts/systems/guild_book.gd")
+const _GuildLedger = preload("res://scripts/data/guild_ledger.gd")
 
 ## Tela do Diário do Caçador ([L], GDD-19 §4 a §7, B40 fase 4): capa com os totais e o título,
 ## um separador por capítulo (feitos, recordes, maestria e Marcos), as Páginas com filtro,
@@ -34,6 +36,7 @@ const TABS: Array[Dictionary] = [
 	{"id": &"paginas", "name": "Páginas", "icon": "📜"},
 	{"id": &"marcos", "name": "Marcos", "icon": "🏅"},
 	{"id": &"mostras", "name": "Mostras", "icon": "🤝"},
+	{"id": &"totem", "name": "Totem", "icon": "📕"},
 ]
 const COUNTER_NAMES: Dictionary = {
 	"abates": "Abates", "assistencias": "Assistências", "quedas": "Quedas",
@@ -123,12 +126,16 @@ func _bind() -> void:
 	var d: _DiaryComponent = player.get_node_or_null("DiaryComponent") as _DiaryComponent if player else null
 	if d == _diary:
 		return
-	for sig in ["page_written", "milestone_reached", "showcase_received", "snapshot_applied"]:
+	for sig in ["page_written", "milestone_reached", "showcase_received", "snapshot_applied", "guild_feat_reached"]:
 		if _diary and _diary.is_connected(sig, _on_diary_changed):
 			_diary.disconnect(sig, _on_diary_changed)
 	_diary = d
+	# Cliente online: o Livro do Totem chega do servidor depois de pedido
+	var net := get_node_or_null("/root/NetworkManager")
+	if net and net.has_signal("guild_board_received") and not net.guild_board_received.is_connected(_on_diary_changed):
+		net.guild_board_received.connect(_on_diary_changed)
 	if _diary:
-		for sig in ["page_written", "milestone_reached", "showcase_received", "snapshot_applied"]:
+		for sig in ["page_written", "milestone_reached", "showcase_received", "snapshot_applied", "guild_feat_reached"]:
 			_diary.connect(sig, _on_diary_changed)
 
 func _on_diary_changed(_arg = null) -> void:
@@ -239,6 +246,8 @@ func refresh() -> void:
 			_build_all_milestones(l)
 		&"mostras":
 			_build_showcases()
+		&"totem":
+			_build_guild_book()
 		_:
 			_build_chapter(l, current_tab)
 	_refresh_targets()
@@ -375,6 +384,23 @@ func _build_showcases() -> void:
 	for s in _diary.showcases:
 		_content.add_child(_label(showcase_text(s), 14, INK, true))
 
+## Livro do Totem da guilda do dono (GDD-19 §7): o Diário abre o mesmo Livro do Totem
+func _build_guild_book() -> void:
+	_content.add_child(_heading("📕 Livro do Totem"))
+	var book: Dictionary = _GuildBook.view_for(player).get("book", {})
+	if book.is_empty():
+		_content.add_child(_label("Sem guilda, sem Livro do Totem. Quem é membro vê aqui quem deu o quê na semana.", 14, INK_DIM, true))
+		return
+	_content.add_child(_label("[%s] %s · semana de %s" % [book.get("tag", ""), book.get("guild", ""), _GuildLedger.week_start_text(int(book["week"]))], 14, INK_DIM))
+	var rows: Array = book.get("rows", [])
+	if rows.is_empty():
+		_content.add_child(_label("Ninguém contribuiu nesta semana ainda.", 14, INK_DIM))
+	for row in rows:
+		_content.add_child(_label(_GuildBook.row_text(row), 14, INK, true))
+	_content.add_child(_heading("Feitos da Guilda"))
+	for line in _GuildBook.feat_lines(book):
+		_content.add_child(_label(line, 14, LEATHER if line.begins_with("✔") else INK, true))
+
 func _milestone_row(l: _FeatLedger, def: _MilestoneDef) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -424,7 +450,7 @@ func current_showcase() -> Array:
 			return ["titulo", null]
 		&"paginas":
 			return ["pagina", selected_page] if selected_page >= 0 else []
-		&"marcos", &"mostras":
+		&"marcos", &"mostras", &"totem":
 			return []
 		_:
 			return ["capitulo", String(current_tab)]
@@ -495,6 +521,13 @@ static func showcase_text(s: Dictionary) -> String:
 		"pagina":
 			return "%s mostrou uma Página: %s" % [who, page_text(s.get("page", {}))]
 	return who
+
+## Nome do Feito da Guilda para o aviso do HUD
+static func guild_feat_name(id: String) -> String:
+	for row in _GuildBook.FEATS:
+		if row[0] == id:
+			return "%s (%s)" % [row[1], row[4]]
+	return id
 
 static func _tab_name(id: StringName) -> String:
 	for t in TABS:

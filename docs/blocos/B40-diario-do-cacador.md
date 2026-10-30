@@ -38,11 +38,12 @@ Implementar o [[03-Projects/Cepa-Selvagem/notas/GDD-19-Diario-do-cacador|GDD-19]
 - [x] Fase 2 (ofícios, andanças e recordes) — mesmo teste, casos 7 a 9.
 - [x] Fase 3 (Marcos, recompensas, memória na arma, anti-farm) — `tests/test_hunter_diary_milestones.gd`.
 - [x] Fase 4 (tela [L], título, mostrar, cópia do cliente) — `tests/test_diary_screen.gd`; prints com `tools/diary_shots.gd`.
-- [ ] Fase 5 implementada em `feature/b40-diario-do-cacador`, com Issue ligada ao PR.
-- [ ] Testes em `tests/` e `tests/run_all.gd` verde a cada fase.
+- [x] Fase 5 (Livro do Totem, Feitos da Guilda, Placar das Guildas) — `tests/test_guild_book.gd`.
+- [x] Fases implementadas em `feature/b40-diario-do-cacador`, com Issue ligada ao PR #29.
+- [x] Testes em `tests/` e `tests/run_all.gd` verde a cada fase (63/63 na Fase 5).
 
 ## Próximo passo (uma frase)
-Revisar e juntar o PR #29 (fases 1 a 4); depois, Fase 5 (Livro do Totem e Placar das Guildas).
+Revisar e juntar o PR #29 (fases 1 a 5); depois, ligar o cerco do Totem às defesas e o Diário dos avatares remotos.
 
 ## Notas da Fase 1
 - Escrever só com autoridade: `NetworkManager.is_server_authoritative()`; o cliente ainda não recebe cópia (vem com a tela, Fase 4).
@@ -67,3 +68,12 @@ Revisar e juntar o PR #29 (fases 1 a 4); depois, Fase 5 (Livro do Totem e Placar
 - O título escolhido ainda não aparece embaixo do nome no mundo (o rótulo do avatar é de outro sistema); fica no cabeçalho do Diário e nas mostras.
 - Os adornos são só nomes por enquanto; o visual no personagem entra com arte própria.
 - O servidor ainda não chama `push_diary` sozinho (os avatares remotos não têm Diário); o cliente recebe a cópia salva ao entrar no mundo.
+
+## Notas da Fase 5
+- `GuildLedger` fica dentro de `GuildData` (campo `book`): por membro e por semana de 7 dias reais (começa na segunda), guarda 8 semanas e o total desde sempre.
+- Quem credita é o Diário de cada membro, no servidor: doação (valor = `base_value` da ficha do material × quantidade; sem ficha não conta), cofre de manutenção, caravanas (quantidade e lucro), chefes (só quem deu o abate) e invasores (abate **digno** de outra guilda dentro do raio do Totem da guilda).
+- Pôr no cofre e tirar no mesmo dia anula (`refund`). A doação de material não tem volta no jogo, então a regra só pega o cofre.
+- Feitos da Guilda: Forte, Cidadela, 1.000 $S doados, 500 $S de cofre, 100 caravanas, 10 chefes, 20 invasores; recompensa só de heráldica (borda ou estandarte, ainda sem arte). "Defender o Totem 5 vezes" está **aguardando**: ainda não existe ataque ao Totem.
+- Placar das Guildas: botão "🏆 Placar das Guildas" no Quadro da Vila, colunas contribuição ($S), defesas e chefes, top 5, sem nome de jogador.
+- O Livro abre na sede (aba "📕 Livro do Totem") e no Diário (aba Totem); quem é de fora não vê. O Livro não pode ser mostrado com o "Mostrar a".
+- Online: o cliente pede (`request_guild_board`, no máximo a cada 2 s); o servidor responde o Placar e, só para membro, o Livro. As guildas agora são salvas em `user://server_saves/world/guilds.json` (autosave do servidor) e voltam ao subir o servidor.
