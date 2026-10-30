@@ -5,14 +5,19 @@ const _FeatLedger = preload("res://scripts/data/feat_ledger.gd")
 const _ForgedItem = preload("res://scripts/data/forged_item.gd")
 const _HitEvent = preload("res://scripts/data/hit_event.gd")
 
-## Diário do Caçador (GDD-19 §4 e §5, B40 fase 1).
-## Escuta o EventBus (ADR-0003) e escreve no FeatLedger do dono: contadores, abates,
-## assistências e quedas. Só quem tem autoridade escreve (ADR-0002); o cliente só lê.
+## Diário do Caçador (GDD-19 §3 a §5, B40 fases 1 e 2).
+## Escuta o EventBus (ADR-0003) e escreve no FeatLedger do dono: abates, assistências e
+## quedas, os ofícios (activity_done), as andanças e os recordes. Só quem tem autoridade
+## escreve (ADR-0002); o cliente só lê.
 
 signal page_written(page: Dictionary)
 
 ## Acertou o alvo nesse intervalo antes da queda dele e outro deu o golpe final: assistência
 const ASSIST_WINDOW: float = 15.0
+## Tamanho da célula de "lugar" das Andanças (m)
+const PLACE_CELL: float = 128.0
+## Pulo maior que isso num quadro é teleporte (renascer, apito), não andança
+const MAX_STEP: float = 30.0
 
 var ledger: _FeatLedger = _FeatLedger.new()
 
@@ -22,6 +27,10 @@ var _hits_dealt: Dictionary = {}
 var _other_hitters: Dictionary = {}
 ## Último golpe que o dono levou: {damage, damage_type, part, who, weapon}
 var _last_taken: Dictionary = {}
+## Andanças: última posição e metros ainda não contados
+var _last_pos: Variant = null
+var _walk_m: float = 0.0
+var _ride_m: float = 0.0
 
 func _ready() -> void:
 	var bus := get_node_or_null("/root/EventBus")
@@ -31,6 +40,12 @@ func _ready() -> void:
 		bus.hit_resolved.connect(_on_hit_resolved)
 	if not bus.entity_defeated.is_connected(_on_entity_defeated):
 		bus.entity_defeated.connect(_on_entity_defeated)
+	if not bus.activity_done.is_connected(_on_activity_done):
+		bus.activity_done.connect(_on_activity_done)
+
+func _physics_process(_delta: float) -> void:
+	if _is_authority():
+		track_movement()
 
 func _is_authority() -> bool:
 	var net := get_node_or_null("/root/NetworkManager")
@@ -118,6 +133,9 @@ func _write_kill(entity: Node, entry: Dictionary, kind: String) -> void:
 			ledger.add(&"caca", "especie:" + who["name"])
 			if who.get("boss", false):
 				ledger.add(&"caca", "chefes")
+			var stats: StatsComponent = entity.get_node_or_null("StatsComponent") as StatsComponent
+			if stats:
+				ledger.try_record(&"caca", "maior_caca", stats.get_stat(&"max_health"), _stamp(who["name"]))
 	else:
 		ledger.add(chapter, "assistencias")
 	_commit(page)
@@ -136,6 +154,92 @@ func _write_fall(killer: Node) -> void:
 		"criatura":
 			ledger.add(&"caca", "quedas")
 	_commit(page)
+
+## Listener do EventBus de ofícios (GDD-19 §3)
+func _on_activity_done(actor: Node, activity: StringName, info: Dictionary) -> void:
+	if actor != get_parent() or not _is_authority():
+		return
+	var q := float(info.get("quality", 0))
+	match activity:
+		&"coleta":
+			ledger.add(&"coleta", "recursos", int(info.get("amount", 1)))
+			ledger.add(&"coleta", "material:" + str(info.get("material", "")), int(info.get("amount", 1)))
+			ledger.try_record(&"coleta", "melhor_coleta", q, _stamp(str(info.get("material", ""))))
+		&"pesca":
+			ledger.add(&"coleta", "peixes")
+			ledger.add(&"coleta", "especie:" + str(info.get("species", "")))
+			ledger.try_record(&"coleta", "melhor_peixe", q, _stamp(str(info.get("species", ""))))
+		&"forja":
+			ledger.add(&"forja", "pecas")
+			ledger.add(&"forja", "familia:" + str(info.get("family", "")))
+			ledger.try_record(&"forja", "melhor_peca", q, _stamp(str(info.get("item", ""))))
+		&"fundicao":
+			ledger.add(&"forja", "barras")
+		&"cozinha":
+			if info.get("burned", false):
+				ledger.add(&"fogao", "queimados")
+			else:
+				ledger.add(&"fogao", "pratos")
+				ledger.add(&"fogao", "receita:" + str(info.get("result", "")))
+				ledger.try_record(&"fogao", "melhor_prato", q, _stamp(str(info.get("result", ""))))
+		&"captura":
+			ledger.add(&"criadouro", "capturas")
+			ledger.add(&"criadouro", "especie:" + str(info.get("species", "")))
+		&"cria":
+			ledger.add(&"criadouro", "crias")
+			ledger.try_record(&"criadouro", "maior_geracao", float(info.get("generation", 1)), _stamp(str(info.get("species", ""))))
+		&"elo":
+			ledger.try_record(&"criadouro", "maior_elo", float(info.get("elo", 0)), _stamp(str(info.get("mount", ""))))
+		&"companheira_perdida":
+			ledger.add(&"criadouro", "perdidas")
+			var page := _page("perda", get_parent())
+			page["who"] = {"kind": "criatura", "name": str(info.get("name", "")), "species": str(info.get("species", ""))}
+			page["elo"] = int(info.get("elo", 0))
+			page["keep"] = true
+			_commit(page)
+		&"venda":
+			var money := int(info.get("money", 0))
+			ledger.add(&"balcao", "vendas")
+			ledger.add(&"balcao", "moedas", money)
+			ledger.try_record(&"balcao", "maior_venda", money, _stamp(str(info.get("item", info.get("where", "")))))
+		&"compra":
+			ledger.add(&"balcao", "compras")
+		&"missao":
+			ledger.add(&"balcao", "missoes")
+			ledger.add(&"balcao", "moedas", int(info.get("money", 0)))
+		&"caravana":
+			ledger.add(&"balcao", "caravanas")
+			ledger.add(&"balcao", "moedas", int(info.get("money", 0)))
+
+## Andanças: metros a pé e montado e lugares novos (células de PLACE_CELL m)
+func track_movement() -> void:
+	var me := get_parent() as Node3D
+	if me == null or not me.is_inside_tree():
+		return
+	var pos := me.global_position
+	if _last_pos != null:
+		var step := Vector2(pos.x - _last_pos.x, pos.z - _last_pos.z).length()
+		if step <= MAX_STEP:
+			if me.get("mounted_on") != null:
+				_ride_m += step
+			else:
+				_walk_m += step
+	_last_pos = pos
+	if _walk_m >= 1.0:
+		ledger.add(&"andancas", "metros_a_pe", floori(_walk_m))
+		_walk_m -= floorf(_walk_m)
+	if _ride_m >= 1.0:
+		ledger.add(&"andancas", "metros_montado", floori(_ride_m))
+		_ride_m -= floorf(_ride_m)
+	var cell := "%d,%d" % [floori(pos.x / PLACE_CELL), floori(pos.z / PLACE_CELL)]
+	if not ledger.places.has(cell):
+		ledger.places[cell] = int(_page("", null)["day"])
+		ledger.add(&"andancas", "lugares")
+
+## Dia e lugar de um recorde
+func _stamp(label: String) -> Dictionary:
+	var p := _page("", get_parent())
+	return {"label": label, "day": p["day"], "pos": p["pos"]}
 
 func _commit(page: Dictionary) -> void:
 	ledger.add_page(page)

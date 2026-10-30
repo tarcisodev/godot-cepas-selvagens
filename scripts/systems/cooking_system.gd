@@ -185,6 +185,7 @@ static func cook(inventory: _InventoryComponent, base_stack: Dictionary, ingredi
 	var final_traits: Array[StringName] = combine_traits(base_stack, ingredient_stacks)
 
 	inventory.add_material(result_id, 1, final_quality, final_traits)
+	EventBusAutoload.report(inventory.get_parent(), &"cozinha", {"result": String(result_id), "quality": final_quality})
 
 	return {
 		"success": true,

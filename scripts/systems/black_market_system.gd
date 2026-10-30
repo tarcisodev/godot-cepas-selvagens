@@ -193,6 +193,7 @@ func fulfill_order(order_id: String, player: Node) -> Dictionary:
 	res.payout = payout
 	res.message = "Ordem cumprida com sucesso!"
 
+	EventBusAutoload.report(player, &"venda", {"money": payout, "where": "mercado_negro"})
 	order_fulfilled.emit(order, player, payout)
 
 	# Substitui a ordem cumprida por uma nova
@@ -227,6 +228,7 @@ func sell_gear(player: Node, item: _ForgedItem) -> Dictionary:
 	res.payout = payout
 	res.message = "Equipamento vendido e transferido para o fluxo dos ermos."
 
+	EventBusAutoload.report(player, &"venda", {"money": payout, "item": item.display_name, "where": "mercado_negro"})
 	gear_sold.emit(item, player, payout)
 	return res
 

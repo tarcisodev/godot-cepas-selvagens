@@ -274,6 +274,7 @@ func deliver_contract(contract: Dictionary, player: Node, city_node: Node = null
 		mastery.add_xp(mastery_id, xp)
 
 	# Notifica player se tiver sinal
+	EventBusAutoload.report(player, &"missao", {"title": String(contract.get("title", "")), "money": money})
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.emit("📜 Missão Cumprida: %s (+%s)" % [contract.title, _WalletComponent.format(money)])
 

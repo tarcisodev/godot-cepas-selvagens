@@ -473,6 +473,7 @@ func _do_forge() -> void:
 		_status.text = "Não deu para forjar"
 		return
 	player.inventory.add_item(item)
+	EventBusAutoload.report(player, &"forja", {"item": item.display_name, "family": String(item.family), "quality": item.quality})
 	player.mastery.add_xp(&"forja", 20.0 + item.quality * 8.0)
 	_status.text = "✨ Forjou %s %s" % [item.display_name, "★".repeat(item.quality)]
 	_inspected_item = item

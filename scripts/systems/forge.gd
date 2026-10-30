@@ -317,6 +317,7 @@ static func smelt(inv: InventoryComponent, out_id: StringName) -> String:
 	inv.consume_stack(ores[0], rec.ore_n)
 	inv.consume_materials({rec.fuel: rec.fuel_n})
 	inv.add_material(out_id, 1, q)
+	EventBusAutoload.report(inv.get_parent(), &"fundicao", {"material": String(out_id), "quality": q})
 	return ""
 
 ## Reparo: 5 $S + 1 do revestimento; durabilidade cheia, mas o máximo cai 4%

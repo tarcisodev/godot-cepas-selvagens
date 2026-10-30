@@ -121,6 +121,8 @@ func sell_trade_pack(player: Node, destination_id: StringName) -> Dictionary:
 	else:
 		_notify(player, "↩️ Fardo devolvido à origem. Reembolsado: %d $S." % sale_price)
 	
+	if profit > 0:
+		EventBusAutoload.report(player, &"caravana", {"money": profit})
 	pack_sold.emit(pack, player, profit)
 	return {
 		"success": true,
