@@ -18,6 +18,8 @@ extends Node3D
 signal care_requested(mount: Mount, player: Player)
 ## Montaria própria morreu (o estábulo tira do save e deixa a Lembrança)
 signal died(mount: Mount)
+## Alguém terminou de montar (o ninho começa o voo bravio)
+signal rider_mounted(player: Player)
 
 enum Kind { LAND, AIR, WATER }
 
@@ -93,6 +95,13 @@ var _call_time: float = 0.0
 ## Dono em queda que ela está tentando pegar, e a Vida dele quando o mergulho começou
 var _catching: Player
 var _catch_health: float = 0.0
+## Voo guiado por outro sistema (Prova do Ninho, GDD-16 §4): chamado com o delta no lugar do
+## controle do cavaleiro e do comportamento sem cavaleiro
+var autopilot: Callable
+## Só este jogador pode montar (o adulto do ninho aceita só quem deixou a oferenda)
+var reserved_for: Player
+## Nasceu no ar: não assenta no chão no primeiro quadro
+var skip_settle: bool = false
 ## Faro e Olho de caça ([Q] montado; só montaria própria)
 var senses: MountSenses
 ## Vida (só montaria própria)
@@ -206,6 +215,9 @@ func talk_to(player: Node) -> void:
 func begin_mount(p: Player) -> void:
 	if p == null or rider != null or _channel_player != null or p.mounted_on != null:
 		return
+	if reserved_for != null and p != reserved_for:
+		p.posture_changed.emit("%s não deixa você chegar perto" % display_name)
+		return
 	_channel_player = p
 	_channel_time = MOUNT_TIME
 	_channel_health = p.pools.current_health if p.pools else 0.0
@@ -251,6 +263,7 @@ func mount(p: Player) -> void:
 	if p.pools and not p.pools.poise_broken.is_connected(_on_rider_poise_broken):
 		p.pools.poise_broken.connect(_on_rider_poise_broken)
 	p.posture_changed.emit("🐾 Montado: %s · [E] desmontar" % display_name)
+	rider_mounted.emit(p)
 
 ## Desce da montaria; o cavaleiro fica ao lado, no chão (ou na margem, se for a Raia)
 func dismount() -> void:
@@ -292,6 +305,12 @@ func _on_rider_poise_broken() -> void:
 		p.posture_changed.emit("💥 Derrubado da montaria!")
 
 func _physics_process(delta: float) -> void:
+	if autopilot.is_valid():
+		autopilot.call(delta)
+		body.animate(delta, _speed, _vertical, airborne)
+		if rider:
+			_seat_rider()
+		return
 	if rider == null:
 		if _catching:
 			_following = _dive(delta)
@@ -349,14 +368,17 @@ func _physics_process(delta: float) -> void:
 	if rider == null:
 		return
 	body.animate(delta, _speed, _vertical, airborne)
-	# Cavaleiro sentado no dorso, virado para a frente da montaria
-	rider.global_position = body.saddle.global_position - Vector3(0, 0.3 if kind == Kind.WATER else 0.55, 0)
-	if rider.visual_mesh:
-		rider.visual_mesh.global_rotation.y = global_rotation.y
+	_seat_rider()
 	_hud_timer -= delta
 	if _hud_timer <= 0.0:
 		_hud_timer = 0.3
 		rider.posture_changed.emit("%s %s · Fôlego %d%% · [E] desmontar" % ["🌊" if swimming else "🐾", display_name + (" nadando" if swimming else ""), roundi(stamina)])
+
+## Cavaleiro sentado no dorso, virado para a frente da montaria
+func _seat_rider() -> void:
+	rider.global_position = body.saddle.global_position - Vector3(0, 0.3 if kind == Kind.WATER else 0.55, 0)
+	if rider.visual_mesh:
+		rider.visual_mesh.global_rotation.y = global_rotation.y
 
 func _move_land(step: Vector3, delta: float, jump: bool) -> void:
 	var next := global_position + step
@@ -562,6 +584,8 @@ func _land() -> void:
 	global_position.y = _ground(global_position.x, global_position.z)
 
 func _settle() -> void:
+	if skip_settle:
+		return
 	if kind == Kind.WATER:
 		global_position.y = RiverSystem.get_water_height(global_position.z) - 0.05
 	else:

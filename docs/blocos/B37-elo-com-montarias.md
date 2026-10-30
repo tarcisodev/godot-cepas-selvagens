@@ -23,11 +23,11 @@ Implementar o [[03-Projects/Cepa-Selvagem/notas/GDD-16-Elo-com-montarias|GDD-16]
 - [x] Fase 3: dano de queda, salto no ar e pegada no ar.
 - [x] Fase 4: Vida da montaria, morte permanente e Lembrança (`saudade`).
 - [x] Fase 5: Faro e Olho de caça ([Q]).
-- [ ] Fase 6: Prova do Ninho (ninhos, oferenda Íntegra, voo bravio).
-- [ ] Testes em `tests/` e runner verde a cada fase.
+- [x] Fase 6: Prova do Ninho (ninhos, oferenda Íntegra, voo bravio).
+- [x] Testes em `tests/` e runner verde a cada fase.
 
 ## Próximo passo (uma frase)
-Tarciso testar as fases 1 a 5 jogando e liberar a Fase 6 (Prova do Ninho), a última.
+Tarciso testar o B37 jogando (estábulo, apito, salto e pegada, morte e Lembrança, faro, Prova do Ninho) e ajustar os números; depois, revisar e fazer o merge do PR #23.
 
 ## Log
 - 2026-10-29 — Bloco criado (Claude) com a proposta do GDD-16.
@@ -38,3 +38,4 @@ Tarciso testar as fases 1 a 5 jogando e liberar a Fase 6 (Prova do Ninho), a úl
 - 2026-10-29 — Fase 4 implementada (Claude). Montaria própria tem Vida (tabela dos bichos selvagens pelo porte: Trotador TT 120, Planador TT 90) e hurtbox; o dano passa pelo CombatResolver. Na vila (zona segura) e pelo próprio dono não toma dano. Golpe forte (≥ 10% da Vida) com o dono montado tira Elo (`hurt`); 20 s sem apanhar, ainda montados, contam como fuga junto (`fight`, +2). Morreu: derruba o dono (no alto, ele cai), sai do estábulo e do save, e no lugar do corpo fica uma trouxa (`DroppedLoot`) com a Lembrança 3★ e o trait `saudade`, que qualquer um pega. Lembrança é tempero opcional das 9 receitas de armadura (cabeça, peito, botas, capa, mochila): Saudade = +5% de resistência a corte, impacto e perfuração. A Vida não vai para o save (volta cheia no load) e o nome dela não fica gravado na Lembrança. Teste `tests/test_mount_death.gd`.
 - 2026-10-29 — Pedido do Tarciso: a Lembrança guarda o nome, e os itens guardam mais. Implementado (Claude): pilha pode ter `memory` (nome, espécie, Elo, dia da morte); só junta com memória igual e a memória vai para o chão, o save, o mercado da vila e a peça forjada (`ForgedItem.memory`, nome "… · Saudade de Estrela"). A tela de inventário mostra a linha "Memória".
 - 2026-10-29 — Fase 5 implementada (Claude). `MountSenses`: montado na Companheira, segurar [Q] 1 s. Faro (Parceira): rastros (5 pegadas e o nome com a distância) de cada bicho vivo a até 60 m (90 m na voadora no ar) por 20 s. Olho de caça (plena): nas presas a até 25 m, marca a Vida (%, vermelha abaixo de 20%) e as partes que quebram (chifre, carapaça) por 8 s. Recarga 45 s; não dá dano. Os bichos selvagens comuns não têm hurtbox por parte, então neles o Olho mostra só a Vida. Teste `tests/test_mount_senses.gd`.
+- 2026-10-29 — Fase 6 implementada (Claude). `PlanadorNest`: 2 ninhos nos topos mais altos do relevo (fora da vila, do rio e do estábulo; no mapa atual a ~25 m). [E] com carne Íntegra (e lugar no estábulo) deixa a oferenda; um adulto vem voando de 45 m e 22 m de altura, pousa e espera 60 s só por quem ofereceu. Outro jogador pode roubar a oferenda antes de ele chegar (ele dá meia-volta). Montar leva 1,5 s; aí o voo bravio (`BraveFlight`, 20 s): voltas altas em torno do ninho, e a cada tranco (seta no HUD) 0,9 s para segurar o lado oposto; errar o lado +0,3, deixar passar +0,25, acertar −0,05, golpe +0,4 na barra de queda. Domado: vira montaria própria marcada, Elo 50, e você segue voando nela; o ninho fica vazio por 3 dias de jogo. Caiu (ou saltou): queda livre de verdade e ele vai embora. `Mount` ganhou `autopilot`, `reserved_for` e `rider_mounted`. Limite: o estado dos ninhos não vai para o save. Teste `tests/test_nest_trial.gd`.
