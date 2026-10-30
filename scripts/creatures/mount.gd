@@ -415,10 +415,22 @@ func _move_air(step: Vector3, delta: float, menus_open: bool) -> void:
 			climb = 6.0
 		elif Input.is_action_pressed("crouch"):
 			climb = -7.0
+	# Corrente de vento (GDD-18 §4): dentro dela o teto some e a voadora sobe sozinha
+	var lift := SkyIslandField.current_at(global_position + step)
+	if lift and climb == 0.0:
+		climb = SkyIslandField.CURRENT_LIFT
 	_vertical = move_toward(_vertical, climb, delta * 12.0)
 	var next := global_position + step + Vector3(0, _vertical * delta, 0)
 	var ground := _ground(next.x, next.z)
-	next.y = clampf(next.y, ground, ground + AIR_CEILING)
+	var ceiling := ground + AIR_CEILING
+	if lift:
+		ceiling = maxf(ceiling, lift.top_y() + SkyIslandField.CURRENT_OVERSHOOT)
+	else:
+		# Embaixo de uma ilha, a base de rocha não se atravessa
+		next.y = minf(next.y, SkyIslandField.underside_at(next.x, next.z, global_position.y))
+	# Acima do teto (saiu da Corrente) não cai de uma vez: perde altura planando
+	next.y = minf(next.y, maxf(ceiling, global_position.y - GLIDE_DOWN_SPEED * delta))
+	next.y = maxf(next.y, ground)
 	airborne = next.y > ground + 0.3
 	if not airborne and step.length() < 0.001 and climb <= 0.0:
 		next.y = ground
@@ -626,5 +638,7 @@ func _clamp_to_bounds(pos: Vector3) -> Vector3:
 	var h := WorldBounds.get_half() - EDGE_MARGIN
 	return Vector3(clampf(pos.x, -h, h), pos.y, clampf(pos.z, -h, h))
 
+## Chão em (x, z): o terreno, ou o topo de uma ilha voadora logo abaixo da montaria (GDD-18)
 func _ground(x: float, z: float) -> float:
-	return _landscape.get_height_at(x, z) if _landscape else 0.0
+	var terrain: float = _landscape.get_height_at(x, z) if _landscape else 0.0
+	return SkyIslandField.ground_at(x, z, global_position.y, terrain)
