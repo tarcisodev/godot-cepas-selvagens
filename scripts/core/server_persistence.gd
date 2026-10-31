@@ -11,6 +11,12 @@ const ACCOUNTS_DIR: String = "user://server_saves/accounts"
 const WORLD_FILE: String = "user://server_saves/world/world_state.json"
 const AUTOSAVE_INTERVAL: float = 60.0
 const GUILDS_FILE: String = "user://server_saves/world/guilds.json"
+## Senhas (B41): PBKDF2-HMAC-SHA256 com salt aleatório por conta
+const PASSWORD_ALGO: String = "pbkdf2_sha256"
+const PASSWORD_ITERATIONS: int = 10000
+const PASSWORD_MIN_LENGTH: int = 6
+const PASSWORD_MAX_LENGTH: int = 128
+const MAX_CHARACTERS_PER_ACCOUNT: int = 3
 const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
 
 signal player_saved(player_name: String)
@@ -63,14 +69,24 @@ func save_player_data(player_name: String, data: Dictionary) -> bool:
 		"name": player_name,
 		"data": data
 	}
-	var json_str := JSON.stringify(payload, "\t")
-	var file := FileAccess.open(file_path, FileAccess.WRITE)
-	if file == null:
-		push_error("[ServerPersistence] Falha ao abrir arquivo para escrita: %s (erro: %d)" % [file_path, FileAccess.get_open_error()])
+	if not write_json_atomic(file_path, payload):
 		return false
-	file.store_string(json_str)
-	file.close()
 	player_saved.emit(player_name)
+	return true
+
+## Grava em "<arquivo>.tmp" e só depois troca pelo arquivo final: uma queda no meio não corrompe o save
+static func write_json_atomic(file_path: String, data: Variant) -> bool:
+	var tmp_path := file_path + ".tmp"
+	var file := FileAccess.open(tmp_path, FileAccess.WRITE)
+	if file == null:
+		push_error("[ServerPersistence] Falha ao abrir arquivo para escrita: %s (erro: %d)" % [tmp_path, FileAccess.get_open_error()])
+		return false
+	file.store_string(JSON.stringify(data, "\t"))
+	file.close()
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp_path), ProjectSettings.globalize_path(file_path))
+	if err != OK:
+		push_error("[ServerPersistence] Falha ao trocar %s pelo arquivo final (erro: %d)" % [tmp_path, err])
+		return false
 	return true
 
 ## Carrega os dados de um jogador pelo nome
@@ -190,6 +206,15 @@ func autosave_all_active_players() -> void:
 			p_name = player.get_meta("player_name")
 		if not p_name.is_empty():
 			update_player_data(p_name, serialize_player(player))
+	# Jogadores online: no servidor, cada peer que entrou no mundo tem um avatar com a posição dele
+	if _net != null and _net.get("state") == _net.NetworkState.HOSTING_SERVER:
+		var remotes: Dictionary = _net.get("remote_avatars")
+		var infos: Dictionary = _net.get("players_info")
+		for peer_id in infos:
+			var avatar: Node = remotes.get(peer_id)
+			var online_name: String = infos[peer_id].get("name", "")
+			if avatar != null and is_instance_valid(avatar) and not online_name.is_empty():
+				update_player_data(online_name, serialize_player(avatar))
 
 ## Mescla o estado novo no save existente: preserva nome, conta e DNA gravados na criação
 func update_player_data(player_name: String, data: Dictionary) -> bool:
@@ -211,64 +236,110 @@ func _on_peer_left(peer_id: int) -> void:
 				update_player_data(p_name, serialize_player(avatar))
 				print("[ServerPersistence] Progresso salvo para '%s' ao desconectar." % p_name)
 
-## Hasheia senha com salt seguro do jogo
+## Hash antigo (B24): SHA-256 único com salt fixo do jogo. Só serve para migrar contas no próximo login.
 static func hash_password(password: String, username: String) -> String:
 	return (password + ":" + username.strip_edges().to_lower() + ":cepas_selvagens_beta_2026").sha256_text()
 
+## PBKDF2-HMAC-SHA256 (RFC 8018), um bloco de 32 bytes
+static func pbkdf2_sha256(password: String, salt: PackedByteArray, iterations: int) -> PackedByteArray:
+	var crypto := Crypto.new()
+	var key := password.to_utf8_buffer()
+	var first := salt.duplicate()
+	first.append_array(PackedByteArray([0, 0, 0, 1]))
+	var u := crypto.hmac_digest(HashingContext.HASH_SHA256, key, first)
+	var out := u.duplicate()
+	for _i in range(iterations - 1):
+		u = crypto.hmac_digest(HashingContext.HASH_SHA256, key, u)
+		for j in range(out.size()):
+			out[j] = out[j] ^ u[j]
+	return out
+
+## Campos de senha da conta: salt aleatório por conta e hash PBKDF2
+static func make_password_fields(password: String) -> Dictionary:
+	var salt := Crypto.new().generate_random_bytes(16)
+	return {
+		"password_algo": PASSWORD_ALGO,
+		"password_iterations": PASSWORD_ITERATIONS,
+		"password_salt": salt.hex_encode(),
+		"password_hash": pbkdf2_sha256(password, salt, PASSWORD_ITERATIONS).hex_encode()
+	}
+
+## Confere a senha contra os campos da conta (PBKDF2 ou o hash antigo). Nunca aceita hash pronto vindo do cliente.
+static func password_matches(data: Dictionary, password: String, username: String) -> bool:
+	var expected: String = data.get("password_hash", "")
+	if expected.is_empty():
+		return false
+	if data.get("password_algo", "") == PASSWORD_ALGO:
+		var salt := String(data.get("password_salt", "")).hex_decode()
+		var iterations := int(data.get("password_iterations", PASSWORD_ITERATIONS))
+		return _same_text(expected, pbkdf2_sha256(password, salt, iterations).hex_encode())
+	return _same_text(expected, hash_password(password, username))
+
+## Comparação em tempo constante (não vaza quantos caracteres batem)
+static func _same_text(a: String, b: String) -> bool:
+	if a.length() != b.length():
+		return false
+	var diff := 0
+	for i in range(a.length()):
+		diff |= a.unicode_at(i) ^ b.unicode_at(i)
+	return diff == 0
+
+func _account_path(username: String) -> String:
+	return "%s/%s.json" % [ACCOUNTS_DIR, username.strip_edges().validate_filename().to_lower()]
+
+## Lê o arquivo da conta ({} se não existir ou estiver corrompido)
+func _read_account(username: String) -> Dictionary:
+	var path := _account_path(username)
+	if not FileAccess.file_exists(path):
+		return {}
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return parsed if parsed is Dictionary else {}
+
+## O personagem está na lista da conta? (entrar no mundo só com personagem próprio)
+func account_owns_character(username: String, char_name: String) -> bool:
+	if username.strip_edges().is_empty():
+		return false
+	var chars: Array = _read_account(username).get("characters", [])
+	return chars.has(char_name.strip_edges())
+
 ## Registra uma nova conta no servidor
-func register_account(username: String, pass_hash_or_raw: String) -> Dictionary:
+func register_account(username: String, password: String) -> Dictionary:
 	var clean_user := username.strip_edges()
 	if clean_user.length() < 3 or clean_user.length() > 24:
 		return {"success": false, "message": "O nome de usuário deve ter entre 3 e 24 caracteres."}
+	if password.length() < PASSWORD_MIN_LENGTH or password.length() > PASSWORD_MAX_LENGTH:
+		return {"success": false, "message": "A senha deve ter entre %d e %d caracteres." % [PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH]}
 	_ensure_directories()
-	var safe_user := clean_user.validate_filename().to_lower()
-	var file_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	var file_path := _account_path(clean_user)
 	if FileAccess.file_exists(file_path):
 		return {"success": false, "message": "Este nome de usuário já está em uso."}
 
-	var pass_hash: String = pass_hash_or_raw
-	if pass_hash.length() != 64:
-		pass_hash = hash_password(pass_hash, clean_user)
-
 	var payload := {
 		"username": clean_user,
-		"password_hash": pass_hash,
 		"created_at": Time.get_datetime_string_from_system(),
 		"characters": []
 	}
-	var f := FileAccess.open(file_path, FileAccess.WRITE)
-	if f == null:
+	payload.merge(make_password_fields(password))
+	if not write_json_atomic(file_path, payload):
 		return {"success": false, "message": "Erro ao criar arquivo de conta no servidor."}
-	f.store_string(JSON.stringify(payload, "\t"))
-	f.close()
 	return {"success": true, "message": "Conta criada com sucesso!", "characters": []}
 
 ## Autentica uma conta existente
-func login_account(username: String, pass_hash_or_raw: String) -> Dictionary:
+func login_account(username: String, password: String) -> Dictionary:
 	var clean_user := username.strip_edges()
-	var safe_user := clean_user.validate_filename().to_lower()
-	var file_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	var file_path := _account_path(clean_user)
 	if not FileAccess.file_exists(file_path):
 		return {"success": false, "message": "Conta não encontrada."}
-
-	var f := FileAccess.open(file_path, FileAccess.READ)
-	if f == null:
-		return {"success": false, "message": "Erro ao ler dados da conta."}
-	var text := f.get_as_text()
-	f.close()
-
-	var json := JSON.new()
-	if json.parse(text) != OK:
+	var data := _read_account(clean_user)
+	if data.is_empty():
 		return {"success": false, "message": "Dados de conta corrompidos."}
-	var data: Dictionary = json.data as Dictionary
-
-	var expected_hash: String = data.get("password_hash", "")
-	var provided_hash: String = pass_hash_or_raw
-	if provided_hash.length() != 64:
-		provided_hash = hash_password(provided_hash, clean_user)
-
-	if expected_hash != provided_hash:
+	if password.length() > PASSWORD_MAX_LENGTH or not password_matches(data, password, clean_user):
 		return {"success": false, "message": "Senha incorreta."}
+
+	# Conta do hash antigo: migra para PBKDF2 agora que a senha foi conferida
+	if data.get("password_algo", "") != PASSWORD_ALGO:
+		data.merge(make_password_fields(password), true)
+		write_json_atomic(file_path, data)
 
 	var chars: Array = data.get("characters", [])
 	var chars_data: Array = []
@@ -292,10 +363,13 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 		return {"success": false, "message": "Nome do personagem inválido (2 a 20 caracteres)."}
 
 	var clean_user := username.strip_edges()
-	var safe_user := clean_user.validate_filename().to_lower()
-	var acct_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	var acct_path := _account_path(clean_user)
 	if not FileAccess.file_exists(acct_path):
 		return {"success": false, "message": "Conta inexistente."}
+	var acct_data := _read_account(clean_user)
+	var char_list: Array = acct_data.get("characters", [])
+	if char_list.size() >= MAX_CHARACTERS_PER_ACCOUNT:
+		return {"success": false, "message": "Limite de %d personagens por conta." % MAX_CHARACTERS_PER_ACCOUNT}
 
 	if has_player_save(clean_char):
 		return {"success": false, "message": "Já existe um personagem com este nome no mundo."}
@@ -312,23 +386,10 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 	}
 	save_player_data(clean_char, initial_player_data)
 
-	var f := FileAccess.open(acct_path, FileAccess.READ)
-	var acct_text := f.get_as_text() if f else "{}"
-	if f: f.close()
-
-	var json := JSON.new()
-	var acct_data: Dictionary = {}
-	if json.parse(acct_text) == OK and json.data is Dictionary:
-		acct_data = json.data as Dictionary
-
-	var char_list: Array = acct_data.get("characters", [])
 	if not char_list.has(clean_char):
 		char_list.append(clean_char)
 		acct_data["characters"] = char_list
-		var fw := FileAccess.open(acct_path, FileAccess.WRITE)
-		if fw:
-			fw.store_string(JSON.stringify(acct_data, "\t"))
-			fw.close()
+		write_json_atomic(acct_path, acct_data)
 
 	return {"success": true, "message": "Personagem criado com sucesso!", "character": initial_player_data}
 
@@ -336,21 +397,12 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 func delete_character_for_account(username: String, char_name: String) -> Dictionary:
 	var clean_char := char_name.strip_edges()
 	var clean_user := username.strip_edges()
-	var safe_user := clean_user.validate_filename().to_lower()
-	var acct_path := "%s/%s.json" % [ACCOUNTS_DIR, safe_user]
+	var acct_path := _account_path(clean_user)
 	if not FileAccess.file_exists(acct_path):
 		return {"success": false, "message": "Conta inexistente."}
-
-	var f := FileAccess.open(acct_path, FileAccess.READ)
-	if f == null:
-		return {"success": false, "message": "Erro ao acessar arquivo de conta."}
-	var text := f.get_as_text()
-	f.close()
-
-	var json := JSON.new()
-	if json.parse(text) != OK or not (json.data is Dictionary):
+	var acct_data := _read_account(clean_user)
+	if acct_data.is_empty():
 		return {"success": false, "message": "Dados de conta corrompidos."}
-	var acct_data: Dictionary = json.data as Dictionary
 
 	var chars: Array = acct_data.get("characters", [])
 	if not chars.has(clean_char):
@@ -358,11 +410,7 @@ func delete_character_for_account(username: String, char_name: String) -> Dictio
 
 	chars.erase(clean_char)
 	acct_data["characters"] = chars
-
-	var fw := FileAccess.open(acct_path, FileAccess.WRITE)
-	if fw:
-		fw.store_string(JSON.stringify(acct_data, "\t"))
-		fw.close()
+	write_json_atomic(acct_path, acct_data)
 
 	# Exclui o arquivo de save do jogador
 	var safe_char := clean_char.validate_filename()
@@ -379,12 +427,7 @@ func delete_character_for_account(username: String, char_name: String) -> Dictio
 ## Guildas e o Livro do Totem de cada uma (GDD-15, GDD-19 §7): ficam no mundo, não no jogador
 func save_guilds(path: String = GUILDS_FILE) -> bool:
 	_ensure_directories()
-	var file := FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
-		return false
-	file.store_string(JSON.stringify({"version": 1, "guilds": _GuildSystem.get_instance().to_array()}, "	"))
-	file.close()
-	return true
+	return write_json_atomic(path, {"version": 1, "guilds": _GuildSystem.get_instance().to_array()})
 
 func load_guilds(path: String = GUILDS_FILE) -> bool:
 	if not FileAccess.file_exists(path):

@@ -29,6 +29,15 @@ const MAX_CONNECTIONS_PER_IP: int = 3
 const MAX_LOGIN_ATTEMPTS_PER_MINUTE: int = 5
 const LOGIN_RATE_WINDOW_SECONDS: float = 60.0
 const SYNC_INTERVAL: float = 0.05 # 20 Hz
+## Teto de mensagens por peer (B41): posição por segundo e pedidos a cada 10 s; 5× o teto derruba o peer
+const MAX_TRANSFORMS_PER_SECOND: int = 30
+const MAX_REQUESTS_PER_WINDOW: int = 20
+const REQUEST_WINDOW_MSEC: int = 10000
+const ABUSE_KICK_FACTOR: int = 5
+## Tamanho máximo do DNA e de outros dicionários vindos do cliente (bytes serializados)
+const MAX_DNA_BYTES: int = 4096
+const MAX_PAYLOAD_BYTES: int = 16384
+const MAX_ANIM_NAME_LENGTH: int = 48
 
 enum NetworkState {
 	OFFLINE_HOST,      ## Host local (single-player com autoridade de servidor)
@@ -62,6 +71,8 @@ var peer_accounts: Dictionary = {}
 ## Rastreamento de conexões e segurança do servidor
 var peer_ips: Dictionary = {}
 var login_attempts_by_ip: Dictionary = {}
+## "peer:tipo" -> [início da janela em ms, mensagens na janela]
+var _msg_windows: Dictionary = {}
 
 ## peer_id -> {"name": String, "dna": Dictionary}
 var players_info: Dictionary = {}
@@ -118,6 +129,9 @@ func start_server(port: int = DEFAULT_PORT, max_clients: int = MAX_PLAYERS, use_
 
 	var mp := _get_mp()
 	if mp != null:
+		# Cliente não fala direto com cliente: tudo passa pelo servidor, que carimba quem mandou
+		if mp is SceneMultiplayer:
+			(mp as SceneMultiplayer).server_relay = false
 		mp.multiplayer_peer = peer
 		if not mp.peer_connected.is_connected(_on_peer_connected):
 			mp.peer_connected.connect(_on_peer_connected)
@@ -275,24 +289,8 @@ func _process(delta: float) -> void:
 		return
 	_sync_timer = SYNC_INTERVAL
 
-	var local_player := _local_player()
-	if local_player == null:
-		return
-
-	var my_id := mp.get_unique_id()
-	var visual: CharacterVisual = local_player.get("character_visual")
-	if visual and visual.dna:
-		var h := visual.dna.to_dict().hash()
-		if h != _last_dna_hash:
-			_last_dna_hash = h
-			_register_self_profile()
-			rpc_sync_profile.rpc(my_id, _local_player_name(), visual.dna.to_dict())
-
-	var cur_anim: StringName = visual.current() if visual else &"Idle"
-	var body_yaw: float = visual.rotation.y if visual else local_player.rotation.y
-	rpc_sync_transform.rpc(my_id, local_player.global_position, body_yaw, cur_anim)
-
-	# Host sincroniza hora do sol e clima para que todos vejam o mesmo céu, chuva e estrelas
+	# Host sincroniza hora do sol e clima para que todos vejam o mesmo céu, chuva e estrelas.
+	# Vem antes do jogador local: o servidor dedicado não tem jogador e também precisa mandar o céu.
 	if state == NetworkState.HOSTING_SERVER and is_inside_tree() and get_tree().current_scene:
 		var sun := get_tree().current_scene.get_node_or_null("Sun")
 		var weather := get_tree().current_scene.get_node_or_null("WeatherSystem")
@@ -303,6 +301,30 @@ func _process(delta: float) -> void:
 			var cld: float = float(weather.get("clouds")) if weather else 0.1
 			var rn: float = float(weather.get("rain")) if weather else 0.0
 			rpc_sync_world_environment.rpc(h_val, d_val, hum, cld, rn)
+
+	var local_player := _local_player()
+	if local_player == null:
+		return
+
+	var my_id := mp.get_unique_id()
+	var hosting := state == NetworkState.HOSTING_SERVER
+	var visual: CharacterVisual = local_player.get("character_visual")
+	if visual and visual.dna:
+		var h := visual.dna.to_dict().hash()
+		if h != _last_dna_hash:
+			_last_dna_hash = h
+			_register_self_profile()
+			if hosting:
+				_broadcast_profile(my_id)
+			else:
+				rpc_id(1, "rpc_submit_profile", visual.dna.to_dict())
+
+	var cur_anim: StringName = visual.current() if visual else &"Idle"
+	var body_yaw: float = visual.rotation.y if visual else local_player.rotation.y
+	if hosting:
+		_broadcast_transform(my_id, local_player.global_position, body_yaw, cur_anim)
+	else:
+		rpc_id(1, "rpc_submit_transform", local_player.global_position, body_yaw, cur_anim)
 
 func _local_player() -> Node3D:
 	if not is_inside_tree():
@@ -326,16 +348,111 @@ func _register_self_profile() -> void:
 
 # ---------------------------------------------------------------- RPCs de Coop / Rede
 
-@rpc("any_peer", "reliable")
+## Servidor -> clientes: perfil (nome e DNA) de um jogador no mundo. O nome é sempre o que o servidor conhece.
+@rpc("authority", "reliable")
 func rpc_sync_profile(peer_id: int, p_name: String, dna_dict: Dictionary) -> void:
 	players_info[peer_id] = {"name": p_name, "dna": dna_dict}
 	_ensure_remote_avatar(peer_id, p_name, dna_dict)
 	players_updated.emit()
 
-@rpc("any_peer", "unreliable_ordered")
+## Servidor -> clientes: posição de um jogador no mundo, já carimbada com o peer de quem mandou
+@rpc("authority", "unreliable_ordered")
 func rpc_sync_transform(peer_id: int, pos: Vector3, yaw: float, anim: StringName) -> void:
+	_apply_remote_transform(peer_id, pos, yaw, anim)
+
+## Cliente -> servidor: a posição do próprio jogador
+@rpc("any_peer", "unreliable_ordered")
+func rpc_submit_transform(pos: Vector3, yaw: float, anim: StringName) -> void:
+	if is_server_authoritative():
+		handle_submit_transform(multiplayer.get_remote_sender_id(), pos, yaw, anim)
+
+## Cliente -> servidor: o DNA do próprio jogador mudou (editor de aparência)
+@rpc("any_peer", "reliable")
+func rpc_submit_profile(dna_dict: Dictionary) -> void:
+	if is_server_authoritative():
+		handle_submit_profile(multiplayer.get_remote_sender_id(), dna_dict)
+
+## Só aceita posição de quem já entrou no mundo, dentro do teto de mensagens e com números válidos
+func handle_submit_transform(sender_id: int, pos: Vector3, yaw: float, anim: StringName) -> bool:
+	if not players_info.has(sender_id) or not _allow_message(sender_id, &"transform"):
+		return false
+	if not pos.is_finite() or not is_finite(yaw) or String(anim).length() > MAX_ANIM_NAME_LENGTH:
+		return false
+	_apply_remote_transform(sender_id, pos, yaw, anim)
+	_broadcast_transform(sender_id, pos, yaw, anim)
+	return true
+
+## O nome continua o do servidor; o cliente só troca o DNA, e com tamanho limitado
+func handle_submit_profile(sender_id: int, dna_dict: Dictionary) -> bool:
+	if not players_info.has(sender_id) or not _allow_message(sender_id, &"request"):
+		return false
+	if not payload_fits(dna_dict, MAX_DNA_BYTES):
+		return false
+	players_info[sender_id]["dna"] = dna_dict
+	_ensure_remote_avatar(sender_id, players_info[sender_id].get("name", ""), dna_dict)
+	_broadcast_profile(sender_id)
+	players_updated.emit()
+	return true
+
+## Peers conectados que já entraram no mundo (os únicos que recebem posição e perfil)
+func _world_peers() -> Array[int]:
+	var out: Array[int] = []
 	var mp := _get_mp()
-	if mp and peer_id == mp.get_unique_id():
+	if mp == null or not mp.has_multiplayer_peer():
+		return out
+	for p in mp.get_peers():
+		if players_info.has(p):
+			out.append(p)
+	return out
+
+func _broadcast_transform(peer_id: int, pos: Vector3, yaw: float, anim: StringName) -> void:
+	for p in _world_peers():
+		if p != peer_id:
+			rpc_id(p, "rpc_sync_transform", peer_id, pos, yaw, anim)
+
+func _broadcast_profile(peer_id: int) -> void:
+	var info: Dictionary = players_info.get(peer_id, {})
+	for p in _world_peers():
+		if p != peer_id:
+			rpc_id(p, "rpc_sync_profile", peer_id, info.get("name", ""), info.get("dna", {}))
+
+## Quem acabou de entrar no mundo recebe o perfil de todos que já estão nele
+func _send_world_profiles_to(target_peer: int) -> void:
+	var mp := _get_mp()
+	var my_id := mp.get_unique_id() if mp and mp.has_multiplayer_peer() else 1
+	for id in players_info:
+		if id == target_peer:
+			continue
+		# O servidor dedicado não tem jogador próprio: não manda um "Host" fantasma
+		if id == my_id and _local_player() == null:
+			continue
+		var info: Dictionary = players_info[id]
+		rpc_id(target_peer, "rpc_sync_profile", id, info.get("name", ""), info.get("dna", {}))
+
+## Teto de mensagens por peer e tipo; quem passa de 5× o teto na mesma janela é desconectado
+func _allow_message(peer_id: int, kind: StringName) -> bool:
+	var is_transform := kind == &"transform"
+	var limit: int = MAX_TRANSFORMS_PER_SECOND if is_transform else MAX_REQUESTS_PER_WINDOW
+	var window_ms: int = 1000 if is_transform else REQUEST_WINDOW_MSEC
+	var now := Time.get_ticks_msec()
+	var key := "%d:%s" % [peer_id, kind]
+	var w: Array = _msg_windows.get(key, [now, 0])
+	if now - int(w[0]) >= window_ms:
+		w = [now, 0]
+	w[1] = int(w[1]) + 1
+	_msg_windows[key] = w
+	if int(w[1]) == limit * ABUSE_KICK_FACTOR:
+		print("[Security] Peer %d passou de %d mensagens '%s' na janela. Desconectando." % [peer_id, int(w[1]), kind])
+		disconnect_peer_safe(peer_id)
+	return int(w[1]) <= limit
+
+## Confere o tamanho de um dicionário vindo do cliente antes de guardar ou repassar
+static func payload_fits(value: Variant, max_bytes: int) -> bool:
+	return var_to_bytes(value).size() <= max_bytes
+
+func _apply_remote_transform(peer_id: int, pos: Vector3, yaw: float, anim: StringName) -> void:
+	var mp := _get_mp()
+	if mp and mp.has_multiplayer_peer() and peer_id == mp.get_unique_id():
 		return
 	var av := _ensure_remote_avatar(peer_id, players_info.get(peer_id, {}).get("name", "Explorador #%d" % peer_id), players_info.get(peer_id, {}).get("dna", {}))
 	if av == null:
@@ -412,36 +529,12 @@ func _remove_remote_avatar(peer_id: int) -> void:
 			av.queue_free()
 		remote_avatars.erase(peer_id)
 
-## Solicitação de dano / combate autoritativo (RPC cliente -> servidor)
-@rpc("any_peer", "call_local", "reliable")
-func request_combat_hit(attacker_path: NodePath, target_path: NodePath, ability_name: StringName, part_id: StringName = &"") -> void:
-	if not is_server_authoritative():
-		return
-
-	var attacker: Node = get_node_or_null(attacker_path)
-	var target: Node = get_node_or_null(target_path)
-
-	if target == null:
-		return
-
-	var hit := HitEvent.new()
-	hit.attacker = attacker
-	hit.target = target
-	hit.part_id = part_id
-	hit.raw_damage = 25.0
-	hit.poise_damage = 15.0
-	hit.damage_type = DamageType.Type.SLASH
-
-	var result: Dictionary = CombatResolver.resolve_hit(hit)
-	sync_combat_result.rpc(target_path, result[&"effective_damage"], result[&"poise_broken"], result[&"part_broken"], part_id)
-
-@rpc("authority", "call_local", "reliable")
-func sync_combat_result(target_path: NodePath, damage: float, poise_broken: bool, part_broken: bool, part_id: StringName) -> void:
-	var target: Node = get_node_or_null(target_path)
-	if target != null:
-		var pools: PoolsComponent = target.get_node_or_null("PoolsComponent") as PoolsComponent
-		if pools != null and not is_server_authoritative():
-			pools.take_damage(damage)
+## Servidor -> clientes: um jogador saiu do mundo. Sem relay, o cliente não vê a desconexão de outro peer.
+@rpc("authority", "reliable")
+func rpc_player_left(peer_id: int) -> void:
+	_remove_remote_avatar(peer_id)
+	players_info.erase(peer_id)
+	players_updated.emit()
 
 func _on_peer_connected(id: int) -> void:
 	if is_server_authoritative() and state == NetworkState.HOSTING_SERVER:
@@ -464,34 +557,37 @@ func _on_peer_connected(id: int) -> void:
 			disconnect_peer_safe(id)
 			return
 
+	# Perfis do mundo só chegam depois do login e da entrada no mundo (handle_enter_world)
 	print("[NetworkManager] Novo jogador conectado: %d (IP: %s)" % [id, peer_ips.get(id, "local")])
 	_register_self_profile()
-	var mp := _get_mp()
-	var my_id := mp.get_unique_id() if mp else 1
-	if players_info.has(my_id):
-		var me: Dictionary = players_info[my_id]
-		rpc_sync_profile.rpc_id(id, my_id, me.get("name", "Host"), me.get("dna", {}))
 	peer_joined.emit(id)
 	players_updated.emit()
 
 func _on_peer_disconnected(id: int) -> void:
 	var ip: String = peer_ips.get(id, "")
+	print("[NetworkManager] Jogador desconectado: %d%s" % [id, " (IP: " + ip + ")" if not ip.is_empty() else ""])
+	# Primeiro avisa (o ServerPersistence salva usando players_info e o avatar), depois limpa
+	peer_left.emit(id)
+	var was_in_world := players_info.has(id)
 	peer_ips.erase(id)
 	peer_accounts.erase(id)
-	print("[NetworkManager] Jogador desconectado: %d%s" % [id, " (IP: " + ip + ")" if not ip.is_empty() else ""])
+	_clear_message_windows(id)
 	_remove_remote_avatar(id)
 	players_info.erase(id)
-	peer_left.emit(id)
+	if was_in_world and is_server_authoritative():
+		for p in _world_peers():
+			rpc_id(p, "rpc_player_left", id)
 	players_updated.emit()
+
+func _clear_message_windows(peer_id: int) -> void:
+	var prefix := "%d:" % peer_id
+	for key in _msg_windows.keys():
+		if String(key).begins_with(prefix):
+			_msg_windows.erase(key)
 
 func _on_connected_to_server() -> void:
 	print("[NetworkManager] Conexão com o servidor estabelecida com sucesso!")
 	_register_self_profile()
-	var mp := _get_mp()
-	var my_id := mp.get_unique_id() if mp else 2
-	if players_info.has(my_id):
-		var me: Dictionary = players_info[my_id]
-		rpc_sync_profile.rpc(my_id, me.get("name", "Explorador(a)"), me.get("dna", {}))
 	connection_established.emit()
 	players_updated.emit()
 
@@ -577,13 +673,16 @@ func send_enter_world_request(character_name: String) -> void:
 	current_character = character_name
 	var sp = get_node_or_null("/root/ServerPersistence")
 	if is_server_authoritative() and sp != null:
+		if not sp.account_owns_character(current_account, character_name):
+			entered_world.emit(false, {})
+			return
 		var pdata: Dictionary = sp.load_player_data(character_name)
 		entered_world.emit(true, pdata)
 		return
 	rpc_id(1, "rpc_request_enter_world", character_name)
 
 @rpc("any_peer", "call_remote", "reliable")
-func rpc_request_auth(mode: String, username: String, pass_hash_or_raw: String, client_version: String = "") -> void:
+func rpc_request_auth(mode: String, username: String, password: String, client_version: String = "") -> void:
 	if not is_server_authoritative():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
@@ -614,14 +713,24 @@ func rpc_request_auth(mode: String, username: String, pass_hash_or_raw: String, 
 	if sp == null:
 		rpc_id(sender_id, "rpc_response_auth", false, "Servidor sem persistência ativa.", [])
 		return
-	var res: Dictionary = sp.register_account(username, pass_hash_or_raw) if mode == "register" else sp.login_account(username, pass_hash_or_raw)
+	var res: Dictionary = sp.register_account(username, password) if mode == "register" else sp.login_account(username, password)
 	var ok: bool = res.get("success", false)
 	if ok:
-		peer_accounts[sender_id] = username
+		bind_account(sender_id, username)
 		print("[NetworkManager] Conta '%s' autenticada com sucesso (Peer: %d, IP: %s)" % [username, sender_id, ip])
 	else:
 		print("[Security] Falha de autenticação para conta '%s' do IP %s: %s" % [username, ip, res.get("message", "")])
 	rpc_id(sender_id, "rpc_response_auth", ok, res.get("message", ""), res.get("characters", []), username if ok else "", res.get("characters_data", []))
+
+## Liga o peer à conta. A mesma conta logada em outro peer derruba a sessão antiga (salva antes de sair).
+func bind_account(sender_id: int, username: String) -> void:
+	var key := username.strip_edges().to_lower()
+	for other in peer_accounts.keys():
+		if other != sender_id and String(peer_accounts[other]).strip_edges().to_lower() == key:
+			print("[Security] Conta '%s' entrou de novo pelo peer %d. Derrubando a sessão antiga (peer %d)." % [username, sender_id, other])
+			_on_peer_disconnected(other)
+			disconnect_peer_safe(other)
+	peer_accounts[sender_id] = username
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_response_auth(success: bool, message: String, characters: Array, auth_account: String = "", characters_data: Array = []) -> void:
@@ -638,10 +747,15 @@ func rpc_request_create_character(character_name: String, dna_dict: Dictionary) 
 	if not is_server_authoritative():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
+	if not _allow_message(sender_id, &"request"):
+		return
 	var sp = get_node_or_null("/root/ServerPersistence")
 	var account: String = peer_accounts.get(sender_id, "")
 	if account.is_empty() or sp == null:
 		rpc_id(sender_id, "rpc_response_create_character", false, "Não autenticado no servidor.", {})
+		return
+	if not payload_fits(dna_dict, MAX_DNA_BYTES):
+		rpc_id(sender_id, "rpc_response_create_character", false, "Aparência inválida.", {})
 		return
 	var res: Dictionary = sp.create_character_for_account(account, character_name, dna_dict)
 	rpc_id(sender_id, "rpc_response_create_character", res.get("success", false), res.get("message", ""), res.get("character", {}))
@@ -663,6 +777,8 @@ func rpc_request_delete_character(character_name: String) -> void:
 	if not is_server_authoritative():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
+	if not _allow_message(sender_id, &"request"):
+		return
 	var sp = get_node_or_null("/root/ServerPersistence")
 	var account: String = peer_accounts.get(sender_id, "")
 	if account.is_empty() or sp == null:
@@ -682,20 +798,31 @@ func rpc_request_enter_world(character_name: String) -> void:
 	if not is_server_authoritative():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
+	if not _allow_message(sender_id, &"request"):
+		return
+	var res := handle_enter_world(sender_id, character_name)
+	rpc_id(sender_id, "rpc_response_enter_world", res.get("success", false), res.get("data", {}))
+	if res.get("success", false):
+		_send_world_profiles_to(sender_id)
+		_broadcast_profile(sender_id)
+
+## Só entra no mundo quem está logado e com um personagem da própria conta
+func handle_enter_world(sender_id: int, character_name: String) -> Dictionary:
 	var sp = get_node_or_null("/root/ServerPersistence")
 	var account: String = peer_accounts.get(sender_id, "")
 	if account.is_empty() or sp == null:
-		rpc_id(sender_id, "rpc_response_enter_world", false, {})
-		return
+		return {"success": false}
+	if not sp.account_owns_character(account, character_name):
+		print("[Security] Peer %d (conta '%s') tentou entrar com o personagem '%s', que não é dele." % [sender_id, account, character_name])
+		return {"success": false}
 	var pdata: Dictionary = sp.load_player_data(character_name)
 	players_info[sender_id] = {
-		"name": character_name,
+		"name": character_name.strip_edges(),
 		"dna": pdata.get("dna", {}),
 		"account": account
 	}
-	rpc_id(sender_id, "rpc_response_enter_world", true, pdata)
 	players_updated.emit()
-	rpc_sync_profile.rpc(sender_id, character_name, pdata.get("dna", {}))
+	return {"success": true, "data": pdata}
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_response_enter_world(success: bool, world_data: Dictionary) -> void:
@@ -730,6 +857,8 @@ func rpc_request_diary_showcase(target_peer: int, payload: Dictionary) -> void:
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
 	if not players_info.has(sender_id) or not players_info.has(target_peer):
+		return
+	if not _allow_message(sender_id, &"request") or not payload_fits(payload, MAX_PAYLOAD_BYTES):
 		return
 	# Quem mostra é quem o servidor diz que é, não o que o cliente escreveu
 	payload["from"] = players_info[sender_id].get("name", "?")
@@ -776,7 +905,7 @@ func rpc_request_guild_board() -> void:
 	if not is_server_authoritative():
 		return
 	var sender_id := multiplayer.get_remote_sender_id()
-	if not players_info.has(sender_id):
+	if not players_info.has(sender_id) or not _allow_message(sender_id, &"request"):
 		return
 	# Quem lê é quem o servidor diz que é: o Livro só vai para membro da guilda
 	var reader: String = players_info[sender_id].get("name", "")
