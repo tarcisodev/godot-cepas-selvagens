@@ -19,6 +19,7 @@ const _PoolsComponent = preload("res://scripts/components/pools_component.gd")
 const _StyleAttack = preload("res://scripts/data/style_attack.gd")
 const _EquipmentPiece = preload("res://scripts/data/equipment_piece.gd")
 const _WeaponStyle = preload("res://scripts/data/weapon_style.gd")
+const _LedgerService = preload("res://scripts/net/ledger_service.gd")
 
 const GAME_VERSION: String = "0.1.1"
 const DEFAULT_PORT: int = 8787
@@ -278,6 +279,7 @@ func _process(delta: float) -> void:
 
 	if state != NetworkState.HOSTING_SERVER and state != NetworkState.CONNECTED_CLIENT:
 		return
+	_apply_pending_ledger()
 	var mp := _get_mp()
 	if mp == null or not mp.has_multiplayer_peer():
 		return
@@ -679,6 +681,11 @@ func send_enter_world_request(character_name: String) -> void:
 		var pdata: Dictionary = sp.load_player_data(character_name)
 		entered_world.emit(true, pdata)
 		return
+	# Novo mundo, nova contagem de versões do livro
+	var ledger := _ledger()
+	if ledger:
+		ledger.client_version = -1
+	_pending_ledger = {}
 	rpc_id(1, "rpc_request_enter_world", character_name)
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -805,6 +812,9 @@ func rpc_request_enter_world(character_name: String) -> void:
 	if res.get("success", false):
 		_send_world_profiles_to(sender_id)
 		_broadcast_profile(sender_id)
+		var ledger := _ledger()
+		if ledger:
+			ledger.send_snapshot(sender_id)
 
 ## Só entra no mundo quem está logado e com um personagem da própria conta
 func handle_enter_world(sender_id: int, character_name: String) -> Dictionary:
@@ -821,8 +831,39 @@ func handle_enter_world(sender_id: int, character_name: String) -> Dictionary:
 		"dna": pdata.get("dna", {}),
 		"account": account
 	}
+	# Inventário e carteira passam a morar no livro do servidor (ADR-0009)
+	var ledger := _ledger()
+	if ledger:
+		ledger.open_book(sender_id, character_name.strip_edges(), pdata)
 	players_updated.emit()
 	return {"success": true, "data": pdata}
+
+func _ledger() -> LedgerServiceAutoload:
+	return get_node_or_null("/root/LedgerService") as LedgerServiceAutoload if is_inside_tree() else null
+
+## Servidor -> dono: retrato do livro (inventário, peças e carteira) com a versão
+func push_ledger(peer_id: int, snap: Dictionary) -> void:
+	var mp := _get_mp()
+	if is_server_authoritative() and mp != null and mp.has_multiplayer_peer() and peer_id in mp.get_peers():
+		rpc_id(peer_id, "rpc_receive_ledger", snap)
+
+## Retrato que chegou antes do Player existir (troca de cena ao entrar no mundo)
+var _pending_ledger: Dictionary = {}
+
+@rpc("authority", "call_remote", "reliable")
+func rpc_receive_ledger(snap: Dictionary) -> void:
+	_pending_ledger = snap
+	_apply_pending_ledger()
+
+func _apply_pending_ledger() -> void:
+	if _pending_ledger.is_empty():
+		return
+	var p := _local_player()
+	var ledger := _ledger()
+	if p == null or ledger == null or not p.is_node_ready():
+		return
+	ledger.apply_snapshot(_pending_ledger, p)
+	_pending_ledger = {}
 
 @rpc("authority", "call_remote", "reliable")
 func rpc_response_enter_world(success: bool, world_data: Dictionary) -> void:

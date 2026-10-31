@@ -231,7 +231,7 @@ func _test_character_delete_and_stats() -> void:
 
 	# 2. Verifica resumo de saldo e tempo inicial
 	var summary_initial: Dictionary = sp.get_character_summary(char_name)
-	assert(summary_initial.get("money") == 50, "Saldo inicial deve ser 50")
+	assert(summary_initial.get("money") == ServerPersistenceClass.STARTER_MONEY, "Saldo inicial deve ser o do kit do explorador")
 	assert(summary_initial.get("play_time") == 0.0, "Tempo inicial de jogo deve ser 0.0")
 
 	# 3. Atualiza dados com dinheiro e tempo jogado

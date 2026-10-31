@@ -67,12 +67,13 @@ func _on_confirmed(dna: CharacterDNA) -> void:
 	var dna_dict: Dictionary = dna.to_dict()
 	_show_status("Criando personagem no servidor...")
 	# Conecta antes de enviar: no host a resposta é emitida na mesma chamada
-	net.character_created.connect(func(success: bool, message: String, _cdata: Dictionary):
+	net.character_created.connect(func(success: bool, message: String, cdata: Dictionary):
 		if success:
 			_show_status("Entrando no mundo...")
 			net.send_enter_world_request(final_name)
 			# Pelo caminho do nó: o identificador global do autoload não existe em scripts rodados com -s (testes).
-			get_node("/root/SaveGame").enter_online_world(final_name, {}, dna)
+			# `cdata` traz o kit do explorador que o servidor deu na criação (B41)
+			get_node("/root/SaveGame").enter_online_world(final_name, cdata, dna)
 		else:
 			push_error("[CharacterCreation] Falha ao criar personagem online: %s" % message)
 			_show_error(message)

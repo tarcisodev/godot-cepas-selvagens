@@ -7,6 +7,7 @@ extends SceneTree
 
 const ServerPersistenceClass = preload("res://scripts/core/server_persistence.gd")
 const NetworkManagerClass = preload("res://scripts/core/network_manager.gd")
+const LedgerServiceClass = preload("res://scripts/net/ledger_service.gd")
 
 const PORT := 9891
 const TIMEOUT_FRAMES := 600
@@ -47,6 +48,15 @@ func _run() -> void:
 	# No jogo o ServerPersistence acha o NetworkManager em /root; aqui o servidor está numa subárvore
 	_sp._net = _srv
 	_srv.peer_left.connect(_sp._on_peer_left)
+	var ledger = root.get_node_or_null("/root/LedgerService")
+	if ledger == null:
+		ledger = LedgerServiceClass.new()
+		ledger.name = "LedgerService"
+		ledger.net = _srv
+		root.add_child(ledger)
+	else:
+		ledger.net = _srv
+	_srv.peer_left.connect(ledger.close_book)
 	assert(_srv.start_server(PORT, 8, false) == OK, "Servidor deve abrir a porta %d" % PORT)
 	assert(_a.start_client("127.0.0.1", PORT) == OK, "Cliente A deve iniciar")
 	assert(_b.start_client("127.0.0.1", PORT) == OK, "Cliente B deve iniciar")
@@ -73,6 +83,14 @@ func _run() -> void:
 	assert(await _wait(func(): return _a.players_info.has(id_b) and _b.players_info.has(id_a)), "Cada cliente deve receber o perfil do outro")
 	assert(_b.players_info[id_a].get("name") == "Loop_Alfa", "B vê A com o nome que o servidor conhece")
 	print("     ✓ Login, entrada no mundo e perfis trocados pelo servidor")
+
+	# Livro do servidor: A recebe o retrato com o kit do explorador (fica pendente até existir Player)
+	assert(await _wait(func(): return int(_a._pending_ledger.get("money", -1)) == ServerPersistenceClass.STARTER_MONEY), "A deve receber o retrato do livro com o dinheiro inicial")
+	var srv_ledger = root.get_node_or_null("/root/LedgerService")
+	if srv_ledger:
+		assert(srv_ledger.has_book(id_a) and srv_ledger.has_book(id_b), "Servidor abre um livro por jogador no mundo")
+		assert(srv_ledger.wallet_of(id_a).money == ServerPersistenceClass.STARTER_MONEY, "Servidor abre o livro de A")
+	print("     ✓ Livro aberto no servidor e retrato entregue ao dono")
 
 	# 2. Posição: A manda ao servidor, que repassa para B com o peer de A
 	_a.rpc_id(1, "rpc_submit_transform", Vector3(12, 1, -7), 0.25, &"Walk")
