@@ -68,7 +68,7 @@ transform = Transform3D(0, 0, 0.55, 0.55, 0, 0, 0, 0.55, 0, -0.08, -0.03, 0.05)
 script = ExtResource("3_piece")
 scene = ExtResource("5_shield")
 bone = &"hand_l"
-transform = Transform3D(0, 0, -0.6, -0.6, 0, 0, 0, 0.6, 0, 0.0, 0.08, 0)
+transform = Transform3D(0.088, -0.411, 0.428, -0.528, 0.143, 0.246, -0.271, -0.412, -0.341, 0, 0, 0)
 
 [sub_resource type="Resource" id="Piece_pauldron_l"]
 script = ExtResource("3_piece")
