@@ -1,5 +1,6 @@
 class_name BeastFighter
 extends CharacterBody3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Bicho procedural que luta (GDD-12 §9 e §12). Corpo do GDD-09 (CreatureBody + CreatureDNA) e
 ## golpes descritos em dados: cada golpe tem pose de preparação (o único aviso, sem nada na tela),
@@ -812,7 +813,7 @@ func _give(who: Node, m: Array) -> void:
 		var p := get_tree().get_first_node_in_group("player")
 		inv = p.get_node_or_null("InventoryComponent") as InventoryComponent if p else null
 	if inv:
-		inv.add_material(m[0], int(m[1]), int(m[2]), m[3])
+		_LedgerSources.gain(&"part_break", name, func(): inv.add_material(m[0], int(m[1]), int(m[2]), m[3]))
 
 func _say(msg: String) -> void:
 	var p := get_tree().get_first_node_in_group("player") if is_inside_tree() else null

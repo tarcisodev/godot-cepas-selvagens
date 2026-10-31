@@ -79,6 +79,9 @@ func _ready() -> void:
 func add_material(material_id: StringName, amount: int = 1, quality: int = 1, traits: Array = [], memory: Dictionary = {}) -> void:
 	if amount <= 0:
 		return
+	# Cliente online: o ganho vai ao servidor dentro da fonte aberta (LedgerSources.gain)
+	if _routed():
+		ledger.note_material(material_id, amount, quality, traits, memory)
 	_add_to_stack(material_id, amount, quality, traits, memory)
 	material_collected.emit(material_id, amount)
 	stacks_changed.emit()
@@ -384,6 +387,8 @@ func _drop_empty() -> void:
 # ---------------------------------------------------------------- peças forjadas (GDD-06 §6)
 
 func add_item(item: ForgedItem) -> void:
+	if _routed():
+		ledger.note_item(item)
 	items.append(item)
 	item_crafted.emit(StringName(item.display_name), item.quality, item.traits)
 	items_changed.emit()
@@ -542,10 +547,16 @@ func craft_and_equip_horn_helmet(horn: Dictionary = {}) -> bool:
 		return false
 	var mastery: MasteryComponent = get_parent().get_node_or_null("MasteryComponent") as MasteryComponent if get_parent() else null
 	var level: int = mastery.get_level(&"forja") if mastery else 1
-	var item := Forge.forge(self, &"elmo_chifre_de_pedra", horn, plates[plates.size() - 1], {}, level, false, RandomNumberGenerator.new())
+	var item: ForgedItem = null
+	if _routed() and get_parent() != null and get_parent().get("inventory") == self:
+		# Cliente online: a forja vai ao servidor como troca (nome global: preload aqui faria ciclo)
+		item = LedgerExchanges.forge(get_parent(), &"elmo_chifre_de_pedra", horn, plates[plates.size() - 1], {}, level, false, RandomNumberGenerator.new(), true, 0.0)
+	else:
+		item = Forge.forge(self, &"elmo_chifre_de_pedra", horn, plates[plates.size() - 1], {}, level, false, RandomNumberGenerator.new())
+		if item != null:
+			add_item(item)
 	if item == null:
 		return false
-	add_item(item)
 	equip(item)
 	if mastery:
 		mastery.add_xp(&"forja", 45.0 if item.traits.has(&"integro") else 25.0)

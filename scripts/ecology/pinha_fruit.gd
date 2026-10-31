@@ -1,5 +1,6 @@
 class_name PinhaFruit
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Pinha-Lume caída no chão (GDD-10 §9). Carrega o genoma dos pinhões (gêmeos da mesma pinha).
 ## O jogador abre com [E] e ganha 3–5 Pinhões-Lume; bicho come e leva a semente na barriga;
@@ -78,7 +79,7 @@ func harvest_next(harvester: Node = null) -> String:
 	if harvester:
 		var inv: InventoryComponent = harvester.get("inventory")
 		if inv:
-			inv.add_material(&"pinhao_lume", amount, 3 if dna.mutant else 1, seed_traits())
+			_LedgerSources.gain(&"pinha", _LedgerSources.spot_key(global_position if is_inside_tree() else position), func(): inv.add_material(&"pinhao_lume", amount, 3 if dna.mutant else 1, seed_traits()))
 		var mst: MasteryComponent = harvester.get("mastery")
 		if mst:
 			mst.add_xp(&"coleta", 10.0)

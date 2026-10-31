@@ -1,5 +1,6 @@
 class_name PlanadorNest
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Ninho de Planador no alto de um morro (GDD-16 §4, Prova do Ninho). Chegar até ele é a primeira
 ## parte da prova. [E] com carne Íntegra (abate cuidadoso) deixa a oferenda; um adulto vem voando
@@ -186,7 +187,7 @@ func offer(p: Player) -> StringName:
 func steal(thief: Player) -> void:
 	if state != State.OFFERED or thief == offered_by:
 		return
-	thief.inventory.add_material(&"carne_crua", 1, 3, [&"integro"])
+	_LedgerSources.gain(&"nest_steal", name, func(): thief.inventory.add_material(&"carne_crua", 1, 3, [&"integro"]))
 	_tell(thief, "🥩 Você roubou a oferenda do ninho")
 	_tell(offered_by, "🪶 Alguém roubou a sua oferenda; o Planador deu meia-volta")
 	_send_away()

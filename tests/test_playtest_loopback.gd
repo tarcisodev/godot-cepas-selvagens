@@ -101,6 +101,15 @@ func _run() -> void:
 		assert(srv_ledger.inventory_of(id_a).get_material_count(&"pocao") == 1, "Pedido com quantidade negativa não cria poção")
 		print("     ✓ Pedido do livro pela rede: válido aplicado, forjado recusado")
 
+		# Ganho pela rede (fase 3): esfola honesta entra; 500 couros lendários não
+		_a.send_ledger_request(3, &"source", {"kind": "skin", "source": "Cervo", "steps": [], "items": [{"id": "couro_trotador", "n": 2, "q": 2, "traits": []}], "gear": [], "money": 0})
+		assert(await _wait(func(): return srv_ledger.inventory_of(id_a).get_material_count(&"couro_trotador") == 2), "Servidor entrega a esfola de A")
+		_a.send_ledger_request(4, &"source", {"kind": "skin", "source": "Cervo", "steps": [], "items": [{"id": "couro_trotador", "n": 500, "q": 5, "traits": []}], "gear": [], "money": 0})
+		assert(await _wait(func(): return int(_a._pending_ledger.get("ack", 0)) == 4), "A recebe o ack do ganho recusado")
+		assert(srv_ledger.inventory_of(id_a).get_material_count(&"couro_trotador") == 2, "Ganho forjado não entra no livro")
+		assert(srv_ledger.strikes_of(id_a) >= 1, "Ganho forjado conta como recusa")
+		print("     ✓ Ganho pela rede: honesto entregue, forjado recusado")
+
 	# 2. Posição: A manda ao servidor, que repassa para B com o peer de A
 	_a.rpc_id(1, "rpc_submit_transform", Vector3(12, 1, -7), 0.25, &"Walk")
 	assert(await _wait(func(): return _b.remote_avatars.has(id_a) and (_b.remote_avatars[id_a] as Node3D).get_meta("target_pos", Vector3.ZERO) == Vector3(12, 1, -7)), "B deve ver A na posição enviada")

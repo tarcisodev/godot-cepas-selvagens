@@ -26,11 +26,18 @@ const RiverClass = preload("res://scripts/river_system.gd")
 @export var count_veios_quartzo: int = 5
 
 var _rng := RandomNumberGenerator.new()
+## Servidor (B41 fase 3): roda a mesma semente sem criar nós e guarda {type, pos} em `spots`,
+## para conferir que um recurso coletado existe de verdade
+var dry_run: bool = false
+var spots: Array = []
 
 func _ready() -> void:
 	if landscape == null:
 		landscape = get_parent().get_node_or_null("Landscape")
-	
+	spawn_all_resources_seeded()
+
+## Mesma semente em todo lugar: cliente, host e a lista do servidor
+func spawn_all_resources_seeded() -> void:
 	_rng.seed = 20261021
 	spawn_all_resources()
 
@@ -157,9 +164,7 @@ func _spawn_veins(type: GatherableResourceClass.Type, groups: int, height_frac: 
 		for k in n:
 			var a := _rng.randf() * TAU
 			var r := _rng.randf_range(0.8, 3.2) if k > 0 else 0.0
-			var node := _create_node(type, cx + cos(a) * r, cz + sin(a) * r)
-			if node:
-				node.add_to_group("ore_veins")
+			_create_node(type, cx + cos(a) * r, cz + sin(a) * r, true)
 		spawned += 1
 
 ## Gera ossos perto das zonas de perigo (Arena em -27, 3 e Morro da Besta em -5, -11)
@@ -182,16 +187,23 @@ func _spawn_hazardous(type: GatherableResourceClass.Type, count: int) -> void:
 		if _create_node(type, x, z):
 			spawned += 1
 
-func _create_node(type: GatherableResourceClass.Type, x: float, z: float) -> GatherableResource:
+func _create_node(type: GatherableResourceClass.Type, x: float, z: float, vein: bool = false) -> bool:
 	# Nada nasce dentro da paliçada, no meio das obras da vila
 	if CityHub.in_village(x, z):
-		return null
+		return false
 	var y: float = _get_ground_y(x, z)
 	if RiverClass.is_in_water(Vector3(x, y, z)) or RiverClass.is_in_sea(x, z) or RiverClass.is_in_lake(x, z):
-		return null
+		return false
+	var rot := _rng.randf_range(0.0, TAU)
+	if dry_run:
+		spots.append({"type": type, "pos": Vector3(x, y, z)})
+		return true
 	var res := GatherableResourceClass.new()
 	res.type = type
+	res.seeded = true
 	res.position = Vector3(x, y, z)
-	res.rotation.y = _rng.randf_range(0.0, TAU)
+	res.rotation.y = rot
+	if vein:
+		res.add_to_group("ore_veins")
 	add_child(res)
-	return res
+	return true

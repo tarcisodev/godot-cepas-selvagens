@@ -1,5 +1,6 @@
 class_name DroppedLoot
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Trouxa de itens jogados no chão pelo jogador (materiais em pilha ou equipamento forjado).
 ## Possui modelo 3D de saco de couro com cristal brilhante na cor da raridade, animação de
@@ -93,16 +94,18 @@ func _collect_into(collector: Node) -> String:
 		return ""
 
 	var summary := _item_title()
-	if forged_item != null:
-		inv.add_item(forged_item)
-	elif not stack.is_empty():
-		inv.add_material(
-			StringName(stack.get("id", &"")),
-			int(stack.get("amount", 1)),
-			int(stack.get("quality", 1)),
-			stack.get("traits", []),
-			stack.get("memory", {})
-		)
+	_LedgerSources.gain(&"loot_pickup", name, func():
+		if forged_item != null:
+			inv.add_item(forged_item)
+		elif not stack.is_empty():
+			inv.add_material(
+				StringName(stack.get("id", &"")),
+				int(stack.get("amount", 1)),
+				int(stack.get("quality", 1)),
+				stack.get("traits", []),
+				stack.get("memory", {})
+			)
+	)
 	is_collected = true
 	if is_inside_tree():
 		var tw := create_tween()

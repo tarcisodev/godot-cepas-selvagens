@@ -526,6 +526,13 @@ func _ensure_remote_avatar(peer_id: int, p_name: String, dna_dict: Dictionary) -
 			vis.rebuild(CharacterDNA.from_dict(dna_dict))
 	return av
 
+## Última posição que o servidor conhece do jogador (o livro confere a distância das fontes); null se não sabe
+func player_position(peer_id: int) -> Variant:
+	var av: Node3D = remote_avatars.get(peer_id) as Node3D
+	if av == null or not is_instance_valid(av):
+		return null
+	return av.get_meta("target_pos", av.global_position if av.is_inside_tree() else av.position)
+
 func _remove_remote_avatar(peer_id: int) -> void:
 	if remote_avatars.has(peer_id):
 		var av: Node = remote_avatars[peer_id]

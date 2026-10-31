@@ -1,5 +1,6 @@
 class_name HuntingTrap
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Armadilha de Mandíbula de Caça (GDD-03 §8 e GDD-05 §3).
 ## Instalada no solo pelo jogador. Quando uma criatura ou monstro entra na área:
@@ -239,7 +240,7 @@ func talk_to(player: Node) -> void:
 	state = State.DISARMED
 	var inv: _InventoryComponent = _get_inventory(player)
 	if inv:
-		inv.add_material(&"armadilha_mola", 1, 3, [&"recolhido"])
+		_LedgerSources.gain(&"trap_pickup", name, func(): inv.add_material(&"armadilha_mola", 1, 3, [&"recolhido"]))
 	
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.emit("⚙️ Armadilha de Mandíbula recolhida.")

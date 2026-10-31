@@ -1,5 +1,6 @@
 class_name BreedingPen
 extends Node
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Sistema de Criadouro, Rancho e Cercado de Reprodução (GDD-04 §2, GDD-08 §4-§5, GDD-09 §5).
 ## Gerencia 1 reprodutor (Macho/Sire) e 1 matriz (Fêmea/Dam) da mesma espécie, alimentação no cocho,
@@ -315,7 +316,7 @@ func harvest_offspring(player: Node) -> Array[Dictionary]:
 		var count: int = it[1]
 		var q: int = 3 # Garantido 3★ pelo abate cuidadoso no rancho
 		if inv:
-			inv.add_material(mat_id, count, q, traits)
+			_LedgerSources.gain(&"breeding", name, func(): inv.add_material(mat_id, count, q, traits))
 		var mat_info := _MaterialData.of(mat_id)
 		yields.append({
 			"id": mat_id,

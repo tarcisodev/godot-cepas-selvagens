@@ -1,5 +1,6 @@
 class_name CostelariaEconomy
 extends RefCounted
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Comércio da Costelária (B38, GDD-17 §4). Tudo vira ao amanhecer pelo relógio único
 ## (ADR-0006): estoque das lojas, bolsa do dia dos compradores, vendas da cidade e as
@@ -85,6 +86,10 @@ func stock_of(npc_id: StringName, item: StringName) -> int:
 
 ## Compra 1 unidade; devolve "" se deu certo, senão o motivo
 func buy(npc_id: StringName, item: StringName, player: Node) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"shop", String(npc_id), func(): return _buy_body(npc_id, item, player))
+
+func _buy_body(npc_id: StringName, item: StringName, player: Node) -> String:
 	if not catalog(npc_id).has(item):
 		return "Não vendo isso."
 	if stock_of(npc_id, item) <= 0:
@@ -119,6 +124,10 @@ func purse_of(npc_id: StringName) -> int:
 
 ## Vende 1 unidade (a pior ★ primeiro); "" se deu certo, senão o motivo
 func sell(npc_id: StringName, material: StringName, player: Node) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"sale", String(npc_id), func(): return _sell_body(npc_id, material, player))
+
+func _sell_body(npc_id: StringName, material: StringName, player: Node) -> String:
 	var pay := offer(npc_id, material)
 	if pay <= 0:
 		return "Isso eu não compro."
@@ -141,6 +150,10 @@ func sell(npc_id: StringName, material: StringName, player: Node) -> String:
 
 ## Entrega a encomenda `index` com pilhas de ★ ≥ mínima; "" se deu certo
 func deliver(index: int, player: Node) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"contract", str(index), func(): return _deliver_body(index, player))
+
+func _deliver_body(index: int, player: Node) -> String:
 	if index < 0 or index >= orders.size():
 		return "Essa encomenda não existe."
 	var o: Dictionary = orders[index]

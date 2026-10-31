@@ -1,5 +1,6 @@
 class_name WildCreature
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 const _VultureFlock3D = preload("res://scripts/creatures/vulture_flock_3d.gd")
 
@@ -302,7 +303,7 @@ func harvest_next(harvester: Node = null) -> String:
 	var e: Dictionary = harvest_queue.pop_front()
 	var inv: InventoryComponent = harvester.get("inventory") if harvester else null
 	if inv:
-		inv.add_material(e.id, e.amount, e.quality, e.traits)
+		_LedgerSources.gain(&"skin", name, func(): inv.add_material(e.id, e.amount, e.quality, e.traits))
 	var mastery: MasteryComponent = harvester.get("mastery") if harvester else null
 	if mastery:
 		mastery.add_xp(&"esfola", 15.0)

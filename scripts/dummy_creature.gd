@@ -1,5 +1,6 @@
 class_name DummyCreature
 extends CharacterBody3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Besta de Treino / Dummy de Caça (GDD-01 e GDD-03).
 ## Possui partes anatômicas quebráveis (Chifre e Corpo), postura vulnerável e feedback visual.
@@ -258,7 +259,7 @@ func _award_loot_to_player(mat_id: StringName, amount: int = 1, quality: int = 2
 		if inv == null and "inventory" in player_node:
 			inv = player_node.inventory
 		if inv != null:
-			inv.add_material(mat_id, amount, quality, traits)
+			_LedgerSources.gain(&"dummy", name, func(): inv.add_material(mat_id, amount, quality, traits))
 
 func _unlock_card_for_player(card_id: StringName) -> void:
 	if training_only:

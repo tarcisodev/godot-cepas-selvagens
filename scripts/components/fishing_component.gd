@@ -1,5 +1,6 @@
 class_name FishingComponent
 extends Node
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Pesca (GDD-10 §8). Com a Vara de Pesca na roda rápida, [G] lança a boia na água à frente.
 ## A boia atrai um peixe de verdade do rio (WildCreature do grupo "fish") que esteja perto;
@@ -222,7 +223,7 @@ func _land_fish() -> void:
 		traits.append(&"mutante")
 	var item: StringName = info["item"]
 	if player.inventory:
-		player.inventory.add_material(item, 1, quality, traits)
+		_LedgerSources.gain(&"fishing", c.dna.species_name(), func(): player.inventory.add_material(item, 1, quality, traits))
 	EventBusAutoload.report(player, &"pesca", {"material": String(item), "species": c.dna.species_name(), "quality": quality})
 	if player.mastery:
 		player.mastery.add_xp(&"coleta", float(info["xp"]))

@@ -1,5 +1,6 @@
 class_name TradeRouteManager
 extends Node
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Gerenciador Central de Rotas Comerciais e Logística de Fardos (GDD-05 §2, §5; GDD-11; GDD-08 §6).
 ## Controla oferta e demanda regional, cotação por distância, compra/venda de fardos,
@@ -62,6 +63,10 @@ static func get_carried_pack(player: Node) -> _TradePackData:
 
 ## Compra um fardo no entreposto de origem
 func buy_trade_pack(player: Node, pack_id: StringName, settlement_id: StringName, quality: int = 1) -> _TradePackData:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"trade_pack", String(pack_id), func(): return _buy_trade_pack_body(player, pack_id, settlement_id, quality))
+
+func _buy_trade_pack_body(player: Node, pack_id: StringName, settlement_id: StringName, quality: int = 1) -> _TradePackData:
 	if player == null:
 		return null
 	
@@ -88,6 +93,10 @@ func buy_trade_pack(player: Node, pack_id: StringName, settlement_id: StringName
 
 ## Vende e liquida o fardo comercial no entreposto de destino
 func sell_trade_pack(player: Node, destination_id: StringName) -> Dictionary:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"trade_route", String(destination_id), func(): return _sell_trade_pack_body(player, destination_id))
+
+func _sell_trade_pack_body(player: Node, destination_id: StringName) -> Dictionary:
 	if player == null:
 		return { "success": false, "reason": "Jogador nulo" }
 	
