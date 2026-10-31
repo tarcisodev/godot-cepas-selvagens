@@ -97,8 +97,24 @@ func has_materials(requirements: Dictionary) -> bool:
 			return false
 	return true
 
+## Livro-razão (ADR-0009): só o inventário do jogador local tem. No cliente online, cada gasto roda
+## aqui como previsão e vai ao servidor como pedido; o retrato do servidor corrige o que divergir.
+## Ganhos (add_material/add_item) não passam por aqui: vêm de verbos com a fonte (B41 fase 3).
+var ledger: Node = null
+
+func _routed() -> bool:
+	return ledger != null and ledger.should_route()
+
 ## Consome materiais, da pior qualidade para a melhor (ADR-0005)
 func consume_materials(requirements: Dictionary) -> bool:
+	if _routed():
+		return ledger.run(&"consume_materials", {"req": requirements}, func(): return _consume_materials(requirements))
+	return _consume_materials(requirements)
+
+func _consume_materials(requirements: Dictionary) -> bool:
+	for mat_id in requirements.keys():
+		if int(requirements[mat_id]) <= 0:
+			return false
 	if not has_materials(requirements):
 		return false
 	for mat_id in requirements.keys():
@@ -125,8 +141,13 @@ func get_stacks(material_id: StringName = &"") -> Array[Dictionary]:
 
 ## Consome `amount` de uma pilha específica (a forja escolhe a pilha).
 func consume_stack(stack: Dictionary, amount: int = 1) -> bool:
+	if _routed():
+		return ledger.run(&"consume_stack", {"stack": stack_key(stack), "n": amount}, func(): return _consume_stack(stack, amount))
+	return _consume_stack(stack, amount)
+
+func _consume_stack(stack: Dictionary, amount: int) -> bool:
 	var target := _resolve_stack(stack)
-	if target.is_empty() or target.amount < amount:
+	if target.is_empty() or amount <= 0 or target.amount < amount:
 		return false
 	target.amount -= amount
 	_drop_empty()
@@ -136,6 +157,9 @@ func consume_stack(stack: Dictionary, amount: int = 1) -> bool:
 ## Remove `amount` (ou tudo se `amount <= 0`) de uma pilha para jogar no chão.
 ## Devolve o dicionário da pilha descartada ({id, quality, traits, amount}) ou {} se falhar.
 func drop_stack(stack: Dictionary, amount: int = -1) -> Dictionary:
+	# Soltar no chão fica desligado no online até o mundo ser replicado (B41, decisão 1)
+	if _routed():
+		return {}
 	var target := _resolve_stack(stack)
 	if target.is_empty() or int(target.amount) <= 0:
 		return {}
@@ -158,6 +182,11 @@ func drop_stack(stack: Dictionary, amount: int = -1) -> Dictionary:
 
 ## Troca a posição de duas pilhas no array do inventário (usado no arrastar e soltar manual)
 func swap_stacks(stack_a: Dictionary, stack_b: Dictionary) -> bool:
+	if _routed():
+		return ledger.run(&"swap_stacks", {"a": stack_key(stack_a), "b": stack_key(stack_b)}, func(): return _swap_stacks(stack_a, stack_b))
+	return _swap_stacks(stack_a, stack_b)
+
+func _swap_stacks(stack_a: Dictionary, stack_b: Dictionary) -> bool:
 	var a := _resolve_stack(stack_a)
 	var b := _resolve_stack(stack_b)
 	if a.is_empty() or b.is_empty() or a == b:
@@ -178,12 +207,27 @@ func _resolve_stack(stack: Dictionary) -> Dictionary:
 		return stack
 	var want_id := StringName(stack.get("id", &""))
 	var want_q: int = int(stack.get("quality", 1))
-	var want_traits: Array = stack.get("traits", [])
+	var want_traits := _traits_text(stack.get("traits", []))
 	var want_memory: Dictionary = stack.get("memory", {})
 	for s in stacks:
-		if s.id == want_id and int(s.quality) == want_q and s.traits == want_traits and s.get("memory", {}) == want_memory:
+		if s.id == want_id and int(s.quality) == want_q and _traits_text(s.traits) == want_traits and s.get("memory", {}) == want_memory:
 			return s
 	return {}
+
+## Traits como texto ordenado (a chave que vem da rede chega como String, a pilha guarda StringName)
+static func _traits_text(traits: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	for t in traits:
+		out.append(String(t))
+	out.sort()
+	return out
+
+## Chave de uma pilha para mandar pela rede (sem a quantidade): id, qualidade, traits e memória
+static func stack_key(stack: Dictionary) -> Dictionary:
+	var key := {"id": String(stack.get("id", "")), "quality": int(stack.get("quality", 1)), "traits": Array(_traits_text(stack.get("traits", [])))}
+	if stack.has("memory"):
+		key["memory"] = stack.memory
+	return key
 
 ## Usa uma unidade de um consumível da pilha dada: gasta e repõe Vida/Vigor/Éter nos pools.
 ## Recusa se o item não é consumível ou se não repõe nada (tudo cheio), para não desperdiçar.
@@ -311,6 +355,12 @@ const RECIPES: Dictionary = {
 
 ## Faz 1 unidade da receita (gasta a pior qualidade primeiro). false se faltar material.
 func craft(result_id: StringName) -> bool:
+	# Troca (gasta e ganha): o servidor refaz a receita no livro dele
+	if _routed():
+		return ledger.run(&"craft", {"recipe": String(result_id)}, func(): return _craft(result_id))
+	return _craft(result_id)
+
+func _craft(result_id: StringName) -> bool:
 	var recipe: Dictionary = RECIPES.get(result_id, {})
 	if recipe.is_empty() or not consume_materials(recipe):
 		return false
@@ -341,6 +391,14 @@ func add_item(item: ForgedItem) -> void:
 ## Equipa no encaixe da peça (troca a que estava). A peça precisa estar em `items`.
 ## Arma de duas mãos tira a secundária; secundária tira a arma de duas mãos (GDD-12 §3).
 func equip(item: ForgedItem) -> void:
+	if _routed():
+		ledger.run(&"equip", {"index": items.find(item)}, func():
+			_equip(item)
+			return items.has(item))
+		return
+	_equip(item)
+
+func _equip(item: ForgedItem) -> void:
 	if not items.has(item):
 		return
 	if item.slot == ForgedItem.Slot.MAIN_HAND and item.is_two_handed() and equipped_items.has(ForgedItem.Slot.OFF_HAND):
@@ -370,11 +428,28 @@ func carry_ratio() -> float:
 	return get_total_weight() / maxf(carry_capacity(), 1.0)
 
 func unequip(slot: int) -> void:
+	if _routed():
+		ledger.run(&"unequip", {"slot": slot}, func():
+			_unequip(slot)
+			return true)
+		return
+	_unequip(slot)
+
+func _unequip(slot: int) -> void:
 	equipped_items.erase(slot)
 	_refresh_slot(slot)
 
 ## Tira uma peça da mochila (desmanche); desequipa se estiver em uso
 func remove_item(item: ForgedItem) -> void:
+	if _routed():
+		ledger.run(&"remove_item", {"index": items.find(item)}, func():
+			var had := items.has(item)
+			_remove_item(item)
+			return had)
+		return
+	_remove_item(item)
+
+func _remove_item(item: ForgedItem) -> void:
 	if equipped_items.get(item.slot) == item:
 		unequip(item.slot)
 	items.erase(item)
@@ -382,6 +457,9 @@ func remove_item(item: ForgedItem) -> void:
 
 ## Joga uma peça forjada no chão (desequipa se estiver equipada e emite sinal)
 func drop_forged_item(item: ForgedItem) -> bool:
+	# Desligado no online até o mundo ser replicado (B41, decisão 1)
+	if _routed():
+		return false
 	if item == null or not items.has(item):
 		return false
 	remove_item(item)
@@ -412,6 +490,16 @@ func _refresh_slot(slot: int) -> void:
 
 ## Desgaste: golpe recebido (−1) ou queda (−10% do máximo, GDD-06 §4)
 func wear_equipped(amount: float, fraction_of_max: float = 0.0) -> void:
+	if _routed():
+		ledger.run(&"wear", {"amount": amount, "fraction": fraction_of_max}, func():
+			_wear_equipped(amount, fraction_of_max)
+			return true)
+		return
+	_wear_equipped(amount, fraction_of_max)
+
+func _wear_equipped(amount: float, fraction_of_max: float) -> void:
+	amount = maxf(amount, 0.0)
+	fraction_of_max = clampf(fraction_of_max, 0.0, 1.0)
 	for slot in equipped_items:
 		var item: ForgedItem = equipped_items[slot]
 		var was_broken := item.is_broken()

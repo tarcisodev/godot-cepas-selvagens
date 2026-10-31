@@ -4,6 +4,7 @@ extends Control
 const _Player = preload("res://scripts/player.gd")
 const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
 const _CookingSystem = preload("res://scripts/systems/cooking_system.gd")
+const _LedgerExchanges = preload("res://scripts/net/ledger_exchanges.gd")
 const _MaterialData = preload("res://scripts/data/material_data.gd")
 
 ## Tela Interativa do Caldeirão Culinário (GDD-13 §4).
@@ -476,7 +477,8 @@ func _on_cook_pressed() -> void:
 	if player == null or player.inventory == null:
 		return
 
-	var res := _CookingSystem.cook(player.inventory, selected_base_stack, selected_side_stacks)
+	# No online o servidor refaz o prato no livro dele (B41)
+	var res := _LedgerExchanges.cook(player, selected_base_stack, selected_side_stacks)
 	if res.get("success", false):
 		_feedback_label.text = "🎉 %s (%d★) cozinhado com sucesso!" % [res.recipe_name, res.quality]
 		selected_base_stack.clear()

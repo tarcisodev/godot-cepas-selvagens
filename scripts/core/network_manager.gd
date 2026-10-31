@@ -34,6 +34,8 @@ const SYNC_INTERVAL: float = 0.05 # 20 Hz
 const MAX_TRANSFORMS_PER_SECOND: int = 30
 const MAX_REQUESTS_PER_WINDOW: int = 20
 const REQUEST_WINDOW_MSEC: int = 10000
+## Pedidos do livro (gastar, usar, equipar, desgaste em combate) são mais frequentes que os de conta
+const MAX_LEDGER_PER_WINDOW: int = 80
 const ABUSE_KICK_FACTOR: int = 5
 ## Tamanho máximo do DNA e de outros dicionários vindos do cliente (bytes serializados)
 const MAX_DNA_BYTES: int = 4096
@@ -434,7 +436,7 @@ func _send_world_profiles_to(target_peer: int) -> void:
 ## Teto de mensagens por peer e tipo; quem passa de 5× o teto na mesma janela é desconectado
 func _allow_message(peer_id: int, kind: StringName) -> bool:
 	var is_transform := kind == &"transform"
-	var limit: int = MAX_TRANSFORMS_PER_SECOND if is_transform else MAX_REQUESTS_PER_WINDOW
+	var limit: int = MAX_TRANSFORMS_PER_SECOND if is_transform else (MAX_LEDGER_PER_WINDOW if kind == &"ledger" else MAX_REQUESTS_PER_WINDOW)
 	var window_ms: int = 1000 if is_transform else REQUEST_WINDOW_MSEC
 	var now := Time.get_ticks_msec()
 	var key := "%d:%s" % [peer_id, kind]
@@ -684,7 +686,7 @@ func send_enter_world_request(character_name: String) -> void:
 	# Novo mundo, nova contagem de versões do livro
 	var ledger := _ledger()
 	if ledger:
-		ledger.client_version = -1
+		ledger.reset_client()
 	_pending_ledger = {}
 	rpc_id(1, "rpc_request_enter_world", character_name)
 
@@ -846,6 +848,23 @@ func push_ledger(peer_id: int, snap: Dictionary) -> void:
 	var mp := _get_mp()
 	if is_server_authoritative() and mp != null and mp.has_multiplayer_peer() and peer_id in mp.get_peers():
 		rpc_id(peer_id, "rpc_receive_ledger", snap)
+
+## Cliente -> servidor: pedido do livro (gasto ou troca) já previsto localmente
+func send_ledger_request(seq: int, verb: StringName, args: Dictionary) -> void:
+	var mp := _get_mp()
+	if mp != null and mp.has_multiplayer_peer() and not is_server_authoritative():
+		rpc_id(1, "rpc_ledger_request", seq, verb, args)
+
+@rpc("any_peer", "call_remote", "reliable")
+func rpc_ledger_request(seq: int, verb: StringName, args: Dictionary) -> void:
+	if not is_server_authoritative():
+		return
+	var sender_id := multiplayer.get_remote_sender_id()
+	var ledger := _ledger()
+	if ledger == null or not players_info.has(sender_id):
+		return
+	var allowed := _allow_message(sender_id, &"ledger") and payload_fits(args, MAX_PAYLOAD_BYTES)
+	ledger.handle_request(sender_id, seq, verb, args, allowed)
 
 ## Retrato que chegou antes do Player existir (troca de cena ao entrar no mundo)
 var _pending_ledger: Dictionary = {}

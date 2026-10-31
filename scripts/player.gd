@@ -283,6 +283,12 @@ func _setup_components() -> void:
 			wallet = WalletComponent.new()
 			wallet.name = "WalletComponent"
 			add_child(wallet)
+	# Livro-razão (ADR-0009): no cliente online, gastos do jogador local viram pedidos ao servidor
+	var ledger := get_node_or_null("/root/LedgerService")
+	if ledger and inventory:
+		inventory.ledger = ledger
+	if ledger and wallet:
+		wallet.ledger = ledger
 	if card_collection == null:
 		card_collection = get_node_or_null("CardCollectionComponent") as CardCollectionComponent
 		if card_collection == null:

@@ -92,6 +92,15 @@ func _run() -> void:
 		assert(srv_ledger.wallet_of(id_a).money == ServerPersistenceClass.STARTER_MONEY, "Servidor abre o livro de A")
 	print("     ✓ Livro aberto no servidor e retrato entregue ao dono")
 
+	# Pedido do livro pela rede: um válido e um forjado (quantidade negativa)
+	if srv_ledger:
+		_a.send_ledger_request(1, &"consume_materials", {"req": {"pocao": 1}})
+		assert(await _wait(func(): return srv_ledger.inventory_of(id_a).get_material_count(&"pocao") == 1), "Servidor gasta a poção pedida por A")
+		_a.send_ledger_request(2, &"consume_materials", {"req": {"pocao": -50}})
+		assert(await _wait(func(): return int(_a._pending_ledger.get("ack", 0)) == 2), "A recebe o ack do pedido recusado")
+		assert(srv_ledger.inventory_of(id_a).get_material_count(&"pocao") == 1, "Pedido com quantidade negativa não cria poção")
+		print("     ✓ Pedido do livro pela rede: válido aplicado, forjado recusado")
+
 	# 2. Posição: A manda ao servidor, que repassa para B com o peer de A
 	_a.rpc_id(1, "rpc_submit_transform", Vector3(12, 1, -7), 0.25, &"Walk")
 	assert(await _wait(func(): return _b.remote_avatars.has(id_a) and (_b.remote_avatars[id_a] as Node3D).get_meta("target_pos", Vector3.ZERO) == Vector3(12, 1, -7)), "B deve ver A na posição enviada")

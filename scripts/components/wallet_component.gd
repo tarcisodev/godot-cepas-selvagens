@@ -20,8 +20,17 @@ func add(amount: int) -> void:
 func can_afford(amount: int) -> bool:
 	return amount >= 0 and money >= amount
 
+## Livro-razão (ADR-0009): só a carteira do jogador local tem. No cliente online o gasto roda aqui
+## como previsão e vai ao servidor como pedido. `add` não passa por aqui: ganho vem de verbo com fonte.
+var ledger: Node = null
+
 ## Gasta se houver saldo; devolve false sem mexer no saldo se não houver
 func spend(amount: int) -> bool:
+	if ledger != null and ledger.should_route():
+		return ledger.run(&"spend", {"amount": amount}, func(): return _spend(amount))
+	return _spend(amount)
+
+func _spend(amount: int) -> bool:
 	if not can_afford(amount):
 		return false
 	money -= amount
