@@ -1,5 +1,6 @@
 class_name ClaimTotem
 extends StaticBody3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Totem de Território (Estaca de Reivindicação do Rancho / Guilda)
 ## Demarca uma área circular de posse onde o jogador constrói livremente.
@@ -233,6 +234,10 @@ func _refresh_visuals() -> void:
 
 ## Deposita moedas no cofre de manutenção (do próprio jogador ou direto).
 func deposit_maintenance(amount: int, player: Node = null) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"totem_deposit", name, func(): return _deposit_maintenance_body(amount, player))
+
+func _deposit_maintenance_body(amount: int, player: Node = null) -> bool:
 	if amount <= 0:
 		return false
 	if player != null:
@@ -250,6 +255,10 @@ func deposit_maintenance(amount: int, player: Node = null) -> bool:
 
 ## Retira moedas do cofre (apenas o dono).
 func withdraw_maintenance(amount: int, player: Node = null) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"totem_withdraw", name, func(): return _withdraw_maintenance_body(amount, player))
+
+func _withdraw_maintenance_body(amount: int, player: Node = null) -> bool:
 	if player != null:
 		var me := _BuildingSystem.owner_name_of(player)
 		if me != owner_name:

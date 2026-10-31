@@ -1,5 +1,6 @@
 class_name SupplyChest
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Baú de suprimentos do acampamento (teste de combate): [E] completa a mochila com o kit
 ## de consumíveis — ervas e poções (Vida), carnes (Vigor) e cannabis (Éter).
@@ -54,11 +55,13 @@ func talk_to(player: Node) -> void:
 ## Completa o inventário até o kit; devolve "Nome ×n" do que entrou.
 func refill(inv: InventoryComponent) -> Array[String]:
 	var given: Array[String] = []
-	for id in kit.keys():
-		var missing: int = int(kit[id]) - inv.get_material_count(id)
-		if missing > 0:
-			inv.add_material(id, missing)
-			given.append("%s ×%d" % [MaterialData.of(id).display_name, missing])
+	_LedgerSources.gain(&"supply", name, func():
+		for id in kit.keys():
+			var missing: int = int(kit[id]) - inv.get_material_count(id)
+			if missing > 0:
+				inv.add_material(id, missing)
+				given.append("%s ×%d" % [MaterialData.of(id).display_name, missing])
+	, global_position if is_inside_tree() else position)
 	return given
 
 func _open_lid() -> void:

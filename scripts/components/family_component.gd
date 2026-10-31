@@ -1,5 +1,6 @@
 class_name FamilyComponent
 extends Node
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Sistema de Família, Casamento e Ciclo de Vida do Jogador (GDD-14).
 ## Gerencia laço matrimonial, anel de votos (buff Laço de Votos),
@@ -58,7 +59,7 @@ func marry(p_spouse_name: String, p_spouse_dna: _CharacterDNA = null, p_spouse_i
 	spouse_dna = p_spouse_dna
 	spouse_id = p_spouse_id
 	if _inv and _inv.get_material_count(&"alianca_votos") == 0:
-		_inv.add_material(&"alianca_votos", 1, 3, [&"laco_de_votos"])
+		_LedgerSources.gain(&"marriage", spouse_name, func(): _inv.add_material(&"alianca_votos", 1, 3, [&"laco_de_votos"]))
 	married.emit(spouse_name)
 	return true
 

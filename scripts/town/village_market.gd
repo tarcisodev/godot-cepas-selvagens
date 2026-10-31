@@ -1,5 +1,6 @@
 class_name VillageMarket
 extends RefCounted
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Mercado da Vila (GDD-05 §2 e §6): encomendas (ordens de compra) e ordens de venda.
 ## No slice a caravana mercante atende as ordens às 8h e às 17h; no online, os jogadores.
@@ -44,6 +45,10 @@ static func after_tax(gross: int) -> int:
 
 ## Encomenda: trava qty × preço + taxa de listagem. Devolve "" ou o motivo.
 func place_buy(wallet: WalletComponent, id: StringName, qty: int, price: int) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"market_place", String(id), func(): return _place_buy_body(wallet, id, qty, price))
+
+func _place_buy_body(wallet: WalletComponent, id: StringName, qty: int, price: int) -> String:
 	var err := _check(id, qty, price)
 	if err != "":
 		return err
@@ -56,6 +61,10 @@ func place_buy(wallet: WalletComponent, id: StringName, qty: int, price: int) ->
 
 ## Ordem de venda: tira os itens do inventário (pior ★ primeiro) e cobra a taxa de listagem.
 func place_sell(inv: InventoryComponent, wallet: WalletComponent, id: StringName, qty: int, price: int) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"market_place", String(id), func(): return _place_sell_body(inv, wallet, id, qty, price))
+
+func _place_sell_body(inv: InventoryComponent, wallet: WalletComponent, id: StringName, qty: int, price: int) -> String:
 	var err := _check(id, qty, price)
 	if err != "":
 		return err
@@ -94,6 +103,10 @@ func cancel(index: int) -> bool:
 
 ## Retira tudo o que está a receber para a carteira e o inventário. Devolve quantas coisas vieram.
 func collect(inv: InventoryComponent, wallet: WalletComponent) -> int:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"market_collect", "", func(): return _collect_body(inv, wallet))
+
+func _collect_body(inv: InventoryComponent, wallet: WalletComponent) -> int:
 	var n := 0
 	if pending_money > 0 and wallet:
 		EventBusAutoload.report(wallet.get_parent(), &"venda", {"money": pending_money, "where": "mercado"})

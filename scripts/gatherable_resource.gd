@@ -240,6 +240,7 @@ const VEIN_LOOK: Dictionary = {
 
 # Assets existentes
 const _WorldLabel = preload("res://scripts/ui/world_label.gd")
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 const PEBBLE_SCENE = preload("res://assets/models/nature/Pebble_Round_1.gltf")
 const PLANT_SCENE = preload("res://assets/models/nature/Plant_1.gltf")
 const FERN_SCENE = preload("res://assets/models/nature/Fern_1.gltf")
@@ -272,6 +273,8 @@ var respawn_time: float = 25.0
 ## Batidas que o nó aguenta antes de sumir (veios de minério); 1 = some na primeira coleta
 var max_hits: int = 1
 var hits_left: int = 1
+## Nasceu pela semente do GatherableSpawner (o servidor confere a posição na lista dele)
+var seeded: bool = false
 
 var is_collected: bool = false
 var _respawn_timer: float = 0.0
@@ -490,7 +493,8 @@ func harvest_next(harvester: Node = null) -> String:
 		if inv == null and "inventory" in harvester:
 			inv = harvester.inventory
 		if inv != null:
-			inv.add_material(material_id, amount, quality)
+			var at := global_position if is_inside_tree() else position
+			_LedgerSources.gain(&"gather" if seeded else &"gather_wild", _LedgerSources.spot_key(at), func(): inv.add_material(material_id, amount, quality), at)
 		EventBusAutoload.report(harvester, &"coleta", {"material": String(material_id), "amount": amount, "quality": quality})
 
 		if mst != null:

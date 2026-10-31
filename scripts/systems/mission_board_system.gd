@@ -1,5 +1,6 @@
 class_name MissionBoardSystem
 extends Resource
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Sistema Central de Contratos Dinâmicos e Quadro de Missões da Vila (GDD-05 §5, GDD-03, GDD-04, GDD-13).
 ## Gerencia 4 categorias ricas de contratos:
@@ -261,6 +262,10 @@ func can_deliver(contract: Dictionary, player: Node) -> bool:
 
 ## Entrega e cumpre o contrato, pagando dinheiro, reputação e maestria
 func deliver_contract(contract: Dictionary, player: Node, city_node: Node = null) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"mission", str(contract.get("id", "")), func(): return _deliver_contract_body(contract, player, city_node))
+
+func _deliver_contract_body(contract: Dictionary, player: Node, city_node: Node = null) -> bool:
 	if not can_deliver(contract, player):
 		return false
 

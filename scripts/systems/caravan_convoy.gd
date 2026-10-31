@@ -1,5 +1,6 @@
 class_name CaravanConvoy
 extends CharacterBody3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Comboio de Caravana Itinerante & Escolta Armada (GDD-05 §2, §5; GDD-11).
 ## Caravana de mercadores que viaja fisicamente entre assentamentos pelas estradas do vale.
@@ -140,6 +141,10 @@ func take_damage(amount: float) -> void:
 		convoy_status_changed.emit(status)
 
 func _reach_destination() -> void:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	_LedgerSources.gain(&"caravan", name, func(): _reach_destination_body())
+
+func _reach_destination_body() -> void:
 	status = ConvoyStatus.ARRIVED
 	velocity = Vector3.ZERO
 	_update_label()

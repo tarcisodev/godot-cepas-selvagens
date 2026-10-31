@@ -17,6 +17,16 @@ const PASSWORD_ITERATIONS: int = 10000
 const PASSWORD_MIN_LENGTH: int = 6
 const PASSWORD_MAX_LENGTH: int = 128
 const MAX_CHARACTERS_PER_ACCOUNT: int = 3
+## Kit do explorador (B41): o servidor entrega na criação do personagem; o cliente não dá mais nada.
+## 50 $S da carteira nova + 150 do kit; as 2 placas de carapaça são as que todo inventário novo traz.
+const STARTER_MONEY: int = 200
+const STARTER_MATERIALS: Array = [
+	{"id": "placa_carapaca", "quality": 1, "traits": [], "amount": 2},
+	{"id": "tocha", "quality": 1, "traits": [], "amount": 1},
+	{"id": "vara_pesca", "quality": 1, "traits": [], "amount": 1},
+	{"id": "laco_fibra", "quality": 1, "traits": [], "amount": 2},
+	{"id": "pocao", "quality": 1, "traits": [], "amount": 2},
+]
 const _GuildSystem = preload("res://scripts/systems/guild_system.gd")
 
 signal player_saved(player_name: String)
@@ -141,10 +151,11 @@ static func serialize_player(player: Node) -> Dictionary:
 	if "play_time" in player:
 		dict["play_time"] = float(player.get("play_time"))
 
-	# Inventário
+	# Inventário (mesmas chaves do save local e do livro do servidor: materials e gear)
 	var inv = player.get("inventory")
-	if inv and inv.has_method("serialize"):
-		dict["inventory"] = inv.serialize()
+	if inv and inv.has_method("stacks_to_save"):
+		dict["materials"] = inv.stacks_to_save()
+		dict["gear"] = inv.items_to_save()
 
 	# Diário do Caçador (GDD-19): o servidor é quem escreve
 	var diary = player.get_node_or_null("DiaryComponent")
@@ -184,10 +195,11 @@ static func apply_player_data(player: Node, data: Dictionary) -> void:
 	if data.has("play_time") and "play_time" in player:
 		player.set("play_time", float(data["play_time"]))
 
-	if data.has("inventory"):
-		var inv = player.get("inventory")
-		if inv and inv.has_method("deserialize"):
-			inv.deserialize(data["inventory"])
+	var inv = player.get("inventory")
+	if inv and data.get("materials") is Array:
+		inv.load_from_save(data["materials"])
+	if inv and data.get("gear") is Dictionary:
+		inv.load_items(data["gear"])
 
 	if data.has("diary"):
 		var diary = player.get_node_or_null("DiaryComponent")
@@ -380,7 +392,8 @@ func create_character_for_account(username: String, char_name: String, dna_dict:
 		"position": [0.0, 1.0, 0.0],
 		"rotation_y": 0.0,
 		"health": 100.0,
-		"money": 50,
+		"money": STARTER_MONEY,
+		"materials": STARTER_MATERIALS.duplicate(true),
 		"play_time": 0.0,
 		"dna": dna_dict
 	}

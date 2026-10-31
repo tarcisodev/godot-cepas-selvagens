@@ -1,5 +1,6 @@
 class_name WorldSettlements
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Estrutura Geográfica do Vale: Cidades, Povoados, Estradas, Placas de Direção e Marcos de Viagem.
 ## Expande o mundo de 360x360m além da Vila da Esperança com 3 novos assentamentos vivos:
@@ -384,8 +385,10 @@ func _build_porto_bruma() -> void:
 		var inv: InventoryComponent = player.get("inventory")
 		if inv and not _gifted_players.has("porto_bruma"):
 			_gifted_players["porto_bruma"] = true
-			inv.add_material(&"vara_pesca", 1)
-			inv.add_material(&"carne_bem_passada", 3)
+			_LedgerSources.gain(&"npc_gift", "porto_bruma", func():
+				inv.add_material(&"vara_pesca", 1)
+				inv.add_material(&"carne_bem_passada", 3)
+			)
 			if player.has_signal("posture_changed"):
 				player.posture_changed.emit("🎣 Cauã: 'Bem-vindo a Porto Bruma! Tome 3 Peixes Assados e uma Vara nova. Use na beira d'água!'")
 		elif player.has_signal("posture_changed"):
@@ -464,8 +467,10 @@ func _build_vigia_do_norte() -> void:
 		var inv: InventoryComponent = player.get("inventory")
 		if inv and not _gifted_players.has("vigia_norte"):
 			_gifted_players["vigia_norte"] = true
-			inv.add_material(&"laco_captura", 2)
-			inv.add_material(&"sedativo_erva", 2)
+			_LedgerSources.gain(&"npc_gift", "vigia_norte", func():
+				inv.add_material(&"laco_captura", 2)
+				inv.add_material(&"sedativo_erva", 2)
+			)
 			if player.has_signal("posture_changed"):
 				player.posture_changed.emit("🦅 Iara: 'Subiu a Serra! Tome 2 Laços e 2 Sedativos: enfraqueça ou sedative um bicho, lance o Laço e monte com [E]!'")
 		elif player.has_signal("posture_changed"):
@@ -551,7 +556,7 @@ func _build_santuario_astral() -> void:
 		var inv: InventoryComponent = player.get("inventory")
 		if inv and not _gifted_players.has("santuario_astral"):
 			_gifted_players["santuario_astral"] = true
-			inv.add_material(&"mega_pocao", 2)
+			_LedgerSources.gain(&"npc_gift", "santuario_astral", func(): inv.add_material(&"mega_pocao", 2))
 			if player.has_signal("posture_changed"):
 				player.posture_changed.emit("🪐 Celiano: 'Olhe para cima! O Gigante Anelado guarda segredos antigos. Receba 2 Mega Poções para sua jornada!'")
 		elif player.has_signal("posture_changed"):

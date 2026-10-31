@@ -5,6 +5,7 @@ const _Player = preload("res://scripts/player.gd")
 const _InventoryComponent = preload("res://scripts/components/inventory_component.gd")
 const _FoodBuffComponent = preload("res://scripts/components/food_buff_component.gd")
 const _MaterialData = preload("res://scripts/data/material_data.gd")
+const _LedgerExchanges = preload("res://scripts/net/ledger_exchanges.gd")
 
 ## Minigame do Espeto na Fogueira (GDD-13 §2).
 ## Estilo Monster Hunter: gira a carne no espeto sobre o fogo.
@@ -286,9 +287,6 @@ func pull_spit() -> Dictionary:
 	var base_q: int = int(current_meat_stack.get("quality", 1))
 	var base_traits: Array = current_meat_stack.get("traits", []).duplicate()
 
-	# Consome a carne crua do inventário
-	inv.consume_stack(current_meat_stack, 1)
-
 	var result_id: StringName = &"carne_mal_passada"
 	var out_q: int = base_q
 	var message: String = ""
@@ -317,7 +315,9 @@ func pull_spit() -> Dictionary:
 		_spit_display.text = "🪨"
 		_status_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.3))
 
-	inv.add_material(result_id, 1, out_q, base_traits)
+	# Troca a carne crua pelo resultado do ponto (no online o servidor confere e limita a qualidade, B41)
+	if not _LedgerExchanges.roast(inv, current_meat_stack, result_id, out_q):
+		return {}
 	EventBusAutoload.report(player, &"cozinha", {"result": String(result_id), "quality": out_q, "burned": result_id == &"carne_torrada"})
 	_status_label.text = message
 	_action_button.text = "Assar mais uma [Espaço]"

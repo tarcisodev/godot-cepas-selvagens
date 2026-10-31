@@ -246,6 +246,8 @@ func _build_pix_tab() -> void:
 			_status_label.text = "🎉 +200 $S adicionados à sua bolsa para testar os cosméticos!"
 			_refresh_ui()
 	)
+	# Dinheiro de teste não existe no online: o servidor não entrega $S sem fonte (B41)
+	test_stipend_btn.visible = not _online()
 	box.add_child(test_stipend_btn)
 
 	for pack in CosmeticsCatalog.PIX_PACKS:
@@ -295,6 +297,7 @@ func _build_pix_tab() -> void:
 			_status_label.text = "💎 Pacote Apoiador simulado! Cosméticos estelares liberados + %d $S!" % int(pack.bonus_gold)
 			_refresh_ui()
 		)
+		sim_btn.visible = not _online()
 		row.add_child(sim_btn)
 
 func _build_3d_preview() -> Control:
@@ -420,3 +423,7 @@ func _refresh_ui() -> void:
 		_wallet_label.text = "💰 Bolsa: %s" % WalletComponent.format(player.wallet.money)
 	for fn in _item_buttons:
 		fn.call()
+
+## Cliente online: a carteira é do servidor (B41), então os atalhos de teste somem
+func _online() -> bool:
+	return player != null and player.wallet != null and player.wallet.ledger != null and player.wallet.ledger.should_route()

@@ -6,6 +6,7 @@ const _ForgedItem = preload("res://scripts/data/forged_item.gd")
 const _CharacterVisual = preload("res://scripts/components/character_visual.gd")
 const _GearVisual = preload("res://scripts/components/gear_visual.gd")
 const _Forge = preload("res://scripts/systems/forge.gd")
+const _LedgerExchanges = preload("res://scripts/net/ledger_exchanges.gd")
 
 ## Tela da bigorna (GDD-06 §6): filtra receitas e peças por encaixe e derivação (família), escolhe
 ## a receita, a derivação e a pilha de cada slot (núcleo, revestimento, tempero), mostra a prévia
@@ -294,7 +295,7 @@ func refresh() -> void:
 			var sb := _button("🔥  Fundir %s\n%d %s + %d %s" % [MaterialData.of(out_id).display_name, rec.ore_n, MaterialData.of(rec.ore).display_name, rec.fuel_n, MaterialData.of(rec.fuel).display_name], false)
 			sb.custom_minimum_size = Vector2(240, 44)
 			sb.pressed.connect(func():
-				var err := Forge.smelt(player.inventory, out_id)
+				var err := _LedgerExchanges.smelt(player, out_id)
 				if err.is_empty():
 					player.mastery.add_xp(&"forja", 6.0)
 					_status.text = "🔥 Fundiu 1 %s" % MaterialData.of(out_id).display_name
@@ -468,11 +469,11 @@ func _build_preview() -> void:
 	_preview.add_child(forge_btn)
 
 func _do_forge() -> void:
-	var item := Forge.forge(player.inventory, _recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge, _rng, _temper_ok(), _crit_bonus())
+	# Forja e guarda a peça (no online o servidor refaz a forja no livro dele, B41)
+	var item := _LedgerExchanges.forge(player, _recipe, _chosen(0), _chosen(1), _chosen(2), _forge_level(), public_forge, _rng, _temper_ok(), _crit_bonus())
 	if item == null:
 		_status.text = "Não deu para forjar"
 		return
-	player.inventory.add_item(item)
 	EventBusAutoload.report(player, &"forja", {"item": item.display_name, "family": String(item.family), "quality": item.quality})
 	player.mastery.add_xp(&"forja", 20.0 + item.quality * 8.0)
 	_status.text = "✨ Forjou %s %s" % [item.display_name, "★".repeat(item.quality)]
@@ -508,7 +509,7 @@ func _build_items() -> void:
 		var rep := _button("Reparar (5 $S)", false)
 		rep.disabled = item.durability >= item.max_durability - 0.01
 		rep.pressed.connect(func():
-			var err := Forge.repair(item, player.inventory, player.wallet)
+			var err := _LedgerExchanges.repair(player, item)
 			if err.is_empty():
 				if equipped:
 					player.inventory.equip(item) # reaplica os efeitos com a peça inteira
@@ -521,8 +522,7 @@ func _build_items() -> void:
 		sal.pressed.connect(func():
 			if _inspected_item == item:
 				_inspected_item = null
-			var back := Forge.salvage(item, player.inventory)
-			player.inventory.remove_item(item)
+			var back := _LedgerExchanges.salvage(player, item)
 			var parts: Array[String] = []
 			for id in back:
 				parts.append("%d %s" % [back[id], MaterialData.of(id).display_name])

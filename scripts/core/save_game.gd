@@ -49,7 +49,7 @@ func _process(delta: float) -> void:
 		dress_new_character(player)
 		if _show_new_game_welcome:
 			_show_new_game_welcome = false
-			_grant_starter_explorer_kit(player)
+			_open_explorer_guide(player)
 		save_game()
 	# Personagem de conta (host ou cliente): aplica o estado do servidor e marca o nome
 	# para o autosave do ServerPersistence achar o player
@@ -79,6 +79,10 @@ func enter_online_world(p_name: String, server_data: Dictionary, new_dna: Charac
 		var objectives := _objectives()
 		if objectives:
 			objectives.reset()
+		# Personagem novo nasce no ponto de partida: do servidor vêm só o kit e o dinheiro (B41)
+		for key in ["money", "materials"]:
+			if server_data.has(key):
+				_pending_server_data[key] = server_data[key]
 	else:
 		var dna_dict = server_data.get("dna", {})
 		if dna_dict is Dictionary and not dna_dict.is_empty():
@@ -88,16 +92,8 @@ func enter_online_world(p_name: String, server_data: Dictionary, new_dna: Charac
 	get_tree().paused = false
 	get_tree().change_scene_to_file(WORLD_SCENE)
 
-func _grant_starter_explorer_kit(player: Node) -> void:
-	var wallet = player.get("wallet")
-	if wallet and wallet.has_method("add"):
-		wallet.add(150)
-	var inv = player.get("inventory")
-	if inv and inv.has_method("add_material"):
-		inv.add_material(&"tocha", 1)
-		inv.add_material(&"vara_pesca", 1)
-		inv.add_material(&"laco_fibra", 2)
-		inv.add_material(&"pocao", 2)
+## Personagem novo: abre o guia do explorador. O kit vem do servidor na criação (ServerPersistence.STARTER_*).
+func _open_explorer_guide(player: Node) -> void:
 	if player.is_inside_tree() and player.get_tree().current_scene:
 		var guide := player.get_tree().current_scene.find_child("ExplorerGuide", true, false)
 		if guide and guide.has_method("open_guide"):

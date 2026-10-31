@@ -1,5 +1,6 @@
 class_name WildChest
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Baú de Tesouro do Ermo (GDD-05 §3 e GDD-03 §8).
 ## Localizado em ruínas e zonas perigosas de caça.
@@ -175,16 +176,19 @@ func open_chest(player: Node) -> Dictionary:
 		gear.quality = 2
 	
 	if gear and inv:
-		inv.add_item(gear)
 		rewards["gear"] = gear
 
-	# 2. Dólares de Sucata
-	if wallet and reward_money > 0:
-		wallet.add(reward_money)
-
-	# 3. Materiais raros de caça
-	if inv:
-		inv.add_material(rewards.material, rewards.material_qty, reward_material_quality, [&"puro"])
+	# No cliente online os três vão juntos ao servidor como uma fonte só (baú de uso único)
+	_LedgerSources.gain(&"chest", String(chest_id) if not String(chest_id).is_empty() else _LedgerSources.spot_key(global_position if is_inside_tree() else position), func():
+		if gear and inv:
+			inv.add_item(gear)
+		# 2. Dólares de Sucata
+		if wallet and reward_money > 0:
+			wallet.add(reward_money)
+		# 3. Materiais raros de caça
+		if inv:
+			inv.add_material(rewards.material, rewards.material_qty, reward_material_quality, [&"puro"])
+	, global_position if is_inside_tree() else position)
 
 	# 4. Carta Colecionável 3D (GDD-07)
 	if card_col and not guaranteed_card_id.is_empty():

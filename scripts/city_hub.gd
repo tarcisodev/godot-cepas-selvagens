@@ -1,5 +1,6 @@
 class_name CityHub
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Vila da Esperança (GDD-08 §6.1, planta nova no B36): começa em obras e cresce com o material
 ## doado pelos jogadores. A planta (elipse, praça, ruas, lotes) mora em VillageLayout; aqui se monta
@@ -188,6 +189,10 @@ func donate(project: TownProject, player: Node, material_id: StringName, amount:
 
 ## Entrega o contrato `index`: gasta o material (pior ★ primeiro), paga em $S e abre outro pedido.
 func deliver_contract(index: int, player: Node) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"contract", str(index), func(): return _deliver_contract_body(index, player))
+
+func _deliver_contract_body(index: int, player: Node) -> bool:
 	if index < 0 or index >= contracts.size() or player == null:
 		return false
 	var c: Dictionary = contracts[index]
@@ -211,6 +216,10 @@ func shop_discount() -> float:
 
 ## Compra 1 item na loja da Alquimista
 func buy(item_id: StringName, player: Node) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"shop", String(item_id), func(): return _buy_body(item_id, player))
+
+func _buy_body(item_id: StringName, player: Node) -> bool:
 	var wallet: WalletComponent = player.get("wallet") if player else null
 	var inv: InventoryComponent = player.get("inventory") if player else null
 	if not SHOP_PRICES.has(item_id) or wallet == null or inv == null:

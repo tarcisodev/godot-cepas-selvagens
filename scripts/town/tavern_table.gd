@@ -1,5 +1,6 @@
 class_name TavernTable
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Mesa do Duelo de Cepas na porta da Taverna (GDD-07 §7). A Taverneira joga contra você
 ## quando a obra Taverna está pronta. Aposta 0/5/10/20 $S; a casa fica com 10% do pote.
@@ -65,6 +66,10 @@ func open_for(player: Node) -> void:
 
 ## Começa uma partida apostando `amount`. Devolve "" ou o motivo de não dar.
 func start_match(player: Player, amount: int, p_seed: int = -1) -> String:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"tavern_bet", str(amount), func(): return _start_match_body(player, amount, p_seed))
+
+func _start_match_body(player: Player, amount: int, p_seed: int = -1) -> String:
 	if not is_open():
 		return "A Taverna ainda está em obras"
 	if not BETS.has(amount):
@@ -81,6 +86,10 @@ func start_match(player: Player, amount: int, p_seed: int = -1) -> String:
 ## Paga o resultado: vitória leva 2× a aposta menos a casa e a próxima carta-prêmio; empate devolve.
 ## Devolve {"money": ganho, "card": CardData ou null}.
 func settle() -> Dictionary:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"tavern", "", func(): return _settle_body())
+
+func _settle_body() -> Dictionary:
 	var out := {"money": 0, "card": null}
 	if duel == null or not duel.is_over() or _player == null:
 		return out

@@ -1,5 +1,6 @@
 class_name BlackMarketSystem
 extends Node
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Sistema do Mercado Negro Clandestino (GDD-05 §3).
 ## Atua como o regulador sistêmico e ponte entre o artesanato dos jogadores e os baús de tesouro dos ermos:
@@ -146,6 +147,10 @@ func can_fulfill_order(order_id: String, player: Node) -> bool:
 
 ## Cumpre a ordem, consome os itens do jogador, paga em $S e abastece o Loot Orgânico
 func fulfill_order(order_id: String, player: Node) -> Dictionary:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"sale", order_id, func(): return _fulfill_order_body(order_id, player))
+
+func _fulfill_order_body(order_id: String, player: Node) -> Dictionary:
 	var res := { &"success": false, &"payout": 0, &"message": "" }
 	var order := get_order(order_id)
 	if order.is_empty():
@@ -202,6 +207,10 @@ func fulfill_order(order_id: String, player: Node) -> Dictionary:
 
 ## Venda Direta de Equipamento Forjado pelo jogador
 func sell_gear(player: Node, item: _ForgedItem) -> Dictionary:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"sale", "peca", func(): return _sell_gear_body(player, item))
+
+func _sell_gear_body(player: Node, item: _ForgedItem) -> Dictionary:
 	var res := { &"success": false, &"payout": 0, &"message": "" }
 	if player == null or item == null:
 		res.message = "Item ou jogador inválido."

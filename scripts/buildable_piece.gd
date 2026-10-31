@@ -1,5 +1,6 @@
 class_name BuildablePiece
 extends StaticBody3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 const _CookingStation = preload("res://scripts/town/cooking_station.gd")
 const _GuildTotem = preload("res://scripts/town/guild_totem.gd")
@@ -495,6 +496,10 @@ func _get_inventory(player: Node) -> _InventoryComponent:
 
 ## Decompõe matéria orgânica/ossos em Adubo de Monstro mineralizado
 func compost(player: Node, specific_mat: StringName = &"") -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"compost", name, func(): return _compost_body(player, specific_mat))
+
+func _compost_body(player: Node, specific_mat: StringName = &"") -> bool:
 	var inv := _get_inventory(player)
 	if inv == null:
 		return false
@@ -531,6 +536,10 @@ func _interact_fish_tank(player: Node) -> void:
 
 ## Processa peixes criados/depositados para extração de óleo purificado
 func process_fish(player: Node) -> bool:
+	# Cliente online: o que esta troca gasta e dá vai ao servidor como uma fonte só (B41 fase 3)
+	return _LedgerSources.gain(&"fish_tank", name, func(): return _process_fish_body(player))
+
+func _process_fish_body(player: Node) -> bool:
 	var inv := _get_inventory(player)
 	if inv == null:
 		return false

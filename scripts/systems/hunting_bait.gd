@@ -1,5 +1,6 @@
 class_name HuntingBait
 extends Node3D
+const _LedgerSources = preload("res://scripts/net/ledger_sources.gd")
 
 ## Isca Odorífera de Caça (GDD-03 §8).
 ## Espalha feromônios e aroma de ervas/vísceras em um raio de até 25 metros por 90 segundos.
@@ -143,7 +144,7 @@ func talk_to(player: Node) -> void:
 	
 	var inv: _InventoryComponent = _get_inventory(player)
 	if inv:
-		inv.add_material(&"isca_feromonio", 1, 3, [&"recolhido"])
+		_LedgerSources.gain(&"bait_pickup", name, func(): inv.add_material(&"isca_feromonio", 1, 3, [&"recolhido"]))
 
 	if player and player.has_signal("posture_changed"):
 		player.posture_changed.emit("🥩 Isca Odorífera recolhida.")
